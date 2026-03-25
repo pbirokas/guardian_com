@@ -2,8 +2,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/models/app_user.dart';
 import '../../../core/models/organization.dart';
 import '../../../features/auth/providers/auth_provider.dart';
+import '../../../features/chat/providers/chat_provider.dart';
 import '../providers/organizations_provider.dart';
 
 class OrganizationsScreen extends ConsumerWidget {
@@ -124,7 +126,7 @@ class OrganizationsScreen extends ConsumerWidget {
                   : null,
               child: user.photoURL == null
                   ? Text(
-                      (user.displayName ?? user.email ?? '?')[0].toUpperCase(),
+                      ((user.displayName?.isNotEmpty == true ? user.displayName : user.email?.isNotEmpty == true ? user.email : '?')!)[0].toUpperCase(),
                       style: const TextStyle(fontSize: 24),
                     )
                   : null,
@@ -185,6 +187,11 @@ class OrganizationsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final orgsAsync = ref.watch(myOrganizationsProvider);
     final user = FirebaseAuth.instance.currentUser;
+    final currentAppUser = ref.watch(currentAppUserProvider).valueOrNull;
+    // Kinder dürfen keine Organisationen erstellen
+    final isChildInAnyOrg = currentAppUser?.memberships
+            .any((m) => m.role == OrgRole.child) ??
+        false;
 
     return Scaffold(
       appBar: AppBar(
@@ -202,7 +209,11 @@ class OrganizationsScreen extends ConsumerWidget {
                       : null,
                   child: user.photoURL == null
                       ? Text(
-                          (user.displayName ?? user.email ?? '?')[0]
+                          ((user.displayName?.isNotEmpty == true
+                                  ? user.displayName!
+                                  : user.email?.isNotEmpty == true
+                                      ? user.email!
+                                      : '?')[0])
                               .toUpperCase(),
                         )
                       : null,
@@ -234,48 +245,168 @@ class OrganizationsScreen extends ConsumerWidget {
             separatorBuilder: (_, _) => const SizedBox(height: 8),
             itemBuilder: (context, i) {
               final org = orgs[i];
+              final currentUid = FirebaseAuth.instance.currentUser!.uid;
+              final isOrgAdmin = org.adminUid == currentUid;
+              final unreadCount = ref.watch(unreadOrgCountProvider(org.id));
               return Card(
+                color: org.isArchived ? Colors.grey[100] : null,
                 child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: org.tag.color.withAlpha(30),
-                    child: Icon(org.tag.icon, color: org.tag.color),
-                  ),
-                  title: Text(org.name),
-                  subtitle: Row(
+                  leading: Stack(
+                    clipBehavior: Clip.none,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: org.tag.color.withAlpha(30),
-                          borderRadius: BorderRadius.circular(12),
+                      CircleAvatar(
+                        backgroundColor: org.isArchived
+                            ? Colors.grey[300]
+                            : org.tag.color.withAlpha(30),
+                        child: Icon(
+                          org.isArchived ? Icons.archive_outlined : org.tag.icon,
+                          color: org.isArchived ? Colors.grey : org.tag.color,
                         ),
-                        child: Text(org.tag.label,
-                            style: TextStyle(
-                                fontSize: 11, color: org.tag.color)),
                       ),
-                      const SizedBox(width: 6),
-                      Icon(org.chatMode.icon,
-                          size: 13, color: Colors.grey[600]),
-                      const SizedBox(width: 3),
-                      Text(org.chatMode.label,
-                          style: TextStyle(
-                              fontSize: 11, color: Colors.grey[600])),
+                      if (unreadCount > 0)
+                        Positioned(
+                          top: -4,
+                          right: -4,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.primary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              '$unreadCount',
+                              style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.push('/org/${org.id}'),
+                  title: Text(org.name,
+                      style: org.isArchived
+                          ? TextStyle(color: Colors.grey[500])
+                          : null),
+                  subtitle: Row(
+                    children: [
+                      if (org.isArchived)
+                        Text('Archiviert',
+                            style: TextStyle(
+                                fontSize: 11, color: Colors.grey[500]))
+                      else ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: org.tag.color.withAlpha(30),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(org.tag.label,
+                              style: TextStyle(
+                                  fontSize: 11, color: org.tag.color)),
+                        ),
+                        const SizedBox(width: 6),
+                        Icon(org.chatMode.icon,
+                            size: 13, color: Colors.grey[600]),
+                        const SizedBox(width: 3),
+                        Text(org.chatMode.label,
+                            style:
+                                TextStyle(fontSize: 11, color: Colors.grey[600])),
+                      ],
+                    ],
+                  ),
+                  trailing: isOrgAdmin
+                      ? PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert),
+                          onSelected: (value) async {
+                            final svc = ref
+                                .read(organizationServiceProvider);
+                            if (value == 'archive') {
+                              await svc.archiveOrganization(org.id);
+                            } else if (value == 'unarchive') {
+                              await svc.unarchiveOrganization(org.id);
+                            } else if (value == 'delete') {
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Organisation löschen?'),
+                                  content: Text(
+                                      '"${org.name}" und alle Mitgliedschaften werden unwiderruflich gelöscht.'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, false),
+                                      child: const Text('Abbrechen'),
+                                    ),
+                                    FilledButton(
+                                      style: FilledButton.styleFrom(
+                                          backgroundColor: Colors.red),
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, true),
+                                      child: const Text('Löschen'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirmed == true) {
+                                await svc.deleteOrganization(org.id);
+                              }
+                            } else if (value == 'open') {
+                              if (context.mounted) {
+                                context.push('/org/${org.id}');
+                              }
+                            }
+                          },
+                          itemBuilder: (_) => [
+                            const PopupMenuItem(
+                                value: 'open',
+                                child: ListTile(
+                                    leading: Icon(Icons.open_in_new),
+                                    title: Text('Öffnen'),
+                                    contentPadding: EdgeInsets.zero)),
+                            if (!org.isArchived)
+                              const PopupMenuItem(
+                                  value: 'archive',
+                                  child: ListTile(
+                                      leading: Icon(Icons.archive_outlined),
+                                      title: Text('Archivieren'),
+                                      contentPadding: EdgeInsets.zero)),
+                            if (org.isArchived)
+                              const PopupMenuItem(
+                                  value: 'unarchive',
+                                  child: ListTile(
+                                      leading: Icon(Icons.unarchive_outlined),
+                                      title: Text('Wiederherstellen'),
+                                      contentPadding: EdgeInsets.zero)),
+                            const PopupMenuItem(
+                                value: 'delete',
+                                child: ListTile(
+                                    leading: Icon(Icons.delete_outline,
+                                        color: Colors.red),
+                                    title: Text('Löschen',
+                                        style:
+                                            TextStyle(color: Colors.red)),
+                                    contentPadding: EdgeInsets.zero)),
+                          ],
+                        )
+                      : const Icon(Icons.chevron_right),
+                  onTap: org.isArchived
+                      ? null
+                      : () => context.push('/org/${org.id}'),
                 ),
               );
             },
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreateDialog(context, ref),
-        icon: const Icon(Icons.add),
-        label: const Text('Organisation erstellen'),
-      ),
+      floatingActionButton: isChildInAnyOrg
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => _showCreateDialog(context, ref),
+              icon: const Icon(Icons.add),
+              label: const Text('Organisation erstellen'),
+            ),
     );
   }
 }

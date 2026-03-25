@@ -14,6 +14,41 @@ class ChatService {
     return doc.data()!['adminUid'] as String;
   }
 
+  /// Erstellt die Listen für canApproveUids (Admin + Moderatoren) und guardianUids (Guardians der Kind-Teilnehmer)
+  Future<({List<String> canApproveUids, List<String> guardianUids})>
+      _buildSupervisorUids(
+          String orgId, List<String> participantUids) async {
+    final orgAdminUid = await _getOrgAdminUid(orgId);
+
+    final moderatorsSnap = await _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('members')
+        .where('role', isEqualTo: 'moderator')
+        .get();
+    final moderatorUids = moderatorsSnap.docs.map((d) => d.id).toList();
+
+    // Guardians aller Kind-Teilnehmer ermitteln
+    final guardianUids = <String>[];
+    for (final uid in participantUids) {
+      final memberDoc = await _db
+          .collection('organizations')
+          .doc(orgId)
+          .collection('members')
+          .doc(uid)
+          .get();
+      final guardianUid = memberDoc.data()?['guardianUid'] as String?;
+      if (guardianUid != null && !guardianUids.contains(guardianUid)) {
+        guardianUids.add(guardianUid);
+      }
+    }
+
+    return (
+      canApproveUids: {orgAdminUid, ...moderatorUids}.toList(),
+      guardianUids: guardianUids,
+    );
+  }
+
   /// Guardian-Modus: Anfrage stellen
   Future<Conversation> requestConversation(
       String orgId, String targetUid) async {
@@ -29,7 +64,19 @@ class ChatService {
       }
     }
 
+    // Guardian des Antragstellers ermitteln (für requestorGuardianUid)
+    final memberDoc = await _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('members')
+        .doc(_uid)
+        .get();
+    final guardianUid = memberDoc.data()?['guardianUid'] as String?;
+
     final orgAdminUid = await _getOrgAdminUid(orgId);
+    final supervisors =
+        await _buildSupervisorUids(orgId, [_uid, targetUid]);
+
     final ref = _db.collection('conversations').doc();
     final conv = Conversation(
       id: ref.id,
@@ -39,6 +86,9 @@ class ChatService {
       requestedBy: _uid,
       status: ConversationStatus.pending,
       createdAt: DateTime.now(),
+      requestorGuardianUid: guardianUid,
+      canApproveUids: supervisors.canApproveUids,
+      guardianUids: supervisors.guardianUids,
     );
     await ref.set(conv.toFirestore());
     return conv;
@@ -60,6 +110,8 @@ class ChatService {
     }
 
     final orgAdminUid = await _getOrgAdminUid(orgId);
+    final supervisors =
+        await _buildSupervisorUids(orgId, [_uid, targetUid]);
     final ref = _db.collection('conversations').doc();
     final conv = Conversation(
       id: ref.id,
@@ -71,6 +123,8 @@ class ChatService {
       createdAt: DateTime.now(),
       approvedBy: _uid,
       approvedAt: DateTime.now(),
+      canApproveUids: supervisors.canApproveUids,
+      guardianUids: supervisors.guardianUids,
     );
     await ref.set(conv.toFirestore());
     return conv;
@@ -82,6 +136,41 @@ class ChatService {
       'approvedBy': _uid,
       'approvedAt': Timestamp.fromDate(DateTime.now()),
     });
+  }
+
+  Future<void> markAsRead(String convId) async {
+    await _db.collection('conversations').doc(convId).update({
+      'lastReadAt.$_uid': Timestamp.fromDate(DateTime.now()),
+    });
+  }
+
+  Future<void> archiveConversation(String convId) async {
+    await _db.collection('conversations').doc(convId).update({
+      'status': ConversationStatus.archived.name,
+    });
+  }
+
+  Future<void> deleteConversation(String convId) async {
+    final messagesSnap = await _db
+        .collection('conversations')
+        .doc(convId)
+        .collection('messages')
+        .limit(500)
+        .get();
+    final batch = _db.batch();
+    for (final doc in messagesSnap.docs) {
+      batch.delete(doc.reference);
+    }
+    batch.delete(_db.collection('conversations').doc(convId));
+    await batch.commit();
+  }
+
+  Stream<Conversation?> watchConversation(String convId) {
+    return _db
+        .collection('conversations')
+        .doc(convId)
+        .snapshots()
+        .map((s) => s.exists ? Conversation.fromFirestore(s) : null);
   }
 
   Future<void> rejectConversation(String convId) async {
@@ -162,9 +251,67 @@ class ChatService {
     });
   }
 
+  /// Ausstehende Anfragen für Moderatoren (canApproveUids enthält ihre UID)
+  Stream<List<Conversation>> watchModeratorPendingRequests(String orgId) {
+    return _db
+        .collection('conversations')
+        .where('canApproveUids', arrayContains: _uid)
+        .snapshots()
+        .map((s) {
+      final all = s.docs.map(Conversation.fromFirestore).toList();
+      return all
+          .where((c) =>
+              c.orgId == orgId && c.status == ConversationStatus.pending)
+          .toList();
+    });
+  }
+
+  /// Ausstehende Anfragen für Guardians (via canApproveUids, pending only)
+  Stream<List<Conversation>> watchGuardianPendingRequests(String orgId) {
+    return _db
+        .collection('conversations')
+        .where('canApproveUids', arrayContains: _uid)
+        .snapshots()
+        .map((s) {
+      final all = s.docs.map(Conversation.fromFirestore).toList();
+      // Nur Konversationen wo der Guardian nicht auch Admin/Moderator ist
+      // und status pending ist
+      return all
+          .where((c) =>
+              c.orgId == orgId &&
+              c.status == ConversationStatus.pending &&
+              c.orgAdminUid != _uid)
+          .toList();
+    });
+  }
+
+  /// Alle überwachten Konversationen (für Moderatoren + Guardians, approved)
+  Stream<List<Conversation>> watchSupervisorConversations(String orgId) {
+    return _db
+        .collection('conversations')
+        .where('canApproveUids', arrayContains: _uid)
+        .snapshots()
+        .map((s) {
+      final all = s.docs.map(Conversation.fromFirestore).toList();
+      final filtered = all
+          .where((c) =>
+              c.orgId == orgId &&
+              c.status == ConversationStatus.approved &&
+              !c.participantUids.contains(_uid))
+          .toList();
+      filtered.sort((a, b) {
+        if (a.lastMessageAt == null) return 1;
+        if (b.lastMessageAt == null) return -1;
+        return b.lastMessageAt!.compareTo(a.lastMessageAt!);
+      });
+      return filtered;
+    });
+  }
+
   Future<Conversation> createGroupChat(
       String orgId, String name, List<String> memberUids) async {
     final orgAdminUid = await _getOrgAdminUid(orgId);
+    final supervisors = await _buildSupervisorUids(orgId, memberUids);
     final ref = _db.collection('conversations').doc();
     final conv = Conversation(
       id: ref.id,
@@ -178,9 +325,59 @@ class ChatService {
       approvedAt: DateTime.now(),
       name: name,
       isGroup: true,
+      canApproveUids: supervisors.canApproveUids,
+      guardianUids: supervisors.guardianUids,
     );
     await ref.set(conv.toFirestore());
     return conv;
+  }
+
+  /// Überwachte Konversationen für Guardians (via guardianUids, approved, kein Teilnehmer)
+  Stream<List<Conversation>> watchGuardianSupervisorConversations(
+      String orgId) {
+    return _db
+        .collection('conversations')
+        .where('guardianUids', arrayContains: _uid)
+        .snapshots()
+        .map((s) {
+      final all = s.docs.map(Conversation.fromFirestore).toList();
+      final filtered = all
+          .where((c) =>
+              c.orgId == orgId &&
+              c.status == ConversationStatus.approved &&
+              !c.participantUids.contains(_uid))
+          .toList();
+      filtered.sort((a, b) {
+        if (a.lastMessageAt == null) return 1;
+        if (b.lastMessageAt == null) return -1;
+        return b.lastMessageAt!.compareTo(a.lastMessageAt!);
+      });
+      return filtered;
+    });
+  }
+
+  /// Sheltered-Modus: Moderator sieht alle Chats der Org (via Admin-UID)
+  Stream<List<Conversation>> watchShelteredModeratorConversations(
+      String orgId, String adminUid) {
+    return _db
+        .collection('conversations')
+        .where('orgAdminUid', isEqualTo: adminUid)
+        .snapshots()
+        .map((s) {
+      final all = s.docs.map(Conversation.fromFirestore).toList();
+      final filtered = all
+          .where((c) =>
+              c.orgId == orgId &&
+              c.status == ConversationStatus.approved &&
+              !c.participantUids.contains(_uid))
+          .toList();
+      filtered.sort((a, b) {
+        if (a.lastMessageAt == null) return 1;
+        if (b.lastMessageAt == null) return -1;
+        return b.lastMessageAt!.compareTo(a.lastMessageAt!);
+      });
+      return filtered;
+    });
   }
 
   Stream<List<Message>> watchMessages(String convId) {
@@ -191,5 +388,40 @@ class ChatService {
         .orderBy('sentAt')
         .snapshots()
         .map((s) => s.docs.map(Message.fromFirestore).toList());
+  }
+
+  Future<void> reportMessage({
+    required String convId,
+    required String orgId,
+    required String orgAdminUid,
+    required Message message,
+  }) async {
+    await _db.collection('reports').add({
+      'convId': convId,
+      'msgId': message.id,
+      'orgId': orgId,
+      'orgAdminUid': orgAdminUid,
+      'reportedBy': _uid,
+      'reportedAt': Timestamp.now(),
+      'messageText': message.text,
+      'messageSenderUid': message.senderUid,
+      'messageSenderName': message.senderName,
+      'status': 'pending',
+    });
+  }
+
+  Stream<List<Map<String, dynamic>>> watchReports(String orgId) {
+    return _db
+        .collection('reports')
+        .where('orgId', isEqualTo: orgId)
+        .orderBy('reportedAt', descending: true)
+        .snapshots()
+        .map((s) => s.docs
+            .map((d) => {'id': d.id, ...d.data()})
+            .toList());
+  }
+
+  Future<void> markReportReviewed(String reportId) async {
+    await _db.collection('reports').doc(reportId).update({'status': 'reviewed'});
   }
 }

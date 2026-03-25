@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum ConversationStatus { pending, approved, rejected }
+enum ConversationStatus { pending, approved, rejected, archived }
 
 class Conversation {
   final String id;
@@ -16,6 +16,10 @@ class Conversation {
   final DateTime? lastMessageAt;
   final String? name;
   final bool isGroup;
+  final String? requestorGuardianUid;
+  final List<String> canApproveUids;
+  final List<String> guardianUids;
+  final Map<String, DateTime> lastReadAt;
 
   const Conversation({
     required this.id,
@@ -31,10 +35,28 @@ class Conversation {
     this.lastMessageAt,
     this.name,
     this.isGroup = false,
+    this.requestorGuardianUid,
+    this.canApproveUids = const [],
+    this.guardianUids = const [],
+    this.lastReadAt = const {},
   });
+
+  bool hasUnread(String uid) {
+    if (lastMessageAt == null) return false;
+    final lastRead = lastReadAt[uid];
+    if (lastRead == null) return true;
+    return lastMessageAt!.isAfter(lastRead);
+  }
 
   factory Conversation.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    final rawLastRead = data['lastReadAt'];
+    final lastReadAt = rawLastRead == null
+        ? <String, DateTime>{}
+        : Map<String, dynamic>.from(rawLastRead as Map).map(
+            (uid, ts) => MapEntry<String, DateTime>(
+                uid, (ts as Timestamp).toDate()),
+          );
     return Conversation(
       id: doc.id,
       orgId: data['orgId'] as String,
@@ -54,6 +76,10 @@ class Conversation {
           : null,
       name: data['name'] as String?,
       isGroup: data['isGroup'] as bool? ?? false,
+      requestorGuardianUid: data['requestorGuardianUid'] as String?,
+      canApproveUids: List<String>.from(data['canApproveUids'] as List? ?? []),
+      guardianUids: List<String>.from(data['guardianUids'] as List? ?? []),
+      lastReadAt: lastReadAt,
     );
   }
 
@@ -65,6 +91,11 @@ class Conversation {
         'status': status.name,
         'createdAt': Timestamp.fromDate(createdAt),
         'isGroup': isGroup,
+        'canApproveUids': canApproveUids,
+        'guardianUids': guardianUids,
+        'lastReadAt': lastReadAt.map((uid, dt) => MapEntry(uid, Timestamp.fromDate(dt))),
+        if (requestorGuardianUid != null)
+          'requestorGuardianUid': requestorGuardianUid,
         if (name != null) 'name': name,
         if (approvedBy != null) 'approvedBy': approvedBy,
         if (approvedAt != null) 'approvedAt': Timestamp.fromDate(approvedAt!),

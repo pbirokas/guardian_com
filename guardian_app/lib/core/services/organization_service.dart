@@ -59,7 +59,8 @@ class OrganizationService {
     }
   }
 
-  Future<void> inviteMember(String orgId, String email, OrgRole role) async {
+  Future<void> inviteMember(String orgId, String email, OrgRole role,
+      {String? guardianUid}) async {
     final query = await _db
         .collection('users')
         .where('email', isEqualTo: email.toLowerCase().trim())
@@ -88,6 +89,13 @@ class OrganizationService {
       throw Exception('Dieser Benutzer ist bereits Mitglied.');
     }
 
+    // Kinder brauchen einen Guardian und starten mit Status "pending"
+    final isChild = role == OrgRole.child;
+    if (isChild && guardianUid == null) {
+      throw Exception('Für ein Kind muss ein Guardian ausgewählt werden.');
+    }
+
+    final memberStatus = isChild ? MemberStatus.pending : MemberStatus.active;
     final membership = OrgMembership(orgId: orgId, role: role);
 
     await _db.runTransaction((tx) async {
@@ -98,15 +106,106 @@ class OrganizationService {
         photoUrl: userData['photoUrl'] as String?,
         role: role,
         joinedAt: DateTime.now(),
+        guardianUid: isChild ? guardianUid : null,
+        status: memberStatus,
       ).toFirestore());
-      // memberUids Array im Org-Dokument synchron halten
+      // Kinder werden erst nach Guardian-Zustimmung zu memberUids hinzugefügt
+      if (!isChild) {
+        tx.update(_db.collection('organizations').doc(orgId), {
+          'memberUids': FieldValue.arrayUnion([targetUid]),
+        });
+        tx.update(_db.collection('users').doc(targetUid), {
+          'memberships': FieldValue.arrayUnion([membership.toMap()]),
+        });
+      }
+    });
+  }
+
+  Future<void> approveChildInvite(String orgId, String childUid) async {
+    final memberDoc = _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('members')
+        .doc(childUid);
+
+    final snap = await memberDoc.get();
+    if (!snap.exists) return;
+
+    final role = OrgRole.values.byName(snap.data()!['role'] as String);
+    final membership = OrgMembership(orgId: orgId, role: role);
+
+    await _db.runTransaction((tx) async {
+      tx.update(memberDoc, {'status': MemberStatus.active.name});
       tx.update(_db.collection('organizations').doc(orgId), {
-        'memberUids': FieldValue.arrayUnion([targetUid]),
+        'memberUids': FieldValue.arrayUnion([childUid]),
       });
-      tx.update(_db.collection('users').doc(targetUid), {
+      tx.update(_db.collection('users').doc(childUid), {
         'memberships': FieldValue.arrayUnion([membership.toMap()]),
       });
     });
+  }
+
+  Future<void> rejectChildInvite(String orgId, String childUid) async {
+    final memberDoc = _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('members')
+        .doc(childUid);
+    await memberDoc.delete();
+  }
+
+  Stream<List<OrgMember>> watchPendingChildInvites(
+      String orgId, String guardianUid) {
+    return _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('members')
+        .where('guardianUid', isEqualTo: guardianUid)
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .map((s) => s.docs.map(OrgMember.fromFirestore).toList());
+  }
+
+  Future<void> updateChildAlertInterval(
+      String orgId, ChildAlertInterval interval) async {
+    await _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('members')
+        .doc(_uid)
+        .update({'childAlertInterval': interval.name});
+  }
+
+  Future<void> updateKeywords(String orgId, List<String> keywords) async {
+    await _db.collection('organizations').doc(orgId).update({'keywords': keywords});
+  }
+
+  Future<void> archiveOrganization(String orgId) async {
+    await _db.collection('organizations').doc(orgId).update({'isArchived': true});
+  }
+
+  Future<void> unarchiveOrganization(String orgId) async {
+    await _db.collection('organizations').doc(orgId).update({'isArchived': false});
+  }
+
+  Future<void> deleteOrganization(String orgId) async {
+    final membersSnap = await _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('members')
+        .get();
+
+    final batch = _db.batch();
+    for (final memberDoc in membersSnap.docs) {
+      final role = OrgRole.values.byName(memberDoc.data()['role'] as String);
+      final membership = OrgMembership(orgId: orgId, role: role);
+      batch.delete(memberDoc.reference);
+      batch.update(_db.collection('users').doc(memberDoc.id), {
+        'memberships': FieldValue.arrayRemove([membership.toMap()]),
+      });
+    }
+    batch.delete(_db.collection('organizations').doc(orgId));
+    await batch.commit();
   }
 
   Future<void> removeMember(String orgId, String targetUid) async {

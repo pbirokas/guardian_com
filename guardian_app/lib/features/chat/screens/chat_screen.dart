@@ -1,7 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/models/conversation.dart';
 import '../../../core/models/message.dart';
+import '../../../features/organizations/providers/organizations_provider.dart';
 import '../providers/chat_provider.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
@@ -17,6 +19,16 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _markRead();
+  }
+
+  void _markRead() {
+    ref.read(chatServiceProvider).markAsRead(widget.chatId);
+  }
 
   @override
   void dispose() {
@@ -43,6 +55,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _controller.clear();
     try {
       await ref.read(chatServiceProvider).sendMessage(widget.chatId, text);
+      _markRead();
       _scrollToBottom();
     } catch (e) {
       if (mounted) {
@@ -56,12 +69,46 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final messagesAsync = ref.watch(messagesProvider(widget.chatId));
+    final conv = ref.watch(conversationProvider(widget.chatId)).valueOrNull;
+    final isArchived = conv?.status == ConversationStatus.archived;
     final currentUid = FirebaseAuth.instance.currentUser!.uid;
 
+    final members = conv == null
+        ? null
+        : ref.watch(orgMembersProvider(conv.orgId)).valueOrNull;
+
+    String title;
+    if (conv == null) {
+      title = widget.partnerName ?? 'Chat';
+    } else if (conv.isGroup) {
+      title = conv.name ?? 'Gruppe';
+    } else {
+      final otherUid = conv.participantUids.firstWhere(
+          (uid) => uid != currentUid,
+          orElse: () => '');
+      final other = members?.where((m) => m.uid == otherUid).firstOrNull;
+      title = other?.displayName ?? widget.partnerName ?? 'Chat';
+    }
+
     return Scaffold(
-      appBar: AppBar(title: Text(widget.partnerName ?? 'Chat')),
+      appBar: AppBar(title: Text(title)),
       body: Column(
         children: [
+          if (isArchived)
+            Container(
+              width: double.infinity,
+              color: Colors.grey[200],
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.archive_outlined, size: 14, color: Colors.grey[600]),
+                  const SizedBox(width: 6),
+                  Text('Archiviert – nur lesen',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                ],
+              ),
+            ),
           Expanded(
             child: messagesAsync.when(
               loading: () =>
@@ -95,6 +142,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           isMe: isMe,
                           showSenderName:
                               showSender && msg.senderName.isNotEmpty,
+                          onReport: isMe || conv == null
+                              ? null
+                              : () => _confirmReport(conv, msg),
                         ),
                       ],
                     );
@@ -103,7 +153,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               },
             ),
           ),
-          _InputBar(controller: _controller, onSend: _send),
+          if (!isArchived) _InputBar(controller: _controller, onSend: _send),
         ],
       ),
     );
@@ -111,26 +161,104 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
+
+  Future<void> _confirmReport(Conversation conv, Message msg) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nachricht melden'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Diese Nachricht dem Admin/Moderator melden?'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                msg.text,
+                style: const TextStyle(fontSize: 13),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Melden'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      try {
+        await ref.read(chatServiceProvider).reportMessage(
+              convId: widget.chatId,
+              orgId: conv.orgId,
+              orgAdminUid: conv.orgAdminUid,
+              message: msg,
+            );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nachricht wurde gemeldet.')),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    }
+  }
 }
 
 class _MessageBubble extends StatelessWidget {
   final Message message;
   final bool isMe;
   final bool showSenderName;
+  final VoidCallback? onReport;
 
   const _MessageBubble({
     required this.message,
     required this.isMe,
     this.showSenderName = false,
+    this.onReport,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
+    return GestureDetector(
+      onLongPress: onReport == null
+          ? null
+          : () => showModalBottomSheet(
+                context: context,
+                builder: (_) => SafeArea(
+                  child: ListTile(
+                    leading: const Icon(Icons.flag_outlined, color: Colors.red),
+                    title: const Text('Nachricht melden',
+                        style: TextStyle(color: Colors.red)),
+                    onTap: () {
+                      Navigator.pop(context);
+                      onReport!();
+                    },
+                  ),
+                ),
+              ),
+      child: Align(
+        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
         margin: EdgeInsets.only(
           top: 2,
           bottom: 2,
@@ -184,6 +312,7 @@ class _MessageBubble extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

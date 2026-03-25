@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../models/app_user.dart';
+import 'notification_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -36,22 +37,38 @@ class AuthService {
       final newUser = AppUser(
         uid: user.uid,
         email: user.email!.toLowerCase(),
-        displayName: user.displayName ?? user.email!,
+        displayName: (user.displayName?.isNotEmpty == true)
+            ? user.displayName!
+            : user.email!,
         photoUrl: user.photoURL,
         memberships: [],
         createdAt: DateTime.now(),
       );
       await docRef.set(newUser.toFirestore());
+      await NotificationService().initialize();
       return newUser;
     }
 
-    // E-Mail in Kleinbuchstaben normalisieren falls noch nicht geschehen
     final data = doc.data() as Map<String, dynamic>;
+    final updates = <String, dynamic>{};
+
+    // E-Mail normalisieren
     final storedEmail = data['email'] as String? ?? '';
     if (storedEmail != storedEmail.toLowerCase()) {
-      await docRef.update({'email': storedEmail.toLowerCase()});
+      updates['email'] = storedEmail.toLowerCase();
     }
 
+    // DisplayName auffüllen falls leer
+    final storedName = data['displayName'] as String? ?? '';
+    if (storedName.isEmpty) {
+      updates['displayName'] = (user.displayName?.isNotEmpty == true)
+          ? user.displayName!
+          : user.email!;
+    }
+
+    if (updates.isNotEmpty) await docRef.update(updates);
+
+    await NotificationService().initialize();
     return AppUser.fromFirestore(doc);
   }
 

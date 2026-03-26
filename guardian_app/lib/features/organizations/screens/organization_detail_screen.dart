@@ -28,7 +28,7 @@ class OrganizationDetailScreen extends ConsumerWidget {
       error: (e, _) => Scaffold(body: Center(child: Text('Fehler: $e'))),
       data: (org) {
         final isAdmin = org.adminUid == currentUid;
-        final currentMember = membersAsync.valueOrNull
+        final currentMember = membersAsync.value
             ?.where((m) => m.uid == currentUid)
             .firstOrNull;
         final isModerator =
@@ -390,12 +390,17 @@ class _ChatsTab extends ConsumerWidget {
             convs.where((c) => c.status == ConversationStatus.approved).toList();
         final archivedConvs =
             convs.where((c) => c.status == ConversationStatus.archived).toList();
-        final guardianPending = guardianPendingAsync.valueOrNull ?? [];
-        final moderatorPending = moderatorPendingAsync.valueOrNull ?? [];
-        final supervisorConvs = supervisorConvsAsync.valueOrNull ?? [];
+        final ownPendingConvs = !isAdmin
+            ? convs
+                .where((c) => c.status == ConversationStatus.pending)
+                .toList()
+            : <Conversation>[];
+        final guardianPending = guardianPendingAsync.value ?? [];
+        final moderatorPending = moderatorPendingAsync.value ?? [];
+        final supervisorConvs = supervisorConvsAsync.value ?? [];
         final guardianSupervisorConvs =
-            guardianSupervisorConvsAsync.valueOrNull ?? [];
-        final shelteredModConvs = shelteredModConvsAsync.valueOrNull ?? [];
+            guardianSupervisorConvsAsync.value ?? [];
+        final shelteredModConvs = shelteredModConvsAsync.value ?? [];
         final allSupervisorConvs = [
           ...supervisorConvs,
           ...guardianSupervisorConvs
@@ -523,8 +528,40 @@ class _ChatsTab extends ConsumerWidget {
                 else
                   const SliverToBoxAdapter(child: SizedBox()),
 
+                // Ausstehende eigene Anfragen (für Nicht-Admins sichtbar)
+                if (ownPendingConvs.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: membersAsync.maybeWhen(
+                      data: (members) => Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                            child: Text(
+                              'Ausstehende Anfragen (${ownPendingConvs.length})',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          ...ownPendingConvs.map((conv) => _ConversationTile(
+                                conv: conv,
+                                members: members,
+                                currentUid: currentUid,
+                                isAdminOrMod: false,
+                                onArchive: null,
+                                onDelete: null,
+                              )),
+                          const Divider(),
+                        ],
+                      ),
+                      orElse: () => const SizedBox(),
+                    ),
+                  ),
+
                 // Eigene genehmigte Chats
-                if (approved.isEmpty && allSupervisorConvs.isEmpty)
+                if (approved.isEmpty && allSupervisorConvs.isEmpty && ownPendingConvs.isEmpty)
                   SliverFillRemaining(
                     child: Center(
                       child: Column(
@@ -774,12 +811,12 @@ class _ChatTabLabel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pendingCount = isAdminOrMod
-        ? (ref.watch(pendingRequestsProvider(orgId)).valueOrNull?.length ?? 0)
+        ? (ref.watch(pendingRequestsProvider(orgId)).value?.length ?? 0)
         : 0;
 
     final allConvs = [
-      ...ref.watch(orgConversationsProvider(orgId)).valueOrNull ?? [],
-      ...ref.watch(adminConversationsProvider(orgId)).valueOrNull ?? [],
+      ...ref.watch(orgConversationsProvider(orgId)).value ?? [],
+      ...ref.watch(adminConversationsProvider(orgId)).value ?? [],
     ];
     final unreadCount = allConvs
         .where((c) =>
@@ -836,7 +873,9 @@ class _MembersTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef widgetRef) {
     final membersAsync = widgetRef.watch(orgMembersProvider(org.id));
     final pendingChildInvites =
-        widgetRef.watch(pendingChildInvitesProvider(org.id)).valueOrNull ?? [];
+        widgetRef.watch(pendingChildInvitesProvider(org.id)).value ?? [];
+    final pendingPreRegInvites =
+        widgetRef.watch(pendingPreRegInvitesProvider(org.id)).value ?? [];
 
     return membersAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -849,7 +888,7 @@ class _MembersTab extends ConsumerWidget {
             CustomScrollView(
               slivers: [
                 // Ausstehende Kind-Einladungen für Guardian
-                if (pendingChildInvites.isNotEmpty)
+                if (pendingChildInvites.isNotEmpty || pendingPreRegInvites.isNotEmpty)
                   SliverToBoxAdapter(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -857,16 +896,22 @@ class _MembersTab extends ConsumerWidget {
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                           child: Text(
-                            'Ausstehende Kind-Einladungen (${pendingChildInvites.length})',
+                            'Ausstehende Kind-Einladungen (${pendingChildInvites.length + pendingPreRegInvites.length})',
                             style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.amber[800],
                                 fontWeight: FontWeight.bold),
                           ),
                         ),
-                        ...pendingChildInvites.map((child) =>
-                            _PendingChildTile(
+                        // Bereits registrierte Kinder (warten auf Guardian-Zustimmung)
+                        ...pendingChildInvites.map((child) => _PendingChildTile(
                               child: child,
+                              org: org,
+                              ref: widgetRef,
+                            )),
+                        // Noch nicht registrierte Kinder (Einladung verschickt)
+                        ...pendingPreRegInvites.map((invite) => _PendingInviteTile(
+                              invite: invite,
                               org: org,
                               ref: widgetRef,
                             )),
@@ -940,7 +985,7 @@ class _MembersTab extends ConsumerWidget {
       BuildContext context, WidgetRef ref, List<OrgMember> members) async {
     final emailController = TextEditingController();
     OrgRole selectedRole = OrgRole.member;
-    OrgMember? selectedGuardian;
+    final selectedGuardians = <OrgMember>{};
 
     final roleLabels = {
       OrgRole.moderator: 'Moderator',
@@ -992,14 +1037,14 @@ class _MembersTab extends ConsumerWidget {
                   selected: {selectedRole},
                   onSelectionChanged: (s) => setState(() {
                     selectedRole = s.first;
-                    if (selectedRole != OrgRole.child) selectedGuardian = null;
+                    if (selectedRole != OrgRole.child) selectedGuardians.clear();
                   }),
                 ),
                 if (selectedRole == OrgRole.child) ...[
                   const SizedBox(height: 16),
                   const Align(
                     alignment: Alignment.centerLeft,
-                    child: Text('Guardian (Elternteil)',
+                    child: Text('Guardians (Elternteile)',
                         style: TextStyle(fontSize: 12, color: Colors.grey)),
                   ),
                   const SizedBox(height: 4),
@@ -1017,7 +1062,7 @@ class _MembersTab extends ConsumerWidget {
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            'Das Kind wird erst hinzugefügt, wenn der Guardian zustimmt.',
+                            'Das Kind wird erst hinzugefügt, wenn ein Guardian zustimmt.',
                             style: TextStyle(
                                 fontSize: 11, color: Colors.amber[900]),
                           ),
@@ -1032,21 +1077,21 @@ class _MembersTab extends ConsumerWidget {
                       style: TextStyle(fontSize: 12, color: Colors.red),
                     )
                   else
-                    DropdownButtonFormField<OrgMember>(
-                      value: selectedGuardian,
-                      decoration: const InputDecoration(
-                        labelText: 'Guardian auswählen',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.shield_outlined),
-                      ),
-                      items: possibleGuardians
-                          .map((m) => DropdownMenuItem(
-                                value: m,
-                                child: Text(m.displayName),
-                              ))
-                          .toList(),
-                      onChanged: (v) => setState(() => selectedGuardian = v),
-                    ),
+                    ...possibleGuardians.map((m) => CheckboxListTile(
+                          value: selectedGuardians.contains(m),
+                          title: Text(m.displayName),
+                          subtitle: Text(m.email,
+                              style: const TextStyle(fontSize: 11)),
+                          secondary: const Icon(Icons.shield_outlined),
+                          contentPadding: EdgeInsets.zero,
+                          onChanged: (checked) => setState(() {
+                            if (checked == true) {
+                              selectedGuardians.add(m);
+                            } else {
+                              selectedGuardians.remove(m);
+                            }
+                          }),
+                        )),
                 ],
               ],
             ),
@@ -1058,7 +1103,7 @@ class _MembersTab extends ConsumerWidget {
             ),
             FilledButton(
               onPressed: (selectedRole == OrgRole.child &&
-                      selectedGuardian == null)
+                      selectedGuardians.isEmpty)
                   ? null
                   : () => Navigator.pop(ctx, true),
               child: const Text('Einladen'),
@@ -1074,15 +1119,16 @@ class _MembersTab extends ConsumerWidget {
               org.id,
               emailController.text.trim(),
               selectedRole,
-              guardianUid:
-                  selectedRole == OrgRole.child ? selectedGuardian?.uid : null,
+              guardianUids: selectedRole == OrgRole.child
+                  ? selectedGuardians.map((m) => m.uid).toList()
+                  : [],
             );
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(selectedRole == OrgRole.child
-                  ? 'Einladung gesendet. Wartet auf Zustimmung des Guardians.'
-                  : 'Mitglied erfolgreich eingeladen.'),
+                  ? 'Einladung gesendet. Das Kind wird nach Registrierung und Guardian-Zustimmung hinzugefügt.'
+                  : 'Einladung gesendet.'),
             ),
           );
         }
@@ -1482,44 +1528,162 @@ class _MemberTile extends StatelessWidget {
         OrgRole.child => Colors.green,
       };
 
-  void _showMemberOptions(BuildContext context) {
-    if (!isAdmin || member.role == OrgRole.admin) return;
+  void _showOptions(BuildContext context) {
+    final isOwnTile = member.uid == currentUid;
+    final isGuardian = member.guardianUids.contains(currentUid);
+    final isMod = !isAdmin &&
+        allMembers
+            .where((m) => m.uid == currentUid)
+            .firstOrNull
+            ?.role == OrgRole.moderator;
+
     showModalBottomSheet(
       context: context,
       builder: (_) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading: const Icon(Icons.chat_outlined),
-              title: const Text('Chat starten'),
-              onTap: () {
-                Navigator.pop(context);
-                _startAdminChat(context);
-              },
+            // Eigene Benachrichtigungseinstellungen
+            if (isOwnTile)
+              ListTile(
+                leading: const Icon(Icons.notifications_outlined),
+                title: const Text('Benachrichtigungseinstellungen'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showAlertIntervalDialog(context);
+                },
+              ),
+            // Moderator: Guardians eines Kindes ändern
+            if ((isMod || isAdmin) && !isOwnTile && member.role == OrgRole.child)
+              ListTile(
+                leading: const Icon(Icons.shield_outlined),
+                title: const Text('Guardians ändern'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showGuardiansDialog(context);
+                },
+              ),
+            // Guardian: direkter Chat mit eigenem Kind (kein Approval nötig)
+            if (!isAdmin && !isOwnTile && isGuardian)
+              ListTile(
+                leading: const Icon(Icons.chat_outlined),
+                title: const Text('Chat starten'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _startAdminChat(context);
+                },
+              ),
+            // Nicht-Admin im Guardian-Modus: Chat anfragen (für andere Mitglieder)
+            if (!isAdmin && !isOwnTile && !isGuardian && org.chatMode == ChatMode.guardian)
+              ListTile(
+                leading: const Icon(Icons.chat_outlined),
+                title: const Text('Chat anfragen'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _requestChat(context);
+                },
+              ),
+            // Admin: Chat starten, Rolle ändern, Entfernen
+            if (isAdmin && !isOwnTile && member.role != OrgRole.admin) ...[
+              ListTile(
+                leading: const Icon(Icons.chat_outlined),
+                title: const Text('Chat starten'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _startAdminChat(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.swap_horiz),
+                title: const Text('Rolle ändern'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showRoleDialog(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.person_remove_outlined, color: Colors.red),
+                title: const Text('Entfernen', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _confirmRemove(context);
+                },
+              ),
+            ],
+            if (!isOwnTile && !isGuardian && !isAdmin && !isMod)
+              const ListTile(
+                title: Text('Keine Aktionen verfügbar.',
+                    style: TextStyle(color: Colors.grey)),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showGuardiansDialog(BuildContext context) async {
+    final possibleGuardians = allMembers
+        .where((m) => m.role != OrgRole.child && m.status == MemberStatus.active)
+        .toList();
+    final selected = <String>{...member.guardianUids};
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: Text('Guardians für ${member.displayName}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: possibleGuardians.map((g) {
+              return CheckboxListTile(
+                value: selected.contains(g.uid),
+                title: Text(g.displayName),
+                subtitle: Text(g.email, style: const TextStyle(fontSize: 11)),
+                secondary: const Icon(Icons.shield_outlined),
+                contentPadding: EdgeInsets.zero,
+                onChanged: (v) => setState(() {
+                  if (v == true) { selected.add(g.uid); }
+                  else { selected.remove(g.uid); }
+                }),
+              );
+            }).toList(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Abbrechen'),
             ),
-            ListTile(
-              leading: const Icon(Icons.swap_horiz),
-              title: const Text('Rolle ändern'),
-              onTap: () {
-                Navigator.pop(context);
-                _showRoleDialog(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.person_remove_outlined,
-                  color: Colors.red),
-              title: const Text('Entfernen',
-                  style: TextStyle(color: Colors.red)),
-              onTap: () {
-                Navigator.pop(context);
-                _confirmRemove(context);
-              },
+            FilledButton(
+              onPressed: selected.isEmpty ? null : () => Navigator.pop(ctx, true),
+              child: const Text('Speichern'),
             ),
           ],
         ),
       ),
     );
+    if (confirmed == true) {
+      await ref.read(organizationServiceProvider).updateGuardians(
+            org.id, member.uid, selected.toList());
+    }
+  }
+
+  Future<void> _requestChat(BuildContext context) async {
+    try {
+      await ref
+          .read(chatServiceProvider)
+          .requestConversation(org.id, member.uid);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Chat-Anfrage wurde gesendet.')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _startAdminChat(BuildContext context) async {
@@ -1607,11 +1771,12 @@ class _MemberTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final guardian = member.role == OrgRole.child && member.guardianUid != null
-        ? allMembers.where((m) => m.uid == member.guardianUid).firstOrNull
-        : null;
+    // Alle Guardians des Kindes ermitteln
+    final guardians = member.role == OrgRole.child
+        ? allMembers.where((m) => member.guardianUids.contains(m.uid)).toList()
+        : <OrgMember>[];
     return ListTile(
-      isThreeLine: guardian != null,
+      isThreeLine: guardians.isNotEmpty,
       leading: CircleAvatar(
         backgroundImage: member.photoUrl != null
             ? NetworkImage(member.photoUrl!)
@@ -1626,38 +1791,43 @@ class _MemberTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(member.email, style: const TextStyle(fontSize: 12)),
-          if (guardian != null)
+          if (guardians.isNotEmpty)
             Row(
               children: [
-                Icon(Icons.shield_outlined,
-                    size: 11, color: Colors.amber[700]),
+                Icon(Icons.shield_outlined, size: 11, color: Colors.amber[700]),
                 const SizedBox(width: 3),
-                Text(
-                  guardian.displayName,
-                  style: TextStyle(fontSize: 11, color: Colors.amber[800]),
+                Expanded(
+                  child: Text(
+                    guardians.map((g) => g.displayName).join(', '),
+                    style: TextStyle(fontSize: 11, color: Colors.amber[800]),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
         ],
       ),
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: _roleColor(member.role).withAlpha(30),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          _roleLabel(member.role),
-          style: TextStyle(
-              fontSize: 11, color: _roleColor(member.role)),
-        ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: _roleColor(member.role).withAlpha(30),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              _roleLabel(member.role),
+              style: TextStyle(fontSize: 11, color: _roleColor(member.role)),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.more_vert, size: 20),
+            onPressed: () => _showOptions(context),
+          ),
+        ],
       ),
-      onTap: isAdmin && member.role != OrgRole.admin
-          ? () => _showMemberOptions(context)
-          : member.uid == currentUid &&
-                  allMembers.any((m) => m.guardianUid == currentUid)
-              ? () => _showAlertIntervalDialog(context)
-              : null,
+      onTap: null,
     );
   }
 
@@ -1786,7 +1956,7 @@ class _ReportsTabLabel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final reportsAsync = ref.watch(_pendingReportsCountProvider(orgId));
-    final count = reportsAsync.valueOrNull ?? 0;
+    final count = reportsAsync.value ?? 0;
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -1855,7 +2025,7 @@ class _ReportsTab extends ConsumerWidget {
         return ListView.separated(
           padding: const EdgeInsets.all(16),
           itemCount: reports.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
+          separatorBuilder: (_, _) => const Divider(height: 1),
           itemBuilder: (ctx, i) {
             final report = reports[i];
             final isPending = report['status'] == 'pending';
@@ -1968,6 +2138,65 @@ class _ReportsTab extends ConsumerWidget {
           .delete();
     }
     await ref.read(chatServiceProvider).markReportReviewed(reportId);
+  }
+}
+
+// ── Pending Pre-Registration Invite Tile ──────────────────────────────────────
+
+class _PendingInviteTile extends StatelessWidget {
+  final Map<String, dynamic> invite;
+  final Organization org;
+  final WidgetRef ref;
+
+  const _PendingInviteTile({
+    required this.invite,
+    required this.org,
+    required this.ref,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final email = invite['email'] as String? ?? '?';
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: Colors.amber.withAlpha(40),
+        child: Icon(Icons.child_care, color: Colors.amber[800], size: 20),
+      ),
+      title: Text(email),
+      subtitle: const Text(
+        'Einladung verschickt · Noch nicht registriert',
+        style: TextStyle(fontSize: 12),
+      ),
+      trailing: IconButton(
+        icon: const Icon(Icons.cancel_outlined, color: Colors.red),
+        tooltip: 'Einladung zurückziehen',
+        onPressed: () async {
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Einladung zurückziehen'),
+              content: Text('Einladung für $email wirklich zurückziehen?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Abbrechen'),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Zurückziehen'),
+                ),
+              ],
+            ),
+          );
+          if (confirmed == true) {
+            await ref
+                .read(organizationServiceProvider)
+                .cancelInvitation(invite['id'] as String);
+          }
+        },
+      ),
+    );
   }
 }
 

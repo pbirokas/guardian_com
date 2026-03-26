@@ -1,0 +1,194 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helper functions ────────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isMember(orgId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+    }
+
+    function getMember(orgId) {
+      return get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data;
+    }
+
+    function isAdmin(orgId) {
+      return isMember(orgId) && getMember(orgId).role == 'admin';
+    }
+
+    function isModerator(orgId) {
+      return isMember(orgId) && getMember(orgId).role == 'moderator';
+    }
+
+    function isAdminOrMod(orgId) {
+      return isAdmin(orgId) || isModerator(orgId);
+    }
+
+    // ─── Users ───────────────────────────────────────────────────────────────
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      // Own doc: full update.
+      // Other user's doc: only memberships + isChild may be changed
+      // (used by approveChildInvite, _processPendingInvitations).
+      allow update: if isSignedIn() && (
+        request.auth.uid == userId ||
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['memberships', 'isChild'])
+      );
+    }
+
+    // ─── Organizations ───────────────────────────────────────────────────────
+
+    match /organizations/{orgId} {
+      // Single doc read: members OR users processing a pending invitation for this org
+      allow get: if isMember(orgId) || isSignedIn();
+      // List/query (e.g. watchMyOrganizations): checked per doc via memberUids array
+      allow list: if isSignedIn() && request.auth.uid in resource.data.memberUids;
+      // Children (isChild == true) may not create organizations
+      allow create: if isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isChild != true;
+      // Admin: full update. Members: may only extend memberUids (e.g. guardian approving child).
+      allow update: if isAdmin(orgId) ||
+        (isMember(orgId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids']));
+      allow delete: if isAdmin(orgId);
+
+      // ─── Members subcollection ────────────────────────────────────────────
+
+      match /members/{memberId} {
+        // Members of the org can read all member docs.
+        // Users can also read their own member doc (e.g. when processing an invitation).
+        allow read: if isMember(orgId) || (isSignedIn() && memberId == request.auth.uid);
+
+        // Admin creates members via inviteMember(); OR
+        // User creates their own member doc (org creation → role=admin, or invitation processing)
+        allow create: if isSignedIn() && (
+          isAdmin(orgId) ||
+          memberId == request.auth.uid
+        );
+
+        // Admin: full update.
+        // Moderator: can update guardianUids.
+        // Guardian: can approve pending child (status pending → active).
+        // Member: can update own childAlertInterval / lastChildAlertAt.
+        allow update: if isSignedIn() && (
+          isAdmin(orgId) ||
+          (isModerator(orgId) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guardianUids'])) ||
+          (isMember(orgId) &&
+            request.auth.uid in resource.data.guardianUids &&
+            resource.data.status == 'pending' &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+            request.resource.data.status == 'active') ||
+          (memberId == request.auth.uid &&
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['childAlertInterval', 'lastChildAlertAt']))
+        );
+
+        allow delete: if isAdmin(orgId);
+      }
+    }
+
+    // ─── Conversations ───────────────────────────────────────────────────────
+
+    match /conversations/{convId} {
+      // Single document read: participant, orgAdmin, canApprove member, or guardian
+      allow get: if isSignedIn() && (
+        request.auth.uid in resource.data.participantUids ||
+        resource.data.orgAdminUid == request.auth.uid ||
+        request.auth.uid in resource.data.canApproveUids ||
+        request.auth.uid in resource.data.guardianUids
+      );
+
+      // Queries: allow if the returned doc includes the caller in one of the uid arrays.
+      // Covers: watchOrgConversations, watchAdminConversations, watchPendingRequests,
+      //         watchModeratorPendingRequests, watchGuardianPendingRequests,
+      //         watchSupervisorConversations, watchGuardianSupervisorConversations,
+      //         watchShelteredModeratorConversations
+      allow list: if isSignedIn() && (
+        request.auth.uid in resource.data.participantUids ||
+        resource.data.orgAdminUid == request.auth.uid ||
+        request.auth.uid in resource.data.canApproveUids ||
+        request.auth.uid in resource.data.guardianUids
+      );
+
+      allow create: if isSignedIn();
+
+      allow update: if isSignedIn() && (
+        request.auth.uid in resource.data.participantUids ||
+        resource.data.orgAdminUid == request.auth.uid ||
+        request.auth.uid in resource.data.canApproveUids ||
+        request.auth.uid in resource.data.guardianUids
+      );
+
+      allow delete: if isSignedIn() && isAdmin(resource.data.orgId);
+
+      // ─── Messages subcollection ───────────────────────────────────────────
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && (
+          request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.participantUids ||
+          get(/databases/$(database)/documents/conversations/$(convId)).data.orgAdminUid == request.auth.uid ||
+          request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.canApproveUids ||
+          request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.guardianUids
+        );
+
+        allow create: if isSignedIn() &&
+          request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.participantUids;
+
+        allow update: if isSignedIn() && (
+          request.auth.uid == resource.data.senderUid ||
+          isAdminOrMod(get(/databases/$(database)/documents/conversations/$(convId)).data.orgId)
+        );
+
+        allow delete: if isSignedIn() &&
+          isAdmin(get(/databases/$(database)/documents/conversations/$(convId)).data.orgId);
+      }
+    }
+
+    // ─── Invitations ─────────────────────────────────────────────────────────
+
+    match /invitations/{inviteId} {
+      // Admin/Mod reads invitations for their org (e.g. duplicate check);
+      // invited user reads by their email (from JWT token — no get() needed);
+      // guardians read invites they are listed in.
+      allow read: if isSignedIn() && (
+        isAdminOrMod(resource.data.orgId) ||
+        resource.data.email == request.auth.token.email ||
+        request.auth.uid in resource.data.guardianUids
+      );
+
+      // Only admins/mods of the org can create invitations
+      allow create: if isSignedIn() && isAdminOrMod(request.resource.data.orgId);
+
+      // Invited user can update (accept/invalid); admin/mod can cancel
+      allow update: if isSignedIn() && (
+        isAdminOrMod(resource.data.orgId) ||
+        resource.data.email == request.auth.token.email ||
+        request.auth.uid in resource.data.guardianUids
+      );
+    }
+
+    // ─── Reports ─────────────────────────────────────────────────────────────
+
+    match /reports/{reportId} {
+      // Any signed-in member of the org can create a report
+      allow create: if isSignedIn() && isMember(request.resource.data.orgId);
+
+      // Admin and moderators can read and update (mark reviewed) reports
+      allow read: if isSignedIn() && isAdminOrMod(resource.data.orgId);
+      allow update: if isSignedIn() && isAdminOrMod(resource.data.orgId);
+      allow delete: if isSignedIn() && isAdmin(resource.data.orgId);
+
+      // Also allow listing (for query) — needed for watchReports
+      allow list: if isSignedIn();
+    }
+  }
+}

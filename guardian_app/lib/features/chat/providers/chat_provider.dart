@@ -63,9 +63,9 @@ final shelteredModeratorConversationsProvider = StreamProvider.family<
 /// Anzahl ungelesener Chats in einer Org (für Badge auf dem Startbildschirm)
 final unreadOrgCountProvider = Provider.family<int, String>((ref, orgId) {
   final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
-  final ownConvs = ref.watch(orgConversationsProvider(orgId)).valueOrNull ?? [];
+  final ownConvs = ref.watch(orgConversationsProvider(orgId)).value ?? [];
   final adminConvs =
-      ref.watch(adminConversationsProvider(orgId)).valueOrNull ?? [];
+      ref.watch(adminConversationsProvider(orgId)).value ?? [];
   final seen = <String>{};
   final all = [...ownConvs, ...adminConvs].where((c) => seen.add(c.id)).toList();
   return all

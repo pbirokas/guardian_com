@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../models/app_user.dart';
@@ -6,18 +7,18 @@ import 'notification_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   Future<AppUser> signInWithGoogle() async {
-    final googleUser = await _googleSignIn.signIn();
-    if (googleUser == null) throw Exception('Sign-in abgebrochen');
-
-    final googleAuth = await googleUser.authentication;
+    await GoogleSignIn.instance.initialize(
+      serverClientId:
+          '689565503451-msp7j89869cr9ojvc2uhaph0ordri5vr.apps.googleusercontent.com',
+    );
+    final googleAccount = await GoogleSignIn.instance.authenticate();
+    final googleAuth = googleAccount.authentication;
     final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
       idToken: googleAuth.idToken,
     );
 
@@ -45,8 +46,11 @@ class AuthService {
         createdAt: DateTime.now(),
       );
       await docRef.set(newUser.toFirestore());
+      await _processPendingInvitations(user.uid, user.email!.toLowerCase());
       await NotificationService().initialize();
-      return newUser;
+      // Aktualisiertes Dokument laden (Einladungen können isChild gesetzt haben)
+      final updatedDoc = await docRef.get();
+      return AppUser.fromFirestore(updatedDoc);
     }
 
     final data = doc.data() as Map<String, dynamic>;
@@ -68,8 +72,23 @@ class AuthService {
 
     if (updates.isNotEmpty) await docRef.update(updates);
 
+    // Ausstehende Einladungen auch bei existierenden Usern prüfen
+    await _processPendingInvitations(user.uid, user.email!.toLowerCase());
     await NotificationService().initialize();
-    return AppUser.fromFirestore(doc);
+    final updatedDoc = await docRef.get();
+    return AppUser.fromFirestore(updatedDoc);
+  }
+
+  Future<void> _processPendingInvitations(String uid, String email) async {
+    print('[Auth] _processPendingInvitations via Cloud Function: uid=$uid');
+    try {
+      final callable = FirebaseFunctions.instance
+          .httpsCallable('processMyInvitations');
+      final result = await callable.call();
+      print('[Auth] processMyInvitations OK: ${result.data}');
+    } catch (e) {
+      print('[Auth] ERROR calling processMyInvitations: $e');
+    }
   }
 
   Future<AppUser> signInWithEmailPassword(String email, String password) async {
@@ -81,7 +100,11 @@ class AuthService {
   }
 
   Future<void> signOut() async {
-    await _googleSignIn.signOut();
+    await GoogleSignIn.instance.initialize(
+      serverClientId:
+          '689565503451-msp7j89869cr9ojvc2uhaph0ordri5vr.apps.googleusercontent.com',
+    );
+    await GoogleSignIn.instance.signOut();
     await _auth.signOut();
   }
 

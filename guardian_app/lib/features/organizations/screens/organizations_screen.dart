@@ -2,7 +2,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/models/app_user.dart';
 import '../../../core/models/organization.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/chat/providers/chat_provider.dart';
@@ -187,11 +186,15 @@ class OrganizationsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final orgsAsync = ref.watch(myOrganizationsProvider);
     final user = FirebaseAuth.instance.currentUser;
-    final currentAppUser = ref.watch(currentAppUserProvider).valueOrNull;
-    // Kinder dürfen keine Organisationen erstellen
-    final isChildInAnyOrg = currentAppUser?.memberships
-            .any((m) => m.role == OrgRole.child) ??
-        false;
+    final currentAppUserAsync = ref.watch(currentAppUserProvider);
+    // Kinder dürfen keine Organisationen erstellen.
+    // Während der Provider lädt, FAB verstecken (verhindert Race Condition
+    // zwischen Auth-Event und abgeschlossener Einladungsverarbeitung).
+    final isChildInAnyOrg = currentAppUserAsync.when(
+      loading: () => true,
+      error: (_, _) => false,
+      data: (u) => u?.isChild ?? false,
+    );
 
     return Scaffold(
       appBar: AppBar(

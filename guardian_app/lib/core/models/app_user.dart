@@ -35,6 +35,7 @@ class AppUser {
   final String? photoUrl;
   final List<OrgMembership> memberships;
   final DateTime createdAt;
+  final bool isChild;
 
   const AppUser({
     required this.uid,
@@ -43,6 +44,7 @@ class AppUser {
     this.photoUrl,
     required this.memberships,
     required this.createdAt,
+    this.isChild = false,
   });
 
   factory AppUser.fromFirestore(DocumentSnapshot doc) {
@@ -56,6 +58,7 @@ class AppUser {
           .map((m) => OrgMembership.fromMap(m as Map<String, dynamic>))
           .toList(),
       createdAt: (data['createdAt'] as Timestamp).toDate(),
+      isChild: data['isChild'] as bool? ?? false,
     );
   }
 

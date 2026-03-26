@@ -1,6 +1,7 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onCall } = require('firebase-functions/v2/https');
 const { initializeApp } = require('firebase-admin/app');
-const { getFirestore } = require('firebase-admin/firestore');
+const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
 
 initializeApp();
@@ -103,11 +104,13 @@ exports.onNewMessage = onDocumentCreated(
 
       for (const childUid of childUids) {
         const childData = memberMap[childUid];
-        const guardianUid = childData?.guardianUid;
-        if (!guardianUid || guardianUid === senderId) continue;
+        const guardianUidList = childData?.guardianUids ?? [];
+        if (guardianUidList.length === 0) continue;
 
-        const guardianData = memberMap[guardianUid];
-        if (!guardianUid || !guardianData) continue;
+        for (const guardianUid of guardianUidList) {
+          if (guardianUid === senderId) continue;
+          const guardianData = memberMap[guardianUid];
+          if (!guardianData) continue;
 
         const interval = guardianData.childAlertInterval ?? 'hourly';
         if (interval === 'never') continue;
@@ -142,7 +145,8 @@ exports.onNewMessage = onDocumentCreated(
           .collection('members')
           .doc(guardianUid)
           .update({ [`lastChildAlertAt.${childUid}`]: new Date() });
-      }
+        } // end for guardianUid
+      } // end for childUid
     }
 
     // --- 3. Keyword monitoring ---
@@ -194,6 +198,28 @@ exports.onNewMessage = onDocumentCreated(
 );
 
 /**
+ * Triggered when a new invitation is created.
+ * Notifies all listed guardians that they need to approve a child invitation.
+ */
+exports.onNewInvitation = onDocumentCreated('invitations/{inviteId}', async (event) => {
+  const invite = event.data.data();
+  const { email, orgName, role, guardianUids } = invite;
+
+  if (role !== 'child' || !guardianUids || guardianUids.length === 0) return;
+
+  const tokens = await getTokensForUids(guardianUids);
+  if (tokens.length === 0) return;
+
+  await sendToTokens(
+    tokens,
+    '👶 Kind-Einladung ausstehend',
+    `${email} wurde als Kind in "${orgName}" eingeladen. Bitte stimme zu.`,
+    { inviteId: event.params.inviteId }
+  );
+  console.log(`Sent ${tokens.length} guardian invitation notification(s) for ${email}`);
+});
+
+/**
  * Triggered when a new report is created.
  * Sends FCM push notification to the org admin and all moderators.
  */
@@ -228,4 +254,87 @@ exports.onNewReport = onDocumentCreated('reports/{reportId}', async (event) => {
     { convId: convId ?? '', reportId: event.params.reportId }
   );
   console.log(`Sent ${tokens.length} report notification(s) for report ${event.params.reportId}`);
+});
+
+/**
+ * Callable function: processes all pending invitations for the calling user.
+ * Runs with Admin SDK — bypasses Security Rules.
+ * Called from the Flutter app on every login.
+ */
+exports.processMyInvitations = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  const email = request.auth?.token?.email;
+
+  if (!uid || !email) {
+    throw new Error('Unauthenticated');
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  console.log(`processMyInvitations: uid=${uid} email=${normalizedEmail}`);
+
+  const invitesSnap = await db
+    .collection('invitations')
+    .where('email', '==', normalizedEmail)
+    .where('status', '==', 'pending')
+    .get();
+
+  console.log(`Found ${invitesSnap.docs.length} pending invitation(s)`);
+
+  for (const invite of invitesSnap.docs) {
+    const data = invite.data();
+    const orgId = data.orgId;
+    const role = data.role ?? 'member';
+    const guardianUids = data.guardianUids ?? [];
+    const isChild = role === 'child';
+
+    const orgDoc = await db.collection('organizations').doc(orgId).get();
+    if (!orgDoc.exists) {
+      await invite.ref.update({ status: 'invalid' });
+      console.log(`Org ${orgId} not found, invite ${invite.id} marked invalid`);
+      continue;
+    }
+
+    const userDoc = await db.collection('users').doc(uid).get();
+    const userData = userDoc.data();
+
+    const memberRef = db.collection('organizations').doc(orgId).collection('members').doc(uid);
+    const existingMember = await memberRef.get();
+
+    if (existingMember.exists) {
+      await invite.ref.update({ status: 'accepted' });
+      console.log(`Already member, invite ${invite.id} marked accepted`);
+      continue;
+    }
+
+    const memberStatus = isChild ? 'pending' : 'active';
+
+    const batch = db.batch();
+    batch.set(memberRef, {
+      displayName: userData.displayName ?? normalizedEmail,
+      email: userData.email ?? normalizedEmail,
+      ...(userData.photoUrl ? { photoUrl: userData.photoUrl } : {}),
+      role,
+      joinedAt: Timestamp.now(),
+      guardianUids: isChild ? guardianUids : [],
+      status: memberStatus,
+      childAlertInterval: 'hourly',
+    });
+
+    if (!isChild) {
+      batch.update(db.collection('organizations').doc(orgId), {
+        memberUids: FieldValue.arrayUnion(uid),
+      });
+      batch.update(db.collection('users').doc(uid), {
+        memberships: FieldValue.arrayUnion({ orgId, role }),
+      });
+    } else {
+      batch.update(db.collection('users').doc(uid), { isChild: true });
+    }
+
+    batch.update(invite.ref, { status: 'accepted' });
+    await batch.commit();
+    console.log(`Invite ${invite.id} processed (role=${role})`);
+  }
+
+  return { processed: invitesSnap.docs.length };
 });

@@ -27,7 +27,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _markRead() {
-    ref.read(chatServiceProvider).markAsRead(widget.chatId);
+    ref.read(chatServiceProvider).markAsRead(widget.chatId).catchError((_) {});
   }
 
   @override
@@ -69,13 +69,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final messagesAsync = ref.watch(messagesProvider(widget.chatId));
-    final conv = ref.watch(conversationProvider(widget.chatId)).valueOrNull;
+    final conv = ref.watch(conversationProvider(widget.chatId)).value;
     final isArchived = conv?.status == ConversationStatus.archived;
     final currentUid = FirebaseAuth.instance.currentUser!.uid;
 
     final members = conv == null
         ? null
-        : ref.watch(orgMembersProvider(conv.orgId)).valueOrNull;
+        : ref.watch(orgMembersProvider(conv.orgId)).value;
 
     String title;
     if (conv == null) {

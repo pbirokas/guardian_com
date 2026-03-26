@@ -37,9 +37,14 @@ class ChatService {
           .collection('members')
           .doc(uid)
           .get();
-      final guardianUid = memberDoc.data()?['guardianUid'] as String?;
-      if (guardianUid != null && !guardianUids.contains(guardianUid)) {
-        guardianUids.add(guardianUid);
+      final data = memberDoc.data();
+      if (data == null) continue;
+      // Support both legacy singular field and current plural list
+      final singular = data['guardianUid'] as String?;
+      final plural = List<String>.from(data['guardianUids'] as List? ?? []);
+      final allGuardians = {singular, ...plural}.whereType<String>();
+      for (final g in allGuardians) {
+        if (!guardianUids.contains(g)) guardianUids.add(g);
       }
     }
 
@@ -266,11 +271,11 @@ class ChatService {
     });
   }
 
-  /// Ausstehende Anfragen für Guardians (via canApproveUids, pending only)
+  /// Ausstehende Anfragen für Guardians (via guardianUids, pending only)
   Stream<List<Conversation>> watchGuardianPendingRequests(String orgId) {
     return _db
         .collection('conversations')
-        .where('canApproveUids', arrayContains: _uid)
+        .where('guardianUids', arrayContains: _uid)
         .snapshots()
         .map((s) {
       final all = s.docs.map(Conversation.fromFirestore).toList();

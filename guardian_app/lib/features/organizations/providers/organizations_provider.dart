@@ -49,3 +49,14 @@ final pendingChildInvitesProvider =
       .watch(organizationServiceProvider)
       .watchPendingChildInvites(orgId, uid);
 });
+
+/// Ausstehende Pre-Registration Einladungen für den aktuellen Guardian
+final pendingPreRegInvitesProvider =
+    StreamProvider.family<List<Map<String, dynamic>>, String>((ref, orgId) {
+  ref.watch(authStateProvider);
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return Stream.value([]);
+  return ref
+      .watch(organizationServiceProvider)
+      .watchPendingInvitationsForGuardian(orgId, uid);
+});

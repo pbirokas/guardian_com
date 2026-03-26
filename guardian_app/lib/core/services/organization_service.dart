@@ -60,20 +60,50 @@ class OrganizationService {
   }
 
   Future<void> inviteMember(String orgId, String email, OrgRole role,
-      {String? guardianUid}) async {
+      {List<String> guardianUids = const []}) async {
+    final normalizedEmail = email.toLowerCase().trim();
+    final isChild = role == OrgRole.child;
+    if (isChild && guardianUids.isEmpty) {
+      throw Exception('Für ein Kind muss mindestens ein Guardian ausgewählt werden.');
+    }
+
+    // Org-Name laden für die Einladungs-Anzeige
+    final orgDoc = await _db.collection('organizations').doc(orgId).get();
+    final orgName = orgDoc.data()?['name'] as String? ?? '';
+
+    // Prüfen ob User bereits registriert ist
     final query = await _db
         .collection('users')
-        .where('email', isEqualTo: email.toLowerCase().trim())
+        .where('email', isEqualTo: normalizedEmail)
         .limit(1)
         .get();
 
     if (query.docs.isEmpty) {
-      throw Exception(
-        'Kein Benutzer mit dieser E-Mail gefunden.\n'
-        'Die Person muss sich zuerst einmal in der App angemeldet haben.',
-      );
+      // User noch nicht registriert → Einladung erstellen
+      final existingInvite = await _db
+          .collection('invitations')
+          .where('email', isEqualTo: normalizedEmail)
+          .where('orgId', isEqualTo: orgId)
+          .where('status', isEqualTo: 'pending')
+          .limit(1)
+          .get();
+      if (existingInvite.docs.isNotEmpty) {
+        throw Exception('Für diese E-Mail gibt es bereits eine ausstehende Einladung.');
+      }
+      await _db.collection('invitations').add({
+        'email': normalizedEmail,
+        'orgId': orgId,
+        'orgName': orgName,
+        'role': role.name,
+        'guardianUids': guardianUids,
+        'invitedBy': _uid,
+        'status': 'pending',
+        'createdAt': Timestamp.now(),
+      });
+      return;
     }
 
+    // User bereits registriert → direkt hinzufügen
     final userDoc = query.docs.first;
     final userData = userDoc.data();
     final targetUid = userDoc.id;
@@ -89,12 +119,6 @@ class OrganizationService {
       throw Exception('Dieser Benutzer ist bereits Mitglied.');
     }
 
-    // Kinder brauchen einen Guardian und starten mit Status "pending"
-    final isChild = role == OrgRole.child;
-    if (isChild && guardianUid == null) {
-      throw Exception('Für ein Kind muss ein Guardian ausgewählt werden.');
-    }
-
     final memberStatus = isChild ? MemberStatus.pending : MemberStatus.active;
     final membership = OrgMembership(orgId: orgId, role: role);
 
@@ -106,10 +130,9 @@ class OrganizationService {
         photoUrl: userData['photoUrl'] as String?,
         role: role,
         joinedAt: DateTime.now(),
-        guardianUid: isChild ? guardianUid : null,
+        guardianUids: isChild ? guardianUids : [],
         status: memberStatus,
       ).toFirestore());
-      // Kinder werden erst nach Guardian-Zustimmung zu memberUids hinzugefügt
       if (!isChild) {
         tx.update(_db.collection('organizations').doc(orgId), {
           'memberUids': FieldValue.arrayUnion([targetUid]),
@@ -119,6 +142,16 @@ class OrganizationService {
         });
       }
     });
+  }
+
+  Future<void> updateGuardians(
+      String orgId, String childUid, List<String> guardianUids) async {
+    await _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('members')
+        .doc(childUid)
+        .update({'guardianUids': guardianUids});
   }
 
   Future<void> approveChildInvite(String orgId, String childUid) async {
@@ -141,6 +174,7 @@ class OrganizationService {
       });
       tx.update(_db.collection('users').doc(childUid), {
         'memberships': FieldValue.arrayUnion([membership.toMap()]),
+        'isChild': true,
       });
     });
   }
@@ -160,10 +194,27 @@ class OrganizationService {
         .collection('organizations')
         .doc(orgId)
         .collection('members')
-        .where('guardianUid', isEqualTo: guardianUid)
+        .where('guardianUids', arrayContains: guardianUid)
         .where('status', isEqualTo: 'pending')
         .snapshots()
         .map((s) => s.docs.map(OrgMember.fromFirestore).toList());
+  }
+
+  Stream<List<Map<String, dynamic>>> watchPendingInvitationsForGuardian(
+      String orgId, String guardianUid) {
+    return _db
+        .collection('invitations')
+        .where('orgId', isEqualTo: orgId)
+        .where('guardianUids', arrayContains: guardianUid)
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .map((s) => s.docs
+            .map((d) => {'id': d.id, ...d.data()})
+            .toList());
+  }
+
+  Future<void> cancelInvitation(String inviteId) async {
+    await _db.collection('invitations').doc(inviteId).update({'status': 'cancelled'});
   }
 
   Future<void> updateChildAlertInterval(

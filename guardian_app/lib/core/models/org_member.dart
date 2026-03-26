@@ -24,7 +24,7 @@ class OrgMember {
   final String? photoUrl;
   final OrgRole role;
   final DateTime joinedAt;
-  final String? guardianUid; // nur für Kinder
+  final List<String> guardianUids; // nur für Kinder
   final MemberStatus status;
   final ChildAlertInterval childAlertInterval; // nur für Guardians
   final Map<String, DateTime> lastChildAlertAt; // childUid -> last alert time
@@ -36,7 +36,7 @@ class OrgMember {
     this.photoUrl,
     required this.role,
     required this.joinedAt,
-    this.guardianUid,
+    this.guardianUids = const [],
     this.status = MemberStatus.active,
     this.childAlertInterval = ChildAlertInterval.hourly,
     this.lastChildAlertAt = const {},
@@ -53,7 +53,11 @@ class OrgMember {
       photoUrl: data['photoUrl'] as String?,
       role: OrgRole.values.byName(data['role'] as String),
       joinedAt: (data['joinedAt'] as Timestamp).toDate(),
-      guardianUid: data['guardianUid'] as String?,
+      guardianUids: [
+        // Migrate: support old single guardianUid field
+        if (data['guardianUid'] != null) data['guardianUid'] as String,
+        ...List<String>.from(data['guardianUids'] as List? ?? []),
+      ].toSet().toList(),
       status: MemberStatus.values.byName(data['status'] as String? ?? 'active'),
       childAlertInterval: ChildAlertInterval.values
           .where((e) => e.name == (data['childAlertInterval'] as String?))
@@ -71,7 +75,7 @@ class OrgMember {
         if (photoUrl != null) 'photoUrl': photoUrl,
         'role': role.name,
         'joinedAt': Timestamp.fromDate(joinedAt),
-        if (guardianUid != null) 'guardianUid': guardianUid,
+        'guardianUids': guardianUids,
         'status': status.name,
         'childAlertInterval': childAlertInterval.name,
       };

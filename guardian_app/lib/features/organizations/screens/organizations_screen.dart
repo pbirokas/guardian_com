@@ -7,10 +7,18 @@ import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/chat/providers/chat_provider.dart';
 import '../providers/organizations_provider.dart';
 
-class OrganizationsScreen extends ConsumerWidget {
+class OrganizationsScreen extends ConsumerStatefulWidget {
   const OrganizationsScreen({super.key});
 
-  Future<void> _showCreateDialog(BuildContext context, WidgetRef ref) async {
+  @override
+  ConsumerState<OrganizationsScreen> createState() =>
+      _OrganizationsScreenState();
+}
+
+class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
+  bool _showArchived = false;
+
+  Future<void> _showCreateDialog(BuildContext context) async {
     final nameController = TextEditingController();
     OrgTag selectedTag = OrgTag.sonstiges;
     ChatMode selectedMode = ChatMode.guardian;
@@ -98,7 +106,7 @@ class OrganizationsScreen extends ConsumerWidget {
     }
   }
 
-  void _showProfileMenu(BuildContext context, WidgetRef ref, User user) {
+  void _showProfileMenu(BuildContext context, User user) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -183,7 +191,7 @@ class OrganizationsScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final orgsAsync = ref.watch(myOrganizationsProvider);
     final user = FirebaseAuth.instance.currentUser;
     final currentAppUserAsync = ref.watch(currentAppUserProvider);
@@ -204,7 +212,7 @@ class OrganizationsScreen extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(
-                onTap: () => _showProfileMenu(context, ref, user),
+                onTap: () => _showProfileMenu(context, user),
                 child: CircleAvatar(
                   radius: 18,
                   backgroundImage: user.photoURL != null
@@ -229,7 +237,13 @@ class OrganizationsScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Fehler: $e')),
         data: (orgs) {
-          if (orgs.isEmpty) {
+          final hasArchived = orgs.any((o) => o.isArchived);
+          final visibleOrgs = _showArchived
+              ? orgs
+              : orgs.where((o) => !o.isArchived).toList();
+          final hiddenCount = orgs.length - visibleOrgs.length;
+
+          if (visibleOrgs.isEmpty && !hasArchived) {
             return const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -242,12 +256,42 @@ class OrganizationsScreen extends ConsumerWidget {
               ),
             );
           }
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: orgs.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 8),
-            itemBuilder: (context, i) {
-              final org = orgs[i];
+          return Column(
+            children: [
+              if (hasArchived)
+                InkWell(
+                  onTap: () => setState(() => _showArchived = !_showArchived),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _showArchived
+                              ? Icons.visibility_off_outlined
+                              : Icons.archive_outlined,
+                          size: 16,
+                          color: Colors.grey[600],
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _showArchived
+                              ? 'Archivierte ausblenden'
+                              : 'Archivierte anzeigen ($hiddenCount)',
+                          style: TextStyle(
+                              fontSize: 13, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  itemCount: visibleOrgs.length,
+                  separatorBuilder: (_, idx) => const SizedBox(height: 8),
+                  itemBuilder: (context, i) {
+              final org = visibleOrgs[i];
               final currentUid = FirebaseAuth.instance.currentUser!.uid;
               final isOrgAdmin = org.adminUid == currentUid;
               final unreadCount = ref.watch(unreadOrgCountProvider(org.id));
@@ -400,13 +444,16 @@ class OrganizationsScreen extends ConsumerWidget {
                 ),
               );
             },
-          );
+          ),
+        ),
+      ],
+    );
         },
       ),
       floatingActionButton: isChildInAnyOrg
           ? null
           : FloatingActionButton.extended(
-              onPressed: () => _showCreateDialog(context, ref),
+              onPressed: () => _showCreateDialog(context),
               icon: const Icon(Icons.add),
               label: const Text('Organisation erstellen'),
             ),

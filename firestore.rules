@@ -89,7 +89,7 @@ service cloud.firestore {
             request.resource.data.status == 'active') ||
           (memberId == request.auth.uid &&
             request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['childAlertInterval', 'lastChildAlertAt']))
+              .hasOnly(['childAlertInterval', 'lastChildAlertAt', 'displayName', 'photoUrl']))
         );
 
         allow delete: if isAdmin(orgId);

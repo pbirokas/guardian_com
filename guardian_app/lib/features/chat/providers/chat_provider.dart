@@ -80,8 +80,10 @@ final conversationProvider =
   return ref.watch(chatServiceProvider).watchConversation(convId);
 });
 
-final messagesProvider =
-    StreamProvider.family<List<Message>, String>((ref, convId) {
+final messagesProvider = StreamProvider.family<List<Message>,
+    ({String convId, int limit})>((ref, params) {
   ref.watch(authStateProvider);
-  return ref.watch(chatServiceProvider).watchMessages(convId);
+  return ref
+      .watch(chatServiceProvider)
+      .watchMessages(params.convId, limit: params.limit);
 });

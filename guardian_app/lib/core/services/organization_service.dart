@@ -47,6 +47,31 @@ class OrganizationService {
     return org;
   }
 
+  /// Synchronisiert displayName und photoUrl in allen Member-Dokumenten des Nutzers.
+  /// Liest die orgIds aus users/{uid}.memberships und batch-updated jeden Eintrag.
+  Future<void> updateMyMemberProfile(
+      String displayName, {String? photoUrl}) async {
+    final userDoc = await _db.collection('users').doc(_uid).get();
+    final memberships = List<Map<String, dynamic>>.from(
+        userDoc.data()?['memberships'] as List? ?? []);
+    if (memberships.isEmpty) return;
+
+    final batch = _db.batch();
+    for (final m in memberships) {
+      final orgId = m['orgId'] as String?;
+      if (orgId == null) continue;
+      final memberRef = _db
+          .collection('organizations')
+          .doc(orgId)
+          .collection('members')
+          .doc(_uid);
+      final updates = <String, dynamic>{'displayName': displayName};
+      if (photoUrl != null) updates['photoUrl'] = photoUrl;
+      batch.update(memberRef, updates);
+    }
+    await batch.commit();
+  }
+
   Future<void> updateOrganization(String orgId,
       {String? name, OrgTag? tag, ChatMode? chatMode}) async {
     final updates = <String, dynamic>{

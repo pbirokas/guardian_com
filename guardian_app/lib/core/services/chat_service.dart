@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../models/conversation.dart';
 import '../models/message.dart';
 
@@ -206,6 +209,34 @@ class ChatService {
     await batch.commit();
   }
 
+  Future<void> sendImage(String convId, File imageFile) async {
+    final user = _auth.currentUser!;
+    final msgRef =
+        _db.collection('conversations').doc(convId).collection('messages').doc();
+
+    // Bild in Firebase Storage hochladen
+    final storageRef = FirebaseStorage.instance
+        .ref()
+        .child('chatImages/$convId/${msgRef.id}.jpg');
+    await storageRef.putFile(imageFile);
+    final imageUrl = await storageRef.getDownloadURL();
+
+    final batch = _db.batch();
+    batch.set(msgRef, Message(
+      id: msgRef.id,
+      senderUid: _uid,
+      senderName: user.displayName ?? user.email ?? 'Unbekannt',
+      text: '',
+      sentAt: DateTime.now(),
+      imageUrl: imageUrl,
+    ).toFirestore());
+    batch.update(_db.collection('conversations').doc(convId), {
+      'lastMessage': '[Bild]',
+      'lastMessageAt': Timestamp.fromDate(DateTime.now()),
+    });
+    await batch.commit();
+  }
+
   Stream<List<Conversation>> watchOrgConversations(String orgId) {
     return _db
         .collection('conversations')
@@ -337,6 +368,40 @@ class ChatService {
     return conv;
   }
 
+  /// Entfernt ein Mitglied aus einem Gruppen-Chat (Sheltered-Modus).
+  Future<void> removeMemberFromConversation(
+      String convId, String memberUid) async {
+    await _db.collection('conversations').doc(convId).update({
+      'participantUids': FieldValue.arrayRemove([memberUid]),
+    });
+  }
+
+  /// Fügt neue Mitglieder zu einem bestehenden Gruppen-Chat hinzu (Sheltered-Modus).
+  /// Aktualisiert participantUids und guardianUids der Konversation.
+  Future<void> addMembersToConversation(
+      String convId, String orgId, List<String> newMemberUids) async {
+    final newGuardianUids = <String>[];
+    for (final uid in newMemberUids) {
+      final memberDoc = await _db
+          .collection('organizations')
+          .doc(orgId)
+          .collection('members')
+          .doc(uid)
+          .get();
+      final data = memberDoc.data();
+      if (data == null) continue;
+      final singular = data['guardianUid'] as String?;
+      final plural = List<String>.from(data['guardianUids'] as List? ?? []);
+      newGuardianUids.addAll({singular, ...plural}.whereType<String>());
+    }
+
+    await _db.collection('conversations').doc(convId).update({
+      'participantUids': FieldValue.arrayUnion(newMemberUids),
+      if (newGuardianUids.isNotEmpty)
+        'guardianUids': FieldValue.arrayUnion(newGuardianUids),
+    });
+  }
+
   /// Überwachte Konversationen für Guardians (via guardianUids, approved, kein Teilnehmer)
   Stream<List<Conversation>> watchGuardianSupervisorConversations(
       String orgId) {
@@ -385,12 +450,13 @@ class ChatService {
     });
   }
 
-  Stream<List<Message>> watchMessages(String convId) {
+  Stream<List<Message>> watchMessages(String convId, {int limit = 30}) {
     return _db
         .collection('conversations')
         .doc(convId)
         .collection('messages')
         .orderBy('sentAt')
+        .limitToLast(limit)
         .snapshots()
         .map((s) => s.docs.map(Message.fromFirestore).toList());
   }

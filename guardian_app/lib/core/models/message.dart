@@ -6,6 +6,7 @@ class Message {
   final String senderName;
   final String text;
   final DateTime sentAt;
+  final String? imageUrl;
 
   const Message({
     required this.id,
@@ -13,6 +14,7 @@ class Message {
     required this.senderName,
     required this.text,
     required this.sentAt,
+    this.imageUrl,
   });
 
   factory Message.fromFirestore(DocumentSnapshot doc) {
@@ -21,8 +23,9 @@ class Message {
       id: doc.id,
       senderUid: data['senderUid'] as String,
       senderName: data['senderName'] as String? ?? '',
-      text: data['text'] as String,
+      text: data['text'] as String? ?? '',
       sentAt: (data['sentAt'] as Timestamp).toDate(),
+      imageUrl: data['imageUrl'] as String?,
     );
   }
 
@@ -31,5 +34,6 @@ class Message {
         'senderName': senderName,
         'text': text,
         'sentAt': Timestamp.fromDate(sentAt),
+        if (imageUrl != null) 'imageUrl': imageUrl,
       };
 }

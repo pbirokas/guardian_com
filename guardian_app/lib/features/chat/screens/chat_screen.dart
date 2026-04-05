@@ -1,12 +1,18 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/models/message.dart';
 import '../../../core/models/org_member.dart';
+import '../../../core/models/organization.dart';
+import '../../../core/models/poll.dart';
 import '../../../features/organizations/providers/organizations_provider.dart';
 import '../providers/chat_provider.dart';
 
@@ -26,6 +32,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   int _limit = 30;
   bool _loadingMore = false;
   bool _pickingImage = false;
+  int _knownMessageCount = 0;
+  bool _atBottom = true;
+
+  // ── Voice recording ────────────────────────────────────────────────────────
+  final _recorder = AudioRecorder();
+  bool _isRecording = false;
+  String? _recordingPath;
+  Duration _recordingDuration = Duration.zero;
+  Timer? _recordingTimer;
 
   @override
   void initState() {
@@ -35,7 +50,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels <= 80 && !_loadingMore) {
+    final pos = _scrollController.position;
+    _atBottom = pos.pixels >= pos.maxScrollExtent - 150;
+
+    // Ältere Nachrichten nachladen — aber erst wenn der erste Batch
+    // bereits geladen wurde (verhindert Endlosschleife beim ersten Aufbau)
+    if (pos.pixels <= 80 && !_loadingMore && _knownMessageCount > 0) {
       setState(() {
         _loadingMore = true;
         _limit += 30;
@@ -53,7 +73,191 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void dispose() {
     _controller.dispose();
     _scrollController.dispose();
+    _recordingTimer?.cancel();
+    _recorder.dispose();
     super.dispose();
+  }
+
+  // ── Voice recording methods ────────────────────────────────────────────────
+
+  Future<void> _startRecording() async {
+    final hasPermission = await _recorder.hasPermission();
+    if (!hasPermission) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Mikrofon-Zugriff wurde verweigert.')),
+        );
+      }
+      return;
+    }
+    final dir = await getTemporaryDirectory();
+    final path =
+        '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+    await _recorder.start(
+      const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 64000),
+      path: path,
+    );
+
+    setState(() {
+      _isRecording = true;
+      _recordingPath = path;
+      _recordingDuration = Duration.zero;
+    });
+
+    _recordingTimer =
+        Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() => _recordingDuration += const Duration(seconds: 1));
+      }
+    });
+  }
+
+  Future<void> _stopAndSend() async {
+    _recordingTimer?.cancel();
+    final messenger = ScaffoldMessenger.of(context); // capture before await
+    final path = await _recorder.stop();
+    final durationMs = _recordingDuration.inMilliseconds;
+    setState(() {
+      _isRecording = false;
+      _recordingDuration = Duration.zero;
+      _recordingPath = null;
+    });
+    if (path == null || durationMs < 500) return; // zu kurz → verwerfen
+    try {
+      await ref
+          .read(chatServiceProvider)
+          .sendVoiceMessage(widget.chatId, File(path), durationMs);
+      _markRead();
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    }
+  }
+
+  Future<void> _showCreatePollDialog() async {
+    final questionCtrl = TextEditingController();
+    final optionCtrls = [
+      TextEditingController(text: ''),
+      TextEditingController(text: ''),
+    ];
+    var multipleChoice = false;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('Umfrage erstellen'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: questionCtrl,
+                  autofocus: true,
+                  maxLength: 200,
+                  decoration: const InputDecoration(
+                    labelText: 'Frage',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text('Antwortmöglichkeiten',
+                    style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 6),
+                ...optionCtrls.asMap().entries.map((e) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: e.value,
+                              maxLength: 100,
+                              decoration: InputDecoration(
+                                labelText: 'Option ${e.key + 1}',
+                                border: const OutlineInputBorder(),
+                                counterText: '',
+                              ),
+                            ),
+                          ),
+                          if (optionCtrls.length > 2)
+                            IconButton(
+                              icon: const Icon(Icons.remove_circle_outline,
+                                  color: Colors.red),
+                              onPressed: () => setState(() =>
+                                  optionCtrls.removeAt(e.key)),
+                            ),
+                        ],
+                      ),
+                    )),
+                if (optionCtrls.length < 8)
+                  TextButton.icon(
+                    onPressed: () => setState(() =>
+                        optionCtrls.add(TextEditingController())),
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Option hinzufügen'),
+                  ),
+                SwitchListTile(
+                  value: multipleChoice,
+                  onChanged: (v) => setState(() => multipleChoice = v),
+                  title: const Text('Mehrfachauswahl',
+                      style: TextStyle(fontSize: 14)),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Erstellen'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    final question = questionCtrl.text.trim();
+    final options = optionCtrls
+        .map((c) => c.text.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
+    if (question.isEmpty || options.length < 2) return;
+
+    try {
+      await ref.read(chatServiceProvider).createPoll(
+            widget.chatId,
+            question: question,
+            optionTexts: options,
+            multipleChoice: multipleChoice,
+          );
+      _markRead();
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    }
+  }
+
+  Future<void> _cancelRecording() async {
+    _recordingTimer?.cancel();
+    await _recorder.stop();
+    setState(() {
+      _isRecording = false;
+      _recordingDuration = Duration.zero;
+      _recordingPath = null;
+    });
   }
 
   void _scrollToBottom() {
@@ -325,6 +529,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ? null
         : ref.watch(orgMembersProvider(conv.orgId)).value;
 
+    final isSheltered = conv != null &&
+        ref.watch(organizationProvider(conv.orgId)).value?.chatMode ==
+            ChatMode.sheltered;
+
     String title;
     if (conv == null) {
       title = widget.partnerName ?? 'Chat';
@@ -402,7 +610,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(child: Text('Fehler: $e')),
               data: (messages) {
-                if (messages.isNotEmpty && !_loadingMore) _scrollToBottom();
+                final isFirstLoad = _knownMessageCount == 0;
+                final isNewMessage =
+                    messages.length == _knownMessageCount + 1;
+                // Scrollen: beim Erstladen, oder wenn eine neue Nachricht
+                // ankam UND der User bereits am Ende war.
+                if (isFirstLoad || (isNewMessage && _atBottom)) {
+                  _scrollToBottom();
+                }
+                _knownMessageCount = messages.length;
                 if (messages.isEmpty) {
                   return const Center(
                     child: Text('Noch keine Nachrichten',
@@ -450,9 +666,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         _MessageBubble(
                           message: msg,
                           isMe: isMe,
+                          convId: widget.chatId,
                           showSenderName:
                               showSender && msg.senderName.isNotEmpty,
-                          onReport: isMe || conv == null
+                          onReport: isMe || conv == null || msg.pollId != null
                               ? null
                               : () => _confirmReport(conv, msg),
                         ),
@@ -468,6 +685,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               controller: _controller,
               onSend: _send,
               onSendImage: _pickingImage ? null : _sendImage,
+              isRecording: _isRecording,
+              recordingDuration: _recordingDuration,
+              onStartRecording: _startRecording,
+              onStopAndSend: _stopAndSend,
+              onCancelRecording: _cancelRecording,
+              onCreatePoll: isSheltered ? _showCreatePollDialog : null,
             ),
         ],
       ),
@@ -542,10 +765,12 @@ class _MessageBubble extends StatelessWidget {
   final bool isMe;
   final bool showSenderName;
   final VoidCallback? onReport;
+  final String convId;
 
   const _MessageBubble({
     required this.message,
     required this.isMe,
+    required this.convId,
     this.showSenderName = false,
     this.onReport,
   });
@@ -609,7 +834,19 @@ class _MessageBubble extends StatelessWidget {
                   ),
                 ),
               ),
-            if (message.imageUrl != null)
+            if (message.pollId != null)
+              _PollBubble(
+                convId: convId,
+                pollId: message.pollId!,
+                isMe: isMe,
+              )
+            else if (message.audioUrl != null)
+              _VoicePlayer(
+                audioUrl: message.audioUrl!,
+                durationMs: message.audioDurationMs,
+                isMe: isMe,
+              )
+            else if (message.imageUrl != null)
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: Image.network(
@@ -694,54 +931,417 @@ class _InputBar extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
   final VoidCallback? onSendImage;
+  final bool isRecording;
+  final Duration recordingDuration;
+  final VoidCallback onStartRecording;
+  final VoidCallback onStopAndSend;
+  final VoidCallback onCancelRecording;
+  final VoidCallback? onCreatePoll;
 
   const _InputBar({
     required this.controller,
     required this.onSend,
     this.onSendImage,
+    required this.isRecording,
+    required this.recordingDuration,
+    required this.onStartRecording,
+    required this.onStopAndSend,
+    required this.onCancelRecording,
+    this.onCreatePoll,
   });
+
+  String _formatDuration(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
-        child: Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.image_outlined),
-              onPressed: onSendImage,
-              tooltip: 'Bild senden',
-            ),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                textCapitalization: TextCapitalization.sentences,
-                maxLines: null,
-                decoration: InputDecoration(
-                  hintText: 'Nachricht schreiben...',
-                  filled: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 10),
-                ),
-                onSubmitted: (_) => onSend(),
-              ),
-            ),
-            const SizedBox(width: 8),
-            FilledButton(
-              onPressed: onSend,
-              style: FilledButton.styleFrom(
-                shape: const CircleBorder(),
-                padding: const EdgeInsets.all(14),
-              ),
-              child: const Icon(Icons.send),
-            ),
-          ],
+        child: isRecording ? _buildRecordingBar(context) : _buildNormalBar(),
+      ),
+    );
+  }
+
+  Widget _buildRecordingBar(BuildContext context) {
+    return Row(
+      children: [
+        IconButton(
+          icon: const Icon(Icons.delete_outline, color: Colors.red),
+          tooltip: 'Abbrechen',
+          onPressed: onCancelRecording,
         ),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.red.withAlpha(20),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.red.withAlpha(80)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.circle, color: Colors.red, size: 10),
+                const SizedBox(width: 8),
+                Text(
+                  _formatDuration(recordingDuration),
+                  style: const TextStyle(
+                      fontFeatures: [FontFeature.tabularFigures()]),
+                ),
+                const SizedBox(width: 8),
+                const Text('Aufnahme läuft…',
+                    style: TextStyle(color: Colors.grey, fontSize: 13)),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        FilledButton(
+          onPressed: onStopAndSend,
+          style: FilledButton.styleFrom(
+            shape: const CircleBorder(),
+            padding: const EdgeInsets.all(14),
+          ),
+          child: const Icon(Icons.send),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNormalBar() {
+    return Row(
+      children: [
+        IconButton(
+          icon: const Icon(Icons.image_outlined),
+          onPressed: onSendImage,
+          tooltip: 'Bild senden',
+        ),
+        if (onCreatePoll != null)
+          IconButton(
+            icon: const Icon(Icons.poll_outlined),
+            onPressed: onCreatePoll,
+            tooltip: 'Umfrage erstellen',
+          ),
+        Expanded(
+          child: TextField(
+            controller: controller,
+            textCapitalization: TextCapitalization.sentences,
+            maxLines: null,
+            decoration: InputDecoration(
+              hintText: 'Nachricht schreiben...',
+              filled: true,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(24),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            ),
+            onSubmitted: (_) => onSend(),
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.mic_outlined),
+          tooltip: 'Sprachnachricht',
+          onPressed: onStartRecording,
+        ),
+        FilledButton(
+          onPressed: onSend,
+          style: FilledButton.styleFrom(
+            shape: const CircleBorder(),
+            padding: const EdgeInsets.all(14),
+          ),
+          child: const Icon(Icons.send),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Poll bubble ───────────────────────────────────────────────────────────────
+
+class _PollBubble extends ConsumerStatefulWidget {
+  final String convId;
+  final String pollId;
+  final bool isMe;
+
+  const _PollBubble({
+    required this.convId,
+    required this.pollId,
+    required this.isMe,
+  });
+
+  @override
+  ConsumerState<_PollBubble> createState() => _PollBubbleState();
+}
+
+class _PollBubbleState extends ConsumerState<_PollBubble> {
+  bool _voting = false;
+
+  Future<void> _vote(String optionId) async {
+    if (_voting) return;
+    setState(() => _voting = true);
+    try {
+      await ref
+          .read(chatServiceProvider)
+          .castVote(widget.convId, widget.pollId, optionId);
+    } finally {
+      if (mounted) setState(() => _voting = false);
+    }
+  }
+
+  Future<void> _close() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Umfrage beenden'),
+        content: const Text(
+            'Die Umfrage beenden? Danach kann nicht mehr abgestimmt werden.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Abbrechen')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Beenden')),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ref
+          .read(chatServiceProvider)
+          .closePoll(widget.convId, widget.pollId);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pollAsync = ref.watch(
+        pollProvider((convId: widget.convId, pollId: widget.pollId)));
+    final currentUid = FirebaseAuth.instance.currentUser!.uid;
+    final scheme = Theme.of(context).colorScheme;
+    final onColor = widget.isMe ? scheme.onPrimary : null;
+    final labelColor = onColor ?? scheme.onSurface;
+    final barColor = widget.isMe ? scheme.onPrimary.withAlpha(180) : scheme.primary;
+    final barBg = widget.isMe
+        ? scheme.onPrimary.withAlpha(40)
+        : scheme.surfaceContainerHighest;
+
+    return pollAsync.when(
+      loading: () => const SizedBox(
+          width: 200,
+          child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
+      error: (e, _) =>
+          Text('Fehler', style: TextStyle(fontSize: 12, color: onColor)),
+      data: (poll) {
+        if (poll == null) return const SizedBox.shrink();
+        final hasVoted = poll.hasVoted(currentUid);
+        final showResults = hasVoted || poll.isClosed;
+        final canClose = !poll.isClosed && poll.createdBy == currentUid;
+
+        return SizedBox(
+          width: 260,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Icon(Icons.poll_outlined,
+                    size: 14, color: (onColor ?? Colors.grey).withAlpha(180)),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    poll.isClosed ? 'Abgeschlossen' : 'Umfrage',
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: (onColor ?? Colors.grey).withAlpha(180)),
+                  ),
+                ),
+                if (canClose)
+                  GestureDetector(
+                    onTap: _close,
+                    child: Icon(Icons.stop_circle_outlined,
+                        size: 16, color: onColor ?? Colors.red),
+                  ),
+              ]),
+              const SizedBox(height: 6),
+              Text(poll.question,
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: labelColor)),
+              const SizedBox(height: 8),
+              ...poll.options.map((opt) {
+                final count = poll.votesFor(opt.id).length;
+                final total = poll.totalVoters;
+                final pct = total > 0 ? count / total : 0.0;
+                final myVote = poll.hasVotedFor(currentUid, opt.id);
+
+                return GestureDetector(
+                  onTap: (!poll.isClosed && !_voting) ? () => _vote(opt.id) : null,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Icon(
+                            myVote
+                                ? Icons.check_circle
+                                : Icons.radio_button_unchecked,
+                            size: 14,
+                            color: myVote ? barColor : (onColor ?? Colors.grey),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                              child: Text(opt.text,
+                                  style: TextStyle(
+                                      fontSize: 13, color: labelColor))),
+                          if (showResults)
+                            Text('$count',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color: (onColor ?? Colors.grey)
+                                        .withAlpha(180))),
+                        ]),
+                        if (showResults) ...[
+                          const SizedBox(height: 3),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: pct,
+                              minHeight: 4,
+                              backgroundColor: barBg,
+                              valueColor: AlwaysStoppedAnimation<Color>(barColor),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              }),
+              Text(
+                '${poll.totalVoters} '
+                '${poll.totalVoters == 1 ? 'Stimme' : 'Stimmen'}',
+                style: TextStyle(
+                    fontSize: 11,
+                    color: (onColor ?? Colors.grey).withAlpha(180)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── Voice message player ──────────────────────────────────────────────────────
+
+class _VoicePlayer extends StatefulWidget {
+  final String audioUrl;
+  final int? durationMs;
+  final bool isMe;
+
+  const _VoicePlayer({
+    required this.audioUrl,
+    this.durationMs,
+    required this.isMe,
+  });
+
+  @override
+  State<_VoicePlayer> createState() => _VoicePlayerState();
+}
+
+class _VoicePlayerState extends State<_VoicePlayer> {
+  final _player = AudioPlayer();
+  PlayerState _state = PlayerState.stopped;
+  Duration _position = Duration.zero;
+  Duration _total = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.durationMs != null) {
+      _total = Duration(milliseconds: widget.durationMs!);
+    }
+    _player.onPlayerStateChanged.listen((s) {
+      if (mounted) setState(() => _state = s);
+    });
+    _player.onPositionChanged.listen((p) {
+      if (mounted) setState(() => _position = p);
+    });
+    _player.onDurationChanged.listen((d) {
+      if (mounted) setState(() => _total = d);
+    });
+    _player.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => _position = Duration.zero);
+    });
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  Future<void> _togglePlay() async {
+    if (_state == PlayerState.playing) {
+      await _player.pause();
+    } else {
+      await _player.play(UrlSource(widget.audioUrl));
+    }
+  }
+
+  String _fmt(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isPlaying = _state == PlayerState.playing;
+    final progress = _total.inMilliseconds > 0
+        ? (_position.inMilliseconds / _total.inMilliseconds).clamp(0.0, 1.0)
+        : 0.0;
+    final onColor =
+        widget.isMe ? Theme.of(context).colorScheme.onPrimary : null;
+
+    return SizedBox(
+      width: 220,
+      child: Row(
+        children: [
+          IconButton(
+            icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow,
+                color: onColor),
+            onPressed: _togglePlay,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                LinearProgressIndicator(
+                  value: progress,
+                  backgroundColor: (onColor ?? Colors.grey).withAlpha(60),
+                  color: onColor ?? Theme.of(context).colorScheme.primary,
+                  minHeight: 3,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${_fmt(_position)} / ${_fmt(_total)}',
+                  style: TextStyle(fontSize: 10, color: onColor ?? Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

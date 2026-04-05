@@ -68,6 +68,7 @@ class AppUser {
         if (photoUrl != null) 'photoUrl': photoUrl,
         'memberships': memberships.map((m) => m.toMap()).toList(),
         'createdAt': Timestamp.fromDate(createdAt),
+        'isChild': isChild,
       };
 
   OrgRole? roleInOrg(String orgId) {

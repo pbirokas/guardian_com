@@ -36,7 +36,7 @@ class GuardianApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'Guardian Com',
       debugShowCheckedModeBanner: false,
-      scaffoldMessengerKey: NotificationService.scaffoldMessengerKey,
+
       themeMode: themeMode,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(

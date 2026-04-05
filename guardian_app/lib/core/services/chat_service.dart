@@ -1,10 +1,13 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../models/conversation.dart';
 import '../models/message.dart';
+import '../models/poll.dart';
 
 class ChatService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -159,18 +162,23 @@ class ChatService {
   }
 
   Future<void> deleteConversation(String convId) async {
-    final messagesSnap = await _db
+    final messagesRef = _db
         .collection('conversations')
         .doc(convId)
-        .collection('messages')
-        .limit(500)
-        .get();
-    final batch = _db.batch();
-    for (final doc in messagesSnap.docs) {
-      batch.delete(doc.reference);
+        .collection('messages');
+
+    // Nachrichten in Batches à 400 löschen (Firestore-Limit: 500 ops/batch)
+    while (true) {
+      final snap = await messagesRef.limit(400).get();
+      if (snap.docs.isEmpty) break;
+      final batch = _db.batch();
+      for (final doc in snap.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
     }
-    batch.delete(_db.collection('conversations').doc(convId));
-    await batch.commit();
+
+    await _db.collection('conversations').doc(convId).delete();
   }
 
   Stream<Conversation?> watchConversation(String convId) {
@@ -202,10 +210,81 @@ class ChatService {
     ).toFirestore());
 
     batch.update(_db.collection('conversations').doc(convId), {
-      'lastMessage': text,
+      'lastMessage': text.length > 200 ? '${text.substring(0, 200)}…' : text,
       'lastMessageAt': Timestamp.fromDate(DateTime.now()),
     });
 
+    await batch.commit();
+  }
+
+  // Maximale Dateigröße für Chat-Bilder: 2 MB
+  static const int _maxImageBytes = 2 * 1024 * 1024;
+
+  /// Gibt komprimierte JPEG-Bytes zurück.
+  /// Verringert Qualität schrittweise bis das Bild unter [_maxImageBytes] liegt.
+  /// Wirft eine Exception wenn das Bild auch bei minimaler Qualität zu groß ist.
+  Future<Uint8List> _prepareImageForUpload(File imageFile) async {
+    const maxDimension = 1024;
+    final qualities = [80, 65, 50, 35];
+
+    for (final quality in qualities) {
+      final result = await FlutterImageCompress.compressWithFile(
+        imageFile.absolute.path,
+        minWidth: maxDimension,
+        minHeight: maxDimension,
+        quality: quality,
+        format: CompressFormat.jpeg,
+      );
+      if (result == null) break;
+      if (result.length <= _maxImageBytes) return result;
+    }
+
+    // Letzte Chance: sehr kleine Auflösung
+    final fallback = await FlutterImageCompress.compressWithFile(
+      imageFile.absolute.path,
+      minWidth: 512,
+      minHeight: 512,
+      quality: 25,
+      format: CompressFormat.jpeg,
+    );
+    if (fallback != null && fallback.length <= _maxImageBytes) return fallback;
+
+    throw Exception(
+        'Das Bild ist zu groß (max. ${_maxImageBytes ~/ (1024 * 1024)} MB). '
+        'Bitte wähle ein kleineres Bild.');
+  }
+
+  Future<void> sendVoiceMessage(
+      String convId, File audioFile, int durationMs) async {
+    final user = _auth.currentUser!;
+    final msgRef =
+        _db.collection('conversations').doc(convId).collection('messages').doc();
+
+    final storageRef = FirebaseStorage.instance
+        .ref()
+        .child('voiceMessages/$convId/${_uid}_${msgRef.id}.m4a');
+    await storageRef.putFile(
+      audioFile,
+      SettableMetadata(contentType: 'audio/m4a'),
+    );
+    final audioUrl = await storageRef.getDownloadURL();
+
+    final batch = _db.batch();
+    batch.set(
+        msgRef,
+        Message(
+          id: msgRef.id,
+          senderUid: _uid,
+          senderName: user.displayName ?? user.email ?? 'Unbekannt',
+          text: '',
+          sentAt: DateTime.now(),
+          audioUrl: audioUrl,
+          audioDurationMs: durationMs,
+        ).toFirestore());
+    batch.update(_db.collection('conversations').doc(convId), {
+      'lastMessage': '🎤 Sprachnachricht',
+      'lastMessageAt': Timestamp.fromDate(DateTime.now()),
+    });
     await batch.commit();
   }
 
@@ -214,11 +293,17 @@ class ChatService {
     final msgRef =
         _db.collection('conversations').doc(convId).collection('messages').doc();
 
-    // Bild in Firebase Storage hochladen
+    // Bild komprimieren und Größe prüfen
+    final imageBytes = await _prepareImageForUpload(imageFile);
+
+    // Komprimierte Bytes in Firebase Storage hochladen
     final storageRef = FirebaseStorage.instance
         .ref()
-        .child('chatImages/$convId/${msgRef.id}.jpg');
-    await storageRef.putFile(imageFile);
+        .child('chatImages/$convId/${_uid}_${msgRef.id}.jpg');
+    await storageRef.putData(
+      imageBytes,
+      SettableMetadata(contentType: 'image/jpeg'),
+    );
     final imageUrl = await storageRef.getDownloadURL();
 
     final batch = _db.batch();
@@ -494,5 +579,125 @@ class ChatService {
 
   Future<void> markReportReviewed(String reportId) async {
     await _db.collection('reports').doc(reportId).update({'status': 'reviewed'});
+  }
+
+  // ── Polls ──────────────────────────────────────────────────────────────────
+
+  Future<void> createPoll(
+    String convId, {
+    required String question,
+    required List<String> optionTexts,
+    required bool multipleChoice,
+  }) async {
+    final user = _auth.currentUser!;
+    final pollRef = _db
+        .collection('conversations')
+        .doc(convId)
+        .collection('polls')
+        .doc();
+    final msgRef = _db
+        .collection('conversations')
+        .doc(convId)
+        .collection('messages')
+        .doc();
+
+    final poll = Poll(
+      id: pollRef.id,
+      convId: convId,
+      question: question,
+      options: optionTexts
+          .asMap()
+          .entries
+          .map((e) => PollOption(id: '${e.key}', text: e.value))
+          .toList(),
+      createdBy: _uid,
+      createdByName: user.displayName ?? user.email ?? 'Unbekannt',
+      createdAt: DateTime.now(),
+      multipleChoice: multipleChoice,
+    );
+
+    final preview = question.length > 60
+        ? '📊 ${question.substring(0, 60)}…'
+        : '📊 $question';
+
+    final batch = _db.batch();
+    batch.set(pollRef, poll.toFirestore());
+    batch.set(
+      msgRef,
+      Message(
+        id: msgRef.id,
+        senderUid: _uid,
+        senderName: user.displayName ?? user.email ?? 'Unbekannt',
+        text: preview,
+        sentAt: DateTime.now(),
+        pollId: pollRef.id,
+      ).toFirestore(),
+    );
+    batch.update(_db.collection('conversations').doc(convId), {
+      'lastMessage': preview,
+      'lastMessageAt': Timestamp.fromDate(DateTime.now()),
+    });
+    await batch.commit();
+  }
+
+  Future<void> castVote(
+      String convId, String pollId, String optionId) async {
+    final pollRef = _db
+        .collection('conversations')
+        .doc(convId)
+        .collection('polls')
+        .doc(pollId);
+
+    final snap = await pollRef.get();
+    if (!snap.exists) return;
+    final data = snap.data() as Map<String, dynamic>;
+    final multipleChoice = data['multipleChoice'] as bool? ?? false;
+    final rawVotes =
+        Map<String, dynamic>.from(data['votes'] as Map? ?? {});
+    final optionIds = (data['options'] as List)
+        .map((o) => (o as Map)['id'] as String)
+        .toList();
+
+    final updates = <String, dynamic>{};
+
+    if (multipleChoice) {
+      final voters =
+          List<String>.from(rawVotes[optionId] as List? ?? []);
+      if (voters.contains(_uid)) {
+        updates['votes.$optionId'] = FieldValue.arrayRemove([_uid]);
+      } else {
+        updates['votes.$optionId'] = FieldValue.arrayUnion([_uid]);
+      }
+    } else {
+      // Remove from whichever option the user previously voted for
+      for (final id in optionIds) {
+        final voters = List<String>.from(rawVotes[id] as List? ?? []);
+        if (voters.contains(_uid)) {
+          updates['votes.$id'] = FieldValue.arrayRemove([_uid]);
+        }
+      }
+      updates['votes.$optionId'] = FieldValue.arrayUnion([_uid]);
+    }
+
+    if (updates.isNotEmpty) await pollRef.update(updates);
+  }
+
+  Future<void> closePoll(String convId, String pollId) async {
+    await _db
+        .collection('conversations')
+        .doc(convId)
+        .collection('polls')
+        .doc(pollId)
+        .update({'isClosed': true});
+  }
+
+  Stream<Poll?> watchPoll(String convId, String pollId) {
+    return _db
+        .collection('conversations')
+        .doc(convId)
+        .collection('polls')
+        .doc(pollId)
+        .snapshots()
+        .map((s) => s.exists ? Poll.fromFirestore(s) : null);
   }
 }

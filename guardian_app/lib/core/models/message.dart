@@ -7,6 +7,9 @@ class Message {
   final String text;
   final DateTime sentAt;
   final String? imageUrl;
+  final String? audioUrl;
+  final int? audioDurationMs;
+  final String? pollId;
 
   const Message({
     required this.id,
@@ -15,6 +18,9 @@ class Message {
     required this.text,
     required this.sentAt,
     this.imageUrl,
+    this.audioUrl,
+    this.audioDurationMs,
+    this.pollId,
   });
 
   factory Message.fromFirestore(DocumentSnapshot doc) {
@@ -26,6 +32,9 @@ class Message {
       text: data['text'] as String? ?? '',
       sentAt: (data['sentAt'] as Timestamp).toDate(),
       imageUrl: data['imageUrl'] as String?,
+      audioUrl: data['audioUrl'] as String?,
+      audioDurationMs: data['audioDurationMs'] as int?,
+      pollId: data['pollId'] as String?,
     );
   }
 
@@ -35,5 +44,8 @@ class Message {
         'text': text,
         'sentAt': Timestamp.fromDate(sentAt),
         if (imageUrl != null) 'imageUrl': imageUrl,
+        if (audioUrl != null) 'audioUrl': audioUrl,
+        if (audioDurationMs != null) 'audioDurationMs': audioDurationMs,
+        if (pollId != null) 'pollId': pollId,
       };
 }

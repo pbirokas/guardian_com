@@ -75,7 +75,7 @@ class OrganizationService {
   Future<void> updateOrganization(String orgId,
       {String? name, OrgTag? tag, ChatMode? chatMode}) async {
     final updates = <String, dynamic>{
-      if (name != null) 'name': name,
+      'name': ?name,
       if (tag != null) 'tag': tag.name,
       if (chatMode != null) 'chatMode': chatMode.name,
     };
@@ -304,6 +304,85 @@ class OrganizationService {
       });
       tx.update(_db.collection('users').doc(targetUid), {
         'memberships': FieldValue.arrayRemove([membership.toMap()]),
+      });
+    });
+  }
+
+  Future<void> leaveOrganization(String orgId) async {
+    final memberDoc = _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('members')
+        .doc(_uid);
+
+    final snap = await memberDoc.get();
+    if (!snap.exists) return;
+
+    final role = OrgRole.values.byName(snap.data()!['role'] as String);
+    if (role == OrgRole.admin) {
+      throw Exception(
+          'Als Admin kannst du die Organisation nicht verlassen. '
+          'Übertrage zuerst die Admin-Rolle an ein anderes Mitglied.');
+    }
+
+    final membership = OrgMembership(orgId: orgId, role: role);
+
+    await _db.runTransaction((tx) async {
+      tx.delete(memberDoc);
+      tx.update(_db.collection('organizations').doc(orgId), {
+        'memberUids': FieldValue.arrayRemove([_uid]),
+      });
+      tx.update(_db.collection('users').doc(_uid), {
+        'memberships': FieldValue.arrayRemove([membership.toMap()]),
+      });
+    });
+  }
+
+  Future<void> transferAdmin(String orgId, String newAdminUid) async {
+    final oldAdminUid = _uid;
+
+    final newAdminMemberRef = _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('members')
+        .doc(newAdminUid);
+
+    final snap = await newAdminMemberRef.get();
+    if (!snap.exists) throw Exception('Mitglied nicht gefunden.');
+
+    final newAdminOldRole =
+        OrgRole.values.byName(snap.data()!['role'] as String);
+
+    final oldAdminOldMembership = OrgMembership(orgId: orgId, role: OrgRole.admin);
+    final oldAdminNewMembership = OrgMembership(orgId: orgId, role: OrgRole.member);
+    final newAdminOldMembership = OrgMembership(orgId: orgId, role: newAdminOldRole);
+    final newAdminNewMembership = OrgMembership(orgId: orgId, role: OrgRole.admin);
+
+    await _db.runTransaction((tx) async {
+      // Org: adminUid aktualisieren
+      tx.update(_db.collection('organizations').doc(orgId), {
+        'adminUid': newAdminUid,
+      });
+      // Alter Admin → Member
+      tx.update(
+        _db.collection('organizations').doc(orgId).collection('members').doc(oldAdminUid),
+        {'role': OrgRole.member.name},
+      );
+      // Neuer Admin → admin
+      tx.update(newAdminMemberRef, {'role': OrgRole.admin.name});
+      // Memberships alter Admin
+      tx.update(_db.collection('users').doc(oldAdminUid), {
+        'memberships': FieldValue.arrayRemove([oldAdminOldMembership.toMap()]),
+      });
+      tx.update(_db.collection('users').doc(oldAdminUid), {
+        'memberships': FieldValue.arrayUnion([oldAdminNewMembership.toMap()]),
+      });
+      // Memberships neuer Admin
+      tx.update(_db.collection('users').doc(newAdminUid), {
+        'memberships': FieldValue.arrayRemove([newAdminOldMembership.toMap()]),
+      });
+      tx.update(_db.collection('users').doc(newAdminUid), {
+        'memberships': FieldValue.arrayUnion([newAdminNewMembership.toMap()]),
       });
     });
   }

@@ -51,9 +51,10 @@ service cloud.firestore {
       allow get: if isMember(orgId) || isSignedIn();
       // List/query (e.g. watchMyOrganizations): checked per doc via memberUids array
       allow list: if isSignedIn() && request.auth.uid in resource.data.memberUids;
-      // Children (isChild == true) may not create organizations
+      // Children (isChild == true) may not create organizations.
+      // Use .get('isChild', false) to safely handle missing field.
       allow create: if isSignedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isChild != true;
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isChild', false) != true;
       // Admin: full update. Members: may only extend memberUids (e.g. guardian approving child).
       allow update: if isAdmin(orgId) ||
         (isMember(orgId) &&
@@ -92,7 +93,7 @@ service cloud.firestore {
               .hasOnly(['childAlertInterval', 'lastChildAlertAt', 'displayName', 'photoUrl']))
         );
 
-        allow delete: if isAdmin(orgId);
+        allow delete: if isAdmin(orgId) || memberId == request.auth.uid;
       }
     }
 
@@ -130,6 +131,44 @@ service cloud.firestore {
 
       allow delete: if isSignedIn() && isAdmin(resource.data.orgId);
 
+      // ─── Polls subcollection ──────────────────────────────────────────────
+
+      match /polls/{pollId} {
+        function convSnap() {
+          return get(/databases/$(database)/documents/conversations/$(convId)).data;
+        }
+        function isConvParticipant() {
+          return request.auth.uid in convSnap().participantUids ||
+                 convSnap().orgAdminUid == request.auth.uid ||
+                 request.auth.uid in convSnap().canApproveUids;
+        }
+
+        allow read: if isSignedIn() && (
+          isConvParticipant() ||
+          request.auth.uid in convSnap().guardianUids
+        );
+
+        // Any participant can create a poll
+        allow create: if isSignedIn() && isConvParticipant() &&
+          request.resource.data.createdBy == request.auth.uid;
+
+        // Participants can vote (votes field only); creator/admin can also close
+        allow update: if isSignedIn() && (
+          (isConvParticipant() &&
+           request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['votes'])) ||
+          (resource.data.createdBy == request.auth.uid &&
+           request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['isClosed'])) ||
+          convSnap().orgAdminUid == request.auth.uid
+        );
+
+        allow delete: if isSignedIn() && (
+          resource.data.createdBy == request.auth.uid ||
+          convSnap().orgAdminUid == request.auth.uid
+        );
+      }
+
       // ─── Messages subcollection ───────────────────────────────────────────
 
       match /messages/{messageId} {
@@ -140,8 +179,11 @@ service cloud.firestore {
           request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.guardianUids
         );
 
-        allow create: if isSignedIn() &&
-          request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.participantUids;
+        allow create: if isSignedIn() && (
+          request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.participantUids ||
+          request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.canApproveUids ||
+          get(/databases/$(database)/documents/conversations/$(convId)).data.orgAdminUid == request.auth.uid
+        );
 
         allow update: if isSignedIn() && (
           request.auth.uid == resource.data.senderUid ||
@@ -187,8 +229,8 @@ service cloud.firestore {
       allow update: if isSignedIn() && isAdminOrMod(resource.data.orgId);
       allow delete: if isSignedIn() && isAdmin(resource.data.orgId);
 
-      // Also allow listing (for query) — needed for watchReports
-      allow list: if isSignedIn();
+      // Listing (for query) — only admin/moderator of the report's org
+      allow list: if isSignedIn() && isAdminOrMod(resource.data.orgId);
     }
   }
 }

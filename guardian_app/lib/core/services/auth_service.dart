@@ -80,23 +80,13 @@ class AuthService {
   }
 
   Future<void> _processPendingInvitations(String uid, String email) async {
-    print('[Auth] _processPendingInvitations via Cloud Function: uid=$uid');
     try {
       final callable = FirebaseFunctions.instance
           .httpsCallable('processMyInvitations');
-      final result = await callable.call();
-      print('[Auth] processMyInvitations OK: ${result.data}');
-    } catch (e) {
-      print('[Auth] ERROR calling processMyInvitations: $e');
+      await callable.call();
+    } catch (_) {
+      // Einladungsverarbeitung ist nicht kritisch – Fehler still ignorieren
     }
-  }
-
-  Future<AppUser> signInWithEmailPassword(String email, String password) async {
-    final credential = await _auth.signInWithEmailAndPassword(
-      email: email.trim(),
-      password: password,
-    );
-    return _ensureUserDocument(credential.user!);
   }
 
   Future<void> signOut() async {

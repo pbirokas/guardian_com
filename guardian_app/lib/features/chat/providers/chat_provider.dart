@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/models/message.dart';
+import '../../../core/models/poll.dart';
 import '../../../core/services/chat_service.dart';
 import '../../auth/providers/auth_provider.dart';
 
@@ -86,4 +87,12 @@ final messagesProvider = StreamProvider.family<List<Message>,
   return ref
       .watch(chatServiceProvider)
       .watchMessages(params.convId, limit: params.limit);
+});
+
+final pollProvider = StreamProvider.family<Poll?,
+    ({String convId, String pollId})>((ref, params) {
+  ref.watch(authStateProvider);
+  return ref
+      .watch(chatServiceProvider)
+      .watchPoll(params.convId, params.pollId);
 });

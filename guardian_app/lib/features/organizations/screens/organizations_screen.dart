@@ -2,6 +2,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/models/organization.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/chat/providers/chat_provider.dart';
@@ -17,6 +19,62 @@ class OrganizationsScreen extends ConsumerStatefulWidget {
 
 class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
   bool _showArchived = false;
+  bool _donationCheckDone = false;
+
+  static const _kLastDonationShown = 'lastDonationShownAt';
+  static const _kDonationIntervalDays = 7;
+
+  Future<void> _maybeShowDonationDialog() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastShown = prefs.getInt(_kLastDonationShown);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final intervalMs = const Duration(days: _kDonationIntervalDays).inMilliseconds;
+
+    if (lastShown == null || now - lastShown >= intervalMs) {
+      if (!mounted) return;
+      await _showDonationDialog();
+      await prefs.setInt(_kLastDonationShown, now);
+    }
+  }
+
+  Future<void> _showDonationDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Guardian Com unterstützen'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Guardian Com ist kostenlos und werbefrei. '
+              'Wenn dir die App gefällt, freue ich mich über eine kleine Spende!',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 20),
+            _DonationButton(
+              icon: Icons.coffee_outlined,
+              label: 'Ko-fi spenden',
+              color: const Color(0xFF29ABE0),
+              url: 'https://ko-fi.com/pantelisbirokas',
+            ),
+            const SizedBox(height: 10),
+            _DonationButton(
+              icon: Icons.payment_outlined,
+              label: 'PayPal spenden',
+              color: const Color(0xFF003087),
+              url: 'https://paypal.me/pantirokas',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Vielleicht später'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _showCreateDialog(BuildContext context) async {
     final nameController = TextEditingController();
@@ -203,6 +261,19 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
       error: (_, _) => false,
       data: (u) => u?.isChild ?? false,
     );
+
+    // Spenden-Popup: einmal pro Woche, nicht für Kinder
+    if (!_donationCheckDone) {
+      currentAppUserAsync.whenData((u) {
+        if (u?.isChild != true) {
+          _donationCheckDone = true;
+          WidgetsBinding.instance.addPostFrameCallback(
+              (_) => _maybeShowDonationDialog());
+        } else {
+          _donationCheckDone = true; // Kinder: nie zeigen
+        }
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -513,6 +584,39 @@ class _ChatModeOption extends StatelessWidget {
               Icon(Icons.check_circle, color: color, size: 20),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _DonationButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final String url;
+
+  const _DonationButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.url,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        style: FilledButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+        ),
+        icon: Icon(icon),
+        label: Text(label),
+        onPressed: () async {
+          final uri = Uri.parse(url);
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        },
       ),
     );
   }

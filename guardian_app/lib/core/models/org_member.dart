@@ -53,11 +53,11 @@ class OrgMember {
       photoUrl: data['photoUrl'] as String?,
       role: OrgRole.values.byName(data['role'] as String),
       joinedAt: (data['joinedAt'] as Timestamp).toDate(),
-      guardianUids: [
+      guardianUids: <String>{
         // Migrate: support old single guardianUid field
         if (data['guardianUid'] != null) data['guardianUid'] as String,
-        ...List<String>.from(data['guardianUids'] as List? ?? []),
-      ].toSet().toList(),
+        for (final g in (data['guardianUids'] as List? ?? [])) g as String,
+      }.toList(),
       status: MemberStatus.values.byName(data['status'] as String? ?? 'active'),
       childAlertInterval: ChildAlertInterval.values
           .where((e) => e.name == (data['childAlertInterval'] as String?))

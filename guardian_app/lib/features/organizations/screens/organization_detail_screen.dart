@@ -1553,6 +1553,16 @@ class _MemberTile extends StatelessWidget {
                   _showAlertIntervalDialog(context);
                 },
               ),
+            if (isOwnTile)
+              ListTile(
+                leading: const Icon(Icons.exit_to_app, color: Colors.red),
+                title: const Text('Organisation verlassen',
+                    style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _confirmLeave(context);
+                },
+              ),
             // Moderator: Guardians eines Kindes ändern
             if ((isMod || isAdmin) && !isOwnTile && member.role == OrgRole.child)
               ListTile(
@@ -1583,7 +1593,7 @@ class _MemberTile extends StatelessWidget {
                   _requestChat(context);
                 },
               ),
-            // Admin: Chat starten, Rolle ändern, Entfernen
+            // Admin: Chat starten, Rolle ändern, Admin übertragen, Entfernen
             if (isAdmin && !isOwnTile && member.role != OrgRole.admin) ...[
               ListTile(
                 leading: const Icon(Icons.chat_outlined),
@@ -1599,6 +1609,16 @@ class _MemberTile extends StatelessWidget {
                 onTap: () {
                   Navigator.pop(context);
                   _showRoleDialog(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.admin_panel_settings_outlined,
+                    color: Colors.orange),
+                title: const Text('Admin-Rolle übertragen',
+                    style: TextStyle(color: Colors.orange)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _confirmTransferAdmin(context);
                 },
               ),
               ListTile(
@@ -1766,6 +1786,78 @@ class _MemberTile extends StatelessWidget {
       await ref
           .read(organizationServiceProvider)
           .removeMember(org.id, member.uid);
+    }
+  }
+
+  Future<void> _confirmLeave(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Organisation verlassen'),
+        content: Text(
+            'Möchtest du die Organisation "${org.name}" wirklich verlassen?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Verlassen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      try {
+        await ref
+            .read(organizationServiceProvider)
+            .leaveOrganization(org.id);
+        if (context.mounted) context.pop();
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text('$e')));
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmTransferAdmin(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Admin-Rolle übertragen'),
+        content: Text(
+          'Möchtest du die Admin-Rolle an ${member.displayName} übertragen?\n\n'
+          'Du wirst danach ein normales Mitglied dieser Organisation.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.orange),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Übertragen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      try {
+        await ref
+            .read(organizationServiceProvider)
+            .transferAdmin(org.id, member.uid);
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Fehler: $e')),
+          );
+        }
+      }
     }
   }
 

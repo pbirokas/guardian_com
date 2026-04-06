@@ -10,6 +10,7 @@ class Message {
   final String? audioUrl;
   final int? audioDurationMs;
   final String? pollId;
+  final DateTime? editedAt;
 
   const Message({
     required this.id,
@@ -21,6 +22,7 @@ class Message {
     this.audioUrl,
     this.audioDurationMs,
     this.pollId,
+    this.editedAt,
   });
 
   factory Message.fromFirestore(DocumentSnapshot doc) {
@@ -35,6 +37,9 @@ class Message {
       audioUrl: data['audioUrl'] as String?,
       audioDurationMs: data['audioDurationMs'] as int?,
       pollId: data['pollId'] as String?,
+      editedAt: data['editedAt'] != null
+          ? (data['editedAt'] as Timestamp).toDate()
+          : null,
     );
   }
 
@@ -47,5 +52,6 @@ class Message {
         if (audioUrl != null) 'audioUrl': audioUrl,
         if (audioDurationMs != null) 'audioDurationMs': audioDurationMs,
         if (pollId != null) 'pollId': pollId,
+        if (editedAt != null) 'editedAt': Timestamp.fromDate(editedAt!),
       };
 }

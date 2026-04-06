@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -12,7 +13,6 @@ import '../../../core/models/conversation.dart';
 import '../../../core/models/message.dart';
 import '../../../core/models/org_member.dart';
 import '../../../core/models/organization.dart';
-import '../../../core/models/poll.dart';
 import '../../../features/organizations/providers/organizations_provider.dart';
 import '../providers/chat_provider.dart';
 
@@ -34,11 +34,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _pickingImage = false;
   int _knownMessageCount = 0;
   bool _atBottom = true;
+  bool _mayHaveMore = true; // false sobald Firestore weniger als _limit zurückgibt
+  // Scroll-Position vor dem Batch-Laden gespeichert (in _onScroll)
+  double? _batchSavedPixels;
+  double? _batchSavedMax;
 
   // ── Voice recording ────────────────────────────────────────────────────────
   final _recorder = AudioRecorder();
   bool _isRecording = false;
-  String? _recordingPath;
   Duration _recordingDuration = Duration.zero;
   Timer? _recordingTimer;
 
@@ -53,15 +56,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final pos = _scrollController.position;
     _atBottom = pos.pixels >= pos.maxScrollExtent - 150;
 
-    // Ältere Nachrichten nachladen — aber erst wenn der erste Batch
-    // bereits geladen wurde (verhindert Endlosschleife beim ersten Aufbau)
-    if (pos.pixels <= 80 && !_loadingMore && _knownMessageCount > 0) {
+    // Nur laden wenn der User aktiv nach oben scrollt oder ruhig oben sitzt —
+    // nicht beim Rückprall (ScrollDirection.forward) nach einem Overscroll.
+    if (pos.pixels <= 80 &&
+        pos.userScrollDirection != ScrollDirection.forward &&
+        !_loadingMore &&
+        _knownMessageCount > 0 &&
+        _mayHaveMore) {
+      _batchSavedPixels = pos.pixels;
+      _batchSavedMax    = pos.maxScrollExtent;
       setState(() {
         _loadingMore = true;
         _limit += 30;
       });
-      Future.delayed(const Duration(milliseconds: 300),
-          () { if (mounted) setState(() => _loadingMore = false); });
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          setState(() => _loadingMore = false);
+          _batchSavedPixels = null;
+          _batchSavedMax    = null;
+        }
+      });
     }
   }
 
@@ -102,7 +116,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     setState(() {
       _isRecording = true;
-      _recordingPath = path;
       _recordingDuration = Duration.zero;
     });
 
@@ -122,7 +135,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     setState(() {
       _isRecording = false;
       _recordingDuration = Duration.zero;
-      _recordingPath = null;
     });
     if (path == null || durationMs < 500) return; // zu kurz → verwerfen
     try {
@@ -256,18 +268,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     setState(() {
       _isRecording = false;
       _recordingDuration = Duration.zero;
-      _recordingPath = null;
     });
   }
 
-  void _scrollToBottom() {
+  void _scrollToBottom({int attempt = 0}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
+      if (!mounted || !_scrollController.hasClients) return;
+      final max = _scrollController.position.maxScrollExtent;
+      if (max > 0) {
+        _scrollController.jumpTo(max);
+      } else if (attempt < 4) {
+        _scrollToBottom(attempt: attempt + 1);
       }
     });
   }
@@ -319,13 +330,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _showAddMemberDialog(BuildContext context, Conversation conv,
       List<OrgMember> allMembers) async {
+    final messenger = ScaffoldMessenger.of(context);
     // Nur Mitglieder anzeigen die noch nicht im Chat sind
     final available = allMembers
         .where((m) => !conv.participantUids.contains(m.uid))
         .toList();
 
     if (available.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(content: Text('Alle Mitglieder sind bereits im Chat.')),
       );
       return;
@@ -393,16 +405,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               selected.toList(),
             );
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text(
-                    '${selected.length} Mitglied(er) hinzugefügt.')),
-          );
+          messenger.showSnackBar(SnackBar(
+              content: Text('${selected.length} Mitglied(er) hinzugefügt.')));
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+          messenger.showSnackBar(SnackBar(content: Text('Fehler: $e')));
         }
       }
     }
@@ -613,10 +621,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 final isFirstLoad = _knownMessageCount == 0;
                 final isNewMessage =
                     messages.length == _knownMessageCount + 1;
-                // Scrollen: beim Erstladen, oder wenn eine neue Nachricht
-                // ankam UND der User bereits am Ende war.
                 if (isFirstLoad || (isNewMessage && _atBottom)) {
                   _scrollToBottom();
+                } else if (_batchSavedPixels != null &&
+                    messages.length > _knownMessageCount) {
+                  final savedPixels = _batchSavedPixels!;
+                  final savedMax    = _batchSavedMax!;
+                  _batchSavedPixels = null;
+                  _batchSavedMax    = null;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted || !_scrollController.hasClients) return;
+                    final delta =
+                        _scrollController.position.maxScrollExtent - savedMax;
+                    if (delta > 0) _scrollController.jumpTo(savedPixels + delta);
+                  });
                 }
                 _knownMessageCount = messages.length;
                 if (messages.isEmpty) {
@@ -626,8 +644,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   );
                 }
                 final mayHaveMore = messages.length >= _limit;
-                return ListView.builder(
+                _mayHaveMore = mayHaveMore;
+                return Scrollbar(
                   controller: _scrollController,
+                  thumbVisibility: true,
+                  child: ListView.builder(
+                  controller: _scrollController,
+                  physics: const ClampingScrollPhysics(),
                   padding: const EdgeInsets.all(16),
                   itemCount: messages.length + (mayHaveMore ? 1 : 0),
                   itemBuilder: (ctx, i) {
@@ -643,8 +666,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                       strokeWidth: 2),
                                 )
                               : TextButton.icon(
-                                  onPressed: () => setState(
-                                      () => _limit += 30),
+                                  onPressed: () {
+                                    if (_scrollController.hasClients) {
+                                      _batchSavedPixels = _scrollController.position.pixels;
+                                      _batchSavedMax    = _scrollController.position.maxScrollExtent;
+                                    }
+                                    setState(() => _limit += 30);
+                                  },
                                   icon: const Icon(Icons.expand_less,
                                       size: 16),
                                   label: const Text('Ältere Nachrichten',
@@ -655,11 +683,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     }
                     final msg = messages[mayHaveMore ? i - 1 : i];
                     final isMe = msg.senderUid == currentUid;
-                    final showDate = i == 0 ||
-                        !_sameDay(messages[i - 1].sentAt, msg.sentAt);
+                    final prev = mayHaveMore ? (i > 1 ? messages[i - 2] : null)
+                                             : (i > 0 ? messages[i - 1] : null);
+                    final showDate = prev == null ||
+                        !_sameDay(prev.sentAt, msg.sentAt);
                     final showSender = !isMe &&
-                        (i == 0 ||
-                            messages[i - 1].senderUid != msg.senderUid);
+                        (prev == null || prev.senderUid != msg.senderUid);
                     return Column(
                       children: [
                         if (showDate) _DateDivider(date: msg.sentAt),
@@ -672,10 +701,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           onReport: isMe || conv == null || msg.pollId != null
                               ? null
                               : () => _confirmReport(conv, msg),
+                          onEdit: isMe &&
+                                  msg.pollId == null &&
+                                  msg.imageUrl == null &&
+                                  msg.audioUrl == null
+                              ? () => _editMessage(msg)
+                              : null,
+                          onImageTap: msg.imageUrl != null
+                              ? () => _openImageFullscreen(context, msg.imageUrl!)
+                              : null,
                         ),
                       ],
                     );
                   },
+                  ),
                 );
               },
             ),
@@ -699,6 +738,83 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
+
+  void _openImageFullscreen(BuildContext context, String imageUrl) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => Dialog.fullscreen(
+        backgroundColor: Colors.black,
+        child: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 5.0,
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  loadingBuilder: (_, child, progress) => progress == null
+                      ? child
+                      : const Center(
+                          child: CircularProgressIndicator(color: Colors.white)),
+                  errorBuilder: (_, _, _) =>
+                      const Icon(Icons.broken_image, color: Colors.white, size: 64),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 16,
+              right: 16,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editMessage(Message msg) async {
+    final ctrl = TextEditingController(text: msg.text);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nachricht bearbeiten'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLines: null,
+          maxLength: 2000,
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Speichern'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final newText = ctrl.text.trim();
+    if (newText.isEmpty || newText == msg.text) return;
+    try {
+      await ref
+          .read(chatServiceProvider)
+          .editMessage(widget.chatId, msg.id, newText);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+      }
+    }
+  }
 
   Future<void> _confirmReport(Conversation conv, Message msg) async {
     final confirmed = await showDialog<bool>(
@@ -765,6 +881,8 @@ class _MessageBubble extends StatelessWidget {
   final bool isMe;
   final bool showSenderName;
   final VoidCallback? onReport;
+  final VoidCallback? onEdit;
+  final VoidCallback? onImageTap;
   final String convId;
 
   const _MessageBubble({
@@ -773,6 +891,8 @@ class _MessageBubble extends StatelessWidget {
     required this.convId,
     this.showSenderName = false,
     this.onReport,
+    this.onEdit,
+    this.onImageTap,
   });
 
   @override
@@ -780,19 +900,35 @@ class _MessageBubble extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return GestureDetector(
-      onLongPress: onReport == null
+      onLongPress: (onReport == null && onEdit == null)
           ? null
           : () => showModalBottomSheet(
                 context: context,
                 builder: (_) => SafeArea(
-                  child: ListTile(
-                    leading: const Icon(Icons.flag_outlined, color: Colors.red),
-                    title: const Text('Nachricht melden',
-                        style: TextStyle(color: Colors.red)),
-                    onTap: () {
-                      Navigator.pop(context);
-                      onReport!();
-                    },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (onEdit != null)
+                        ListTile(
+                          leading: const Icon(Icons.edit_outlined),
+                          title: const Text('Bearbeiten'),
+                          onTap: () {
+                            Navigator.pop(context);
+                            onEdit!();
+                          },
+                        ),
+                      if (onReport != null)
+                        ListTile(
+                          leading: const Icon(Icons.flag_outlined,
+                              color: Colors.red),
+                          title: const Text('Nachricht melden',
+                              style: TextStyle(color: Colors.red)),
+                          onTap: () {
+                            Navigator.pop(context);
+                            onReport!();
+                          },
+                        ),
+                    ],
                   ),
                 ),
               ),
@@ -847,21 +983,27 @@ class _MessageBubble extends StatelessWidget {
                 isMe: isMe,
               )
             else if (message.imageUrl != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  message.imageUrl!,
+              // Feste Höhe verhindert, dass nachgeladene Bilder die
+              // Listenhöhe ändern und so die Scroll-Position verschieben.
+              GestureDetector(
+                onTap: onImageTap,
+                child: SizedBox(
                   width: 220,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (_, child, progress) => progress == null
-                      ? child
-                      : const SizedBox(
-                          width: 220,
-                          height: 140,
-                          child: Center(child: CircularProgressIndicator()),
-                        ),
-                  errorBuilder: (ctx, err, stack) =>
-                      const Icon(Icons.broken_image),
+                  height: 160,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      message.imageUrl!,
+                      width: 220,
+                      height: 160,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (_, child, progress) => progress == null
+                          ? child
+                          : const Center(child: CircularProgressIndicator()),
+                      errorBuilder: (_, _, _) =>
+                          const Icon(Icons.broken_image),
+                    ),
+                  ),
                 ),
               )
             else
@@ -872,14 +1014,30 @@ class _MessageBubble extends StatelessWidget {
                 ),
               ),
             const SizedBox(height: 2),
-            Text(
-              _formatTime(message.sentAt),
-              style: TextStyle(
-                fontSize: 10,
-                color: isMe
-                    ? colorScheme.onPrimary.withAlpha(180)
-                    : Colors.grey,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (message.editedAt != null)
+                  Text(
+                    'bearbeitet · ',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontStyle: FontStyle.italic,
+                      color: isMe
+                          ? colorScheme.onPrimary.withAlpha(160)
+                          : Colors.grey,
+                    ),
+                  ),
+                Text(
+                  _formatTime(message.sentAt),
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: isMe
+                        ? colorScheme.onPrimary.withAlpha(180)
+                        : Colors.grey,
+                  ),
+                ),
+              ],
             ),
           ],
         ),

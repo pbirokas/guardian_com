@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../models/app_user.dart';
+import '../models/org_member.dart';
 import 'notification_service.dart';
 
 class AuthService {
@@ -80,12 +80,71 @@ class AuthService {
   }
 
   Future<void> _processPendingInvitations(String uid, String email) async {
-    try {
-      final callable = FirebaseFunctions.instance
-          .httpsCallable('processMyInvitations');
-      await callable.call();
-    } catch (_) {
-      // Einladungsverarbeitung ist nicht kritisch – Fehler still ignorieren
+    final invites = await _db
+        .collection('invitations')
+        .where('email', isEqualTo: email)
+        .where('status', isEqualTo: 'pending')
+        .get();
+
+    for (final invite in invites.docs) {
+      try {
+        final data = invite.data();
+        final orgId = data['orgId'] as String;
+        final role = OrgRole.values.byName(data['role'] as String);
+        final guardianUids = (data['guardianUids'] as List? ?? [])
+            .map((e) => e as String)
+            .toList();
+        final isChild = role == OrgRole.child;
+
+        final user = _auth.currentUser!;
+        final displayName = (user.displayName?.isNotEmpty == true)
+            ? user.displayName!
+            : email;
+
+        final memberRef = _db
+            .collection('organizations')
+            .doc(orgId)
+            .collection('members')
+            .doc(uid);
+
+        final existing = await memberRef.get();
+        if (existing.exists) {
+          await invite.reference.update({'status': 'processed'});
+          continue;
+        }
+
+        final membership = OrgMembership(orgId: orgId, role: role);
+
+        await _db.runTransaction((tx) async {
+          tx.set(
+            memberRef,
+            OrgMember(
+              uid: uid,
+              displayName: displayName,
+              email: email,
+              role: role,
+              joinedAt: DateTime.now(),
+              guardianUids: isChild ? guardianUids : [],
+              status: isChild ? MemberStatus.pending : MemberStatus.active,
+            ).toFirestore(),
+          );
+
+          if (!isChild) {
+            tx.update(_db.collection('organizations').doc(orgId), {
+              'memberUids': FieldValue.arrayUnion([uid]),
+            });
+            tx.update(_db.collection('users').doc(uid), {
+              'memberships': FieldValue.arrayUnion([membership.toMap()]),
+            });
+          } else {
+            tx.update(_db.collection('users').doc(uid), {'isChild': true});
+          }
+
+          tx.update(invite.reference, {'status': 'processed'});
+        });
+      } catch (_) {
+        // Eine einzelne Einladung fehlgeschlagen – mit den anderen weitermachen
+      }
     }
   }
 

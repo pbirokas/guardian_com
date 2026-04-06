@@ -55,10 +55,17 @@ service cloud.firestore {
       // Use .get('isChild', false) to safely handle missing field.
       allow create: if isSignedIn() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isChild', false) != true;
-      // Admin: full update. Members: may only extend memberUids (e.g. guardian approving child).
+      // Admin: full update.
+      // Members: may only extend memberUids (e.g. guardian approving child).
+      // New user processing own invitation: may add only themselves to memberUids.
       allow update: if isAdmin(orgId) ||
         (isMember(orgId) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids']));
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids'])) ||
+        (isSignedIn() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids']) &&
+          request.auth.uid in request.resource.data.memberUids &&
+          !(request.auth.uid in resource.data.memberUids) &&
+          request.resource.data.memberUids.hasAll(resource.data.memberUids));
       allow delete: if isAdmin(orgId);
 
       // ─── Members subcollection ────────────────────────────────────────────

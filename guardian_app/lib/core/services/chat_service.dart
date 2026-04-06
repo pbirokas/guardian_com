@@ -217,6 +217,19 @@ class ChatService {
     await batch.commit();
   }
 
+  Future<void> editMessage(
+      String convId, String messageId, String newText) async {
+    await _db
+        .collection('conversations')
+        .doc(convId)
+        .collection('messages')
+        .doc(messageId)
+        .update({
+      'text': newText,
+      'editedAt': Timestamp.now(),
+    });
+  }
+
   // Maximale Dateigröße für Chat-Bilder: 2 MB
   static const int _maxImageBytes = 2 * 1024 * 1024;
 

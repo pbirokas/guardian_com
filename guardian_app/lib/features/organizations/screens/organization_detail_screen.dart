@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/models/app_user.dart';
 import '../../../core/models/conversation.dart';
+import '../../../core/models/member_suggestion.dart';
 import '../../../core/models/org_member.dart';
 import '../../../core/models/organization.dart';
 import '../../chat/providers/chat_provider.dart';
@@ -93,7 +94,7 @@ class OrganizationDetailScreen extends ConsumerWidget {
             ),
             body: TabBarView(
               children: [
-                _MembersTab(org: org, isAdmin: isAdmin, ref: ref),
+                _MembersTab(org: org, isAdmin: isAdmin, isModerator: isModerator, ref: ref),
                 _ChatsTab(
                     org: org,
                     currentUid: currentUid,
@@ -864,10 +865,11 @@ class _ChatTabLabel extends ConsumerWidget {
 class _MembersTab extends ConsumerWidget {
   final Organization org;
   final bool isAdmin;
+  final bool isModerator;
   final WidgetRef ref;
 
   const _MembersTab(
-      {required this.org, required this.isAdmin, required this.ref});
+      {required this.org, required this.isAdmin, required this.isModerator, required this.ref});
 
   @override
   Widget build(BuildContext context, WidgetRef widgetRef) {
@@ -876,17 +878,52 @@ class _MembersTab extends ConsumerWidget {
         widgetRef.watch(pendingChildInvitesProvider(org.id)).value ?? [];
     final pendingPreRegInvites =
         widgetRef.watch(pendingPreRegInvitesProvider(org.id)).value ?? [];
+    final pendingSuggestions = (isAdmin || isModerator)
+        ? widgetRef.watch(pendingMemberSuggestionsProvider(org.id)).value ?? []
+        : <MemberSuggestion>[];
 
     return membersAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('Fehler: $e')),
       data: (members) {
+        final currentUid = FirebaseAuth.instance.currentUser!.uid;
+        final currentMember =
+            members.where((m) => m.uid == currentUid).firstOrNull;
+        final isRegularMember = !isAdmin &&
+            !isModerator &&
+            currentMember?.role == OrgRole.member;
         final activeMembers =
             members.where((m) => m.status == MemberStatus.active).toList();
         return Stack(
           children: [
             CustomScrollView(
               slivers: [
+                // Ausstehende Mitglied-Vorschläge (nur für Admin/Moderator)
+                if ((isAdmin || isModerator) && pendingSuggestions.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                          child: Text(
+                            'Vorschläge (${pendingSuggestions.length})',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.blue[700],
+                                fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        ...pendingSuggestions.map((s) => _SuggestionTile(
+                              suggestion: s,
+                              org: org,
+                              allMembers: members,
+                              ref: widgetRef,
+                            )),
+                        const Divider(),
+                      ],
+                    ),
+                  ),
                 // Ausstehende Kind-Einladungen für Guardian
                 if (pendingChildInvites.isNotEmpty || pendingPreRegInvites.isNotEmpty)
                   SliverToBoxAdapter(
@@ -951,7 +988,8 @@ class _MembersTab extends ConsumerWidget {
                       ),
               ],
             ),
-          if (isAdmin)
+          if (isAdmin ||
+              (isModerator && org.chatMode == ChatMode.sheltered))
             Positioned(
               bottom: 16,
               right: 16,
@@ -963,7 +1001,19 @@ class _MembersTab extends ConsumerWidget {
                 label: const Text('Mitglied einladen'),
               ),
             ),
-          if (org.chatMode == ChatMode.guardian && !isAdmin)
+          if (isRegularMember)
+            Positioned(
+              bottom: 16,
+              right: 16,
+              child: FloatingActionButton.extended(
+                heroTag: 'suggest',
+                onPressed: () =>
+                    _showSuggestDialog(context, widgetRef, members),
+                icon: const Icon(Icons.person_add_outlined),
+                label: const Text('Mitglied vorschlagen'),
+              ),
+            ),
+          if (org.chatMode == ChatMode.guardian && !isAdmin && !isModerator && !isRegularMember)
             Positioned(
               bottom: 16,
               right: 16,
@@ -986,6 +1036,7 @@ class _MembersTab extends ConsumerWidget {
     final emailController = TextEditingController();
     OrgRole selectedRole = OrgRole.member;
     final selectedGuardians = <OrgMember>{};
+    bool emailValid = false;
 
     final roleLabels = {
       OrgRole.moderator: 'Moderator',
@@ -1014,10 +1065,18 @@ class _MembersTab extends ConsumerWidget {
                   controller: emailController,
                   autofocus: true,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
+                  onChanged: (v) => setState(() {
+                    emailValid = RegExp(
+                      r'^[\w.+\-]+@[\w\-]+\.[\w.\-]+$',
+                    ).hasMatch(v.trim());
+                  }),
+                  decoration: InputDecoration(
                     labelText: 'E-Mail-Adresse',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.email_outlined),
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.email_outlined),
+                    errorText: emailController.text.isNotEmpty && !emailValid
+                        ? 'Ungültige E-Mail-Adresse'
+                        : null,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -1102,8 +1161,9 @@ class _MembersTab extends ConsumerWidget {
               child: const Text('Abbrechen'),
             ),
             FilledButton(
-              onPressed: (selectedRole == OrgRole.child &&
-                      selectedGuardians.isEmpty)
+              onPressed: (!emailValid ||
+                      (selectedRole == OrgRole.child &&
+                          selectedGuardians.isEmpty))
                   ? null
                   : () => Navigator.pop(ctx, true),
               child: const Text('Einladen'),
@@ -1251,6 +1311,250 @@ class _MembersTab extends ConsumerWidget {
         }
       }
     }
+  }
+
+  Future<void> _showSuggestDialog(
+      BuildContext context, WidgetRef ref, List<OrgMember> members) async {
+    final emailController = TextEditingController();
+    OrgRole selectedRole = OrgRole.member;
+    OrgMember? selectedGuardian;
+    bool emailValid = false;
+
+    final roleLabels = {
+      OrgRole.member: 'Mitglied',
+      OrgRole.child: 'Kind',
+    };
+
+    final possibleGuardians = members
+        .where((m) =>
+            m.role != OrgRole.child && m.status == MemberStatus.active)
+        .toList();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('Mitglied vorschlagen'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: emailController,
+                  autofocus: true,
+                  keyboardType: TextInputType.emailAddress,
+                  onChanged: (v) => setState(() {
+                    emailValid = RegExp(
+                      r'^[\w.+\-]+@[\w\-]+\.[\w.\-]+$',
+                    ).hasMatch(v.trim());
+                  }),
+                  decoration: InputDecoration(
+                    labelText: 'E-Mail-Adresse',
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.email_outlined),
+                    errorText: emailController.text.isNotEmpty && !emailValid
+                        ? 'Ungültige E-Mail-Adresse'
+                        : null,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Rolle',
+                      style: TextStyle(fontSize: 12, color: Colors.grey)),
+                ),
+                const SizedBox(height: 8),
+                SegmentedButton<OrgRole>(
+                  segments: roleLabels.entries
+                      .map((e) => ButtonSegment(
+                            value: e.key,
+                            label: Text(e.value),
+                          ))
+                      .toList(),
+                  selected: {selectedRole},
+                  onSelectionChanged: (s) => setState(() {
+                    selectedRole = s.first;
+                    if (selectedRole != OrgRole.child) selectedGuardian = null;
+                  }),
+                ),
+                if (selectedRole == OrgRole.child) ...[
+                  const SizedBox(height: 16),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Guardian',
+                        style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  ),
+                  const SizedBox(height: 4),
+                  if (possibleGuardians.isEmpty)
+                    const Text(
+                      'Keine Mitglieder als Guardian verfügbar.',
+                      style: TextStyle(fontSize: 12, color: Colors.red),
+                    )
+                  else
+                    DropdownButtonFormField<OrgMember>(
+                      initialValue: selectedGuardian,
+                      hint: const Text('Guardian wählen'),
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.shield_outlined),
+                      ),
+                      items: possibleGuardians
+                          .map((m) => DropdownMenuItem(
+                                value: m,
+                                child: Text(m.displayName),
+                              ))
+                          .toList(),
+                      onChanged: (m) => setState(() => selectedGuardian = m),
+                    ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: (!emailValid ||
+                      (selectedRole == OrgRole.child &&
+                          selectedGuardian == null))
+                  ? null
+                  : () => Navigator.pop(ctx, true),
+              child: const Text('Vorschlagen'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed == true && emailController.text.trim().isNotEmpty) {
+      try {
+        await ref.read(organizationServiceProvider).suggestMember(
+              org.id,
+              emailController.text.trim(),
+              selectedRole,
+              guardianUids: selectedRole == OrgRole.child && selectedGuardian != null
+                  ? [selectedGuardian!.uid]
+                  : [],
+            );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Vorschlag wurde eingereicht und wartet auf Genehmigung.'),
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Fehler: $e')),
+          );
+        }
+      }
+    }
+  }
+}
+
+// ── Suggestion Tile ──────────────────────────────────────────────────────────
+
+class _SuggestionTile extends StatelessWidget {
+  final MemberSuggestion suggestion;
+  final Organization org;
+  final List<OrgMember> allMembers;
+  final WidgetRef ref;
+
+  const _SuggestionTile({
+    required this.suggestion,
+    required this.org,
+    required this.allMembers,
+    required this.ref,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final guardianNames = suggestion.guardianUids
+        .map((uid) =>
+            allMembers.where((m) => m.uid == uid).firstOrNull?.displayName ??
+            uid)
+        .join(', ');
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Row(
+        children: [
+          const CircleAvatar(
+            radius: 18,
+            child: Icon(Icons.person_outline, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(suggestion.email,
+                    style: const TextStyle(fontWeight: FontWeight.w500)),
+                Text(
+                  suggestion.role == OrgRole.child
+                      ? 'Kind · Guardian: ${guardianNames.isNotEmpty ? guardianNames : '–'}'
+                      : 'Mitglied',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                Text(
+                  'von ${suggestion.suggestedByName}',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () async {
+              try {
+                await ref
+                    .read(organizationServiceProvider)
+                    .rejectSuggestion(org.id, suggestion.id);
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Fehler: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Ablehnen'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              try {
+                await ref
+                    .read(organizationServiceProvider)
+                    .approveSuggestion(
+                      org.id,
+                      suggestion.id,
+                      suggestion.email,
+                      suggestion.role,
+                      suggestion.guardianUids,
+                    );
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Einladung gesendet.')),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Fehler: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Annehmen'),
+          ),
+        ],
+      ),
+    );
   }
 }
 

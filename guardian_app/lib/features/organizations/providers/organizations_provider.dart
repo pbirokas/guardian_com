@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/app_user.dart';
+import '../../../core/models/member_suggestion.dart';
 import '../../../core/models/organization.dart';
 import '../../../core/models/org_member.dart';
 import '../../../core/services/organization_service.dart';
@@ -59,4 +60,13 @@ final pendingPreRegInvitesProvider =
   return ref
       .watch(organizationServiceProvider)
       .watchPendingInvitationsForGuardian(orgId, uid);
+});
+
+/// Ausstehende Mitglied-Vorschläge (nur für Admins/Moderatoren sichtbar)
+final pendingMemberSuggestionsProvider =
+    StreamProvider.family<List<MemberSuggestion>, String>((ref, orgId) {
+  ref.watch(authStateProvider);
+  return ref
+      .watch(organizationServiceProvider)
+      .watchPendingSuggestions(orgId);
 });

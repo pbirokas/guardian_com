@@ -68,6 +68,20 @@ service cloud.firestore {
           request.resource.data.memberUids.hasAll(resource.data.memberUids));
       allow delete: if isAdmin(orgId);
 
+      // ─── Member suggestions subcollection ────────────────────────────────
+
+      match /memberSuggestions/{suggestionId} {
+        // Regular members (not admin/moderator/child) can create suggestions
+        allow create: if isSignedIn() && isMember(orgId) &&
+          getMember(orgId).role == 'member';
+
+        // Admin and moderators can read, list, and update (approve/reject)
+        allow read: if isAdminOrMod(orgId);
+        allow list: if isAdminOrMod(orgId);
+        allow update: if isAdminOrMod(orgId);
+        allow delete: if isAdmin(orgId);
+      }
+
       // ─── Members subcollection ────────────────────────────────────────────
 
       match /members/{memberId} {
@@ -202,6 +216,18 @@ service cloud.firestore {
       }
     }
 
+    // ─── Invitation Lookup ───────────────────────────────────────────────────
+    // Dokument-ID = normalisierte E-Mail-Adresse.
+    // Enthält die Einladungs-IDs für noch nicht registrierte Nutzer.
+    // Kein List-Query nötig – nur direktes GET per eigener E-Mail.
+
+    match /invitationLookup/{email} {
+      // Nur der Nutzer mit dieser E-Mail darf lesen
+      allow get: if isSignedIn() && email == request.auth.token.email.lower();
+      // Admin/Mod darf schreiben (beim Anlegen/Genehmigen einer Einladung)
+      allow write: if isSignedIn();
+    }
+
     // ─── Invitations ─────────────────────────────────────────────────────────
 
     match /invitations/{inviteId} {
@@ -210,7 +236,7 @@ service cloud.firestore {
       // guardians read invites they are listed in.
       allow read: if isSignedIn() && (
         isAdminOrMod(resource.data.orgId) ||
-        resource.data.email == request.auth.token.email ||
+        resource.data.email == request.auth.token.email.lower() ||
         request.auth.uid in resource.data.guardianUids
       );
 
@@ -220,7 +246,7 @@ service cloud.firestore {
       // Invited user can update (accept/invalid); admin/mod can cancel
       allow update: if isSignedIn() && (
         isAdminOrMod(resource.data.orgId) ||
-        resource.data.email == request.auth.token.email ||
+        resource.data.email == request.auth.token.email.lower() ||
         request.auth.uid in resource.data.guardianUids
       );
     }

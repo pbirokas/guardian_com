@@ -80,15 +80,47 @@ class AuthService {
   }
 
   Future<void> _processPendingInvitations(String uid, String email) async {
-    final invites = await _db
-        .collection('invitations')
-        .where('email', isEqualTo: email)
-        .where('status', isEqualTo: 'pending')
-        .get();
+    // Einladungs-IDs ermitteln: zuerst per Lookup-Dokument (schnell, keine
+    // List-Query nötig), danach Fallback auf direkte Abfrage für ältere
+    // Einladungen, die vor Einführung des Lookups erstellt wurden.
+    final invitationIds = <String>[];
 
-    for (final invite in invites.docs) {
+    try {
+      final lookupDoc =
+          await _db.collection('invitationLookup').doc(email).get();
+      if (lookupDoc.exists) {
+        final ids = (lookupDoc.data()
+                as Map<String, dynamic>)['invitationIds'] as List? ??
+            [];
+        invitationIds.addAll(ids.cast<String>());
+        // Lookup-Dokument bereinigen
+        await lookupDoc.reference.delete().catchError((_) {});
+      }
+    } catch (_) {}
+
+    // Fallback: direkte E-Mail-Abfrage für Einladungen ohne Lookup-Eintrag
+    if (invitationIds.isEmpty) {
       try {
-        final data = invite.data();
+        final query = await _db
+            .collection('invitations')
+            .where('email', isEqualTo: email)
+            .where('status', isEqualTo: 'pending')
+            .get();
+        invitationIds.addAll(query.docs.map((d) => d.id));
+      } catch (_) {}
+    }
+
+    if (invitationIds.isEmpty) return;
+
+    for (final inviteId in invitationIds) {
+      try {
+        final inviteDoc =
+            await _db.collection('invitations').doc(inviteId).get();
+        if (!inviteDoc.exists) continue;
+
+        final data = inviteDoc.data() as Map<String, dynamic>;
+        if (data['status'] != 'pending') continue;
+
         final orgId = data['orgId'] as String;
         final role = OrgRole.values.byName(data['role'] as String);
         final guardianUids = (data['guardianUids'] as List? ?? [])
@@ -109,12 +141,15 @@ class AuthService {
 
         final existing = await memberRef.get();
         if (existing.exists) {
-          await invite.reference.update({'status': 'processed'});
+          await inviteDoc.reference
+              .update({'status': 'processed'})
+              .catchError((_) {});
           continue;
         }
 
         final membership = OrgMembership(orgId: orgId, role: role);
 
+        // Transaktion: kritische Schreiboperationen (Mitglied + Org + User)
         await _db.runTransaction((tx) async {
           tx.set(
             memberRef,
@@ -139,13 +174,17 @@ class AuthService {
           } else {
             tx.update(_db.collection('users').doc(uid), {'isChild': true});
           }
-
-          tx.update(invite.reference, {'status': 'processed'});
         });
+
+        // Einladung separat als verarbeitet markieren (Best-Effort)
+        await inviteDoc.reference
+            .update({'status': 'processed'})
+            .catchError((_) {});
       } catch (_) {
         // Eine einzelne Einladung fehlgeschlagen – mit den anderen weitermachen
       }
     }
+
   }
 
   Future<void> signOut() async {

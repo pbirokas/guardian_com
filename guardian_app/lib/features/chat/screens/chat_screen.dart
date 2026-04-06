@@ -554,9 +554,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       title = other?.displayName ?? widget.partnerName ?? 'Chat';
     }
 
-    final isGroupAdmin = conv != null &&
-        conv.isGroup &&
-        conv.orgAdminUid == currentUid;
     final isModeratorOrAdmin = conv != null &&
         conv.isGroup &&
         conv.canApproveUids.contains(currentUid);
@@ -575,7 +572,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 canManage: isModeratorOrAdmin,
               ),
             ),
-          if (isGroupAdmin && !isArchived)
+          if (isModeratorOrAdmin && !isArchived)
             PopupMenuButton<String>(
               onSelected: (value) {
                 if (value == 'add_member') {

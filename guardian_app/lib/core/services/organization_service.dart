@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/organization.dart';
 import '../models/app_user.dart';
 import '../models/org_member.dart';
+import '../models/member_suggestion.dart';
 
 class OrganizationService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -115,7 +116,7 @@ class OrganizationService {
       if (existingInvite.docs.isNotEmpty) {
         throw Exception('Für diese E-Mail gibt es bereits eine ausstehende Einladung.');
       }
-      await _db.collection('invitations').add({
+      final inviteRef = await _db.collection('invitations').add({
         'email': normalizedEmail,
         'orgId': orgId,
         'orgName': orgName,
@@ -125,6 +126,7 @@ class OrganizationService {
         'status': 'pending',
         'createdAt': Timestamp.now(),
       });
+      await _writeInvitationLookup(normalizedEmail, inviteRef.id);
       return;
     }
 
@@ -435,5 +437,157 @@ class OrganizationService {
         .collection('members')
         .snapshots()
         .map((snap) => snap.docs.map(OrgMember.fromFirestore).toList());
+  }
+
+  // ── Mitglied-Vorschläge ──────────────────────────────────────────────────
+
+  Future<void> suggestMember(String orgId, String email, OrgRole role,
+      {List<String> guardianUids = const []}) async {
+    final normalizedEmail = email.toLowerCase().trim();
+    final currentUser = _auth.currentUser!;
+
+    await _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('memberSuggestions')
+        .add({
+      'email': normalizedEmail,
+      'role': role.name,
+      'guardianUids': guardianUids,
+      'suggestedByUid': _uid,
+      'suggestedByName': currentUser.displayName ?? currentUser.email ?? '',
+      'orgId': orgId,
+      'status': 'pending',
+      'createdAt': Timestamp.now(),
+    });
+  }
+
+  Stream<List<MemberSuggestion>> watchPendingSuggestions(String orgId) {
+    return _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('memberSuggestions')
+        .where('status', isEqualTo: 'pending')
+        .orderBy('createdAt')
+        .snapshots()
+        .map((s) => s.docs.map(MemberSuggestion.fromFirestore).toList());
+  }
+
+  Future<void> approveSuggestion(String orgId, String suggestionId,
+      String email, OrgRole role, List<String> guardianUids) async {
+    final normalizedEmail = email.toLowerCase().trim();
+    final isChild = role == OrgRole.child;
+
+    // Prüfen ob User bereits registriert ist
+    final query = await _db
+        .collection('users')
+        .where('email', isEqualTo: normalizedEmail)
+        .limit(1)
+        .get();
+
+    if (query.docs.isNotEmpty) {
+      // ── Bereits registriert → direkt hinzufügen ──────────────────────────
+      final userDoc = query.docs.first;
+      final targetUid = userDoc.id;
+      final userData = userDoc.data();
+
+      final memberDoc = _db
+          .collection('organizations')
+          .doc(orgId)
+          .collection('members')
+          .doc(targetUid);
+
+      final existing = await memberDoc.get();
+      if (!existing.exists) {
+        final membership = OrgMembership(orgId: orgId, role: role);
+        await _db.runTransaction((tx) async {
+          tx.set(
+            memberDoc,
+            OrgMember(
+              uid: targetUid,
+              displayName: userData['displayName'] as String,
+              email: userData['email'] as String,
+              photoUrl: userData['photoUrl'] as String?,
+              role: role,
+              joinedAt: DateTime.now(),
+              guardianUids: isChild ? guardianUids : [],
+              status: isChild ? MemberStatus.pending : MemberStatus.active,
+            ).toFirestore(),
+          );
+          if (!isChild) {
+            tx.update(_db.collection('organizations').doc(orgId), {
+              'memberUids': FieldValue.arrayUnion([targetUid]),
+            });
+            tx.update(_db.collection('users').doc(targetUid), {
+              'memberships': FieldValue.arrayUnion([membership.toMap()]),
+            });
+          }
+        });
+      }
+    } else {
+      // ── Noch nicht registriert → Einladung anlegen / aktualisieren ───────
+      final orgDoc =
+          await _db.collection('organizations').doc(orgId).get();
+      final orgName = orgDoc.data()?['name'] as String? ?? '';
+
+      final existingInvite = await _db
+          .collection('invitations')
+          .where('email', isEqualTo: normalizedEmail)
+          .where('orgId', isEqualTo: orgId)
+          .where('status', isEqualTo: 'pending')
+          .limit(1)
+          .get();
+
+      if (existingInvite.docs.isNotEmpty) {
+        // Vorhandene Einladung aktualisieren (kein Fehler bei Duplikat)
+        final existingId = existingInvite.docs.first.id;
+        await existingInvite.docs.first.reference.update({
+          'role': role.name,
+          'guardianUids': guardianUids,
+          'invitedBy': _uid,
+          'updatedAt': Timestamp.now(),
+        });
+        await _writeInvitationLookup(normalizedEmail, existingId);
+      } else {
+        final inviteRef = await _db.collection('invitations').add({
+          'email': normalizedEmail,
+          'orgId': orgId,
+          'orgName': orgName,
+          'role': role.name,
+          'guardianUids': guardianUids,
+          'invitedBy': _uid,
+          'status': 'pending',
+          'createdAt': Timestamp.now(),
+        });
+        await _writeInvitationLookup(normalizedEmail, inviteRef.id);
+      }
+    }
+
+    // Vorschlag als angenommen markieren
+    await _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('memberSuggestions')
+        .doc(suggestionId)
+        .update({'status': 'approved'});
+  }
+
+  Future<void> rejectSuggestion(String orgId, String suggestionId) async {
+    await _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('memberSuggestions')
+        .doc(suggestionId)
+        .update({'status': 'rejected'});
+  }
+
+  /// Speichert eine Einladungs-ID in einem Lookup-Dokument, das direkt per
+  /// E-Mail-Adresse abrufbar ist (kein List-Query nötig → keine Regel-Probleme).
+  Future<void> _writeInvitationLookup(
+      String normalizedEmail, String invitationId) async {
+    await _db.collection('invitationLookup').doc(normalizedEmail).set(
+      {'invitationIds': FieldValue.arrayUnion([invitationId])},
+      SetOptions(merge: true),
+    );
   }
 }

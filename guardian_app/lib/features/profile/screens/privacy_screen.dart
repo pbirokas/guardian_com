@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PrivacyScreen extends StatefulWidget {
   const PrivacyScreen({super.key});
@@ -36,6 +37,18 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
             subtitle: const Text('Mitglieder können dein Profilbild sehen'),
             value: _showProfilePhoto,
             onChanged: (v) => setState(() => _showProfilePhoto = v),
+          ),
+          const Divider(),
+          const _SectionHeader('Rechtliches'),
+          ListTile(
+            leading: const Icon(Icons.privacy_tip_outlined),
+            title: const Text('Datenschutzerklärung'),
+            subtitle: const Text('Im Browser öffnen'),
+            trailing: const Icon(Icons.open_in_new, size: 16),
+            onTap: () => launchUrl(
+              Uri.parse('https://pbirokas.github.io/guardian_com/privacy_policy.html'),
+              mode: LaunchMode.externalApplication,
+            ),
           ),
           const Divider(),
           const _SectionHeader('Daten'),

@@ -1,5 +1,9 @@
 # Guardian App
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
+[![Firebase](https://img.shields.io/badge/Firebase-Backend-FFCA28?logo=firebase)](https://firebase.google.com)
+
 Eine Flutter-App für sichere, überwachte Kommunikation zwischen Kindern, Erziehungsberechtigten und Organisationen.
 
 ## Technologie
@@ -156,7 +160,57 @@ reports/{reportId}
 
 ## Setup
 
-1. Firebase-Projekt erstellen und `google-services.json` (Android) / `GoogleService-Info.plist` (iOS) einbinden
-2. `lib/firebase_options.dart` über FlutterFire CLI generieren
-3. `flutter pub get`
-4. `firebase deploy --only firestore:rules,storage` — Sicherheitsregeln deployen
+> **Hinweis:** Firebase-Konfigurationsdateien (`google-services.json`, `firebase_options.dart`, `key.properties`) sind nicht im Repository enthalten — sie müssen für deine eigene Firebase-Instanz erstellt werden.
+
+### Voraussetzungen
+
+- [Flutter SDK](https://docs.flutter.dev/get-started/install) ≥ 3.x
+- [Firebase CLI](https://firebase.google.com/docs/cli) + [FlutterFire CLI](https://firebase.flutter.dev/docs/cli)
+- Android Studio oder Xcode (für native Builds)
+
+### Schritt-für-Schritt
+
+```bash
+# 1. Repository klonen
+git clone https://github.com/dein-user/guardian-app.git
+cd guardian-app
+
+# 2. Firebase-Projekt erstellen (console.firebase.google.com)
+#    → Authentication (Google Sign-In aktivieren)
+#    → Firestore Database anlegen
+#    → Storage aktivieren
+#    → Cloud Functions aktivieren (Blaze-Plan)
+
+# 3. FlutterFire konfigurieren (erzeugt firebase_options.dart + google-services.json)
+cd guardian_app
+flutterfire configure
+
+# 4. Abhängigkeiten installieren
+flutter pub get
+
+# 5. Firebase-Regeln & Functions deployen
+cd ..
+firebase deploy --only firestore:rules,functions
+
+# 6. App starten
+cd guardian_app
+flutter run
+```
+
+### Vorlage für firebase_options.dart
+
+Eine Vorlage befindet sich unter [`guardian_app/lib/firebase_options.example.dart`](guardian_app/lib/firebase_options.example.dart).  
+Umbenennen und mit eigenen Firebase-Werten befüllen, oder `flutterfire configure` verwenden.
+
+---
+
+## Beitragen
+
+Beiträge sind willkommen! Bitte lies zuerst [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+---
+
+## Lizenz
+
+Dieses Projekt steht unter der [MIT-Lizenz](LICENSE).  
+© 2025 Pantelis Birokas

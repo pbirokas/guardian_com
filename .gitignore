@@ -59,3 +59,7 @@ ui-debug.log
 **/google-services.json
 **/GoogleService-Info.plist
 guardian_app/lib/firebase_options.dart
+guardian_app/android/key.properties
+
+# Claude Code
+.claude/settings.local.json

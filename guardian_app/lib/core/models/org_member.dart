@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'app_user.dart';
+import 'notification_settings.dart';
 
 enum MemberStatus { active, pending }
 
@@ -28,6 +29,8 @@ class OrgMember {
   final MemberStatus status;
   final ChildAlertInterval childAlertInterval; // nur für Guardians
   final Map<String, DateTime> lastChildAlertAt; // childUid -> last alert time
+  final bool notificationsEnabled; // false = diese Org stummgeschaltet
+  final MessageAlertInterval messageAlertInterval; // Nachrichtenintervall für diese Org
 
   const OrgMember({
     required this.uid,
@@ -40,6 +43,8 @@ class OrgMember {
     this.status = MemberStatus.active,
     this.childAlertInterval = ChildAlertInterval.hourly,
     this.lastChildAlertAt = const {},
+    this.notificationsEnabled = true,
+    this.messageAlertInterval = MessageAlertInterval.always,
   });
 
   factory OrgMember.fromFirestore(DocumentSnapshot doc) {
@@ -66,6 +71,10 @@ class OrgMember {
           ? {}
           : Map<String, dynamic>.from(data['lastChildAlertAt'] as Map)
               .map((k, v) => MapEntry(k, (v as Timestamp).toDate())),
+      notificationsEnabled: data['notificationsEnabled'] as bool? ?? true,
+      messageAlertInterval: MessageAlertInterval.values
+          .where((e) => e.name == (data['messageAlertInterval'] as String?))
+          .firstOrNull ?? MessageAlertInterval.always,
     );
   }
 
@@ -78,5 +87,7 @@ class OrgMember {
         'guardianUids': guardianUids,
         'status': status.name,
         'childAlertInterval': childAlertInterval.name,
+        'notificationsEnabled': notificationsEnabled,
+        'messageAlertInterval': messageAlertInterval.name,
       };
 }

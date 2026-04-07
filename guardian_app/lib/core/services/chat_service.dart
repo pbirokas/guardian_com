@@ -218,7 +218,13 @@ class ChatService {
   }
 
   Future<void> editMessage(
-      String convId, String messageId, String newText) async {
+    String convId,
+    String messageId,
+    String newText, {
+    bool archive = false,
+    String? archivedByUid,
+    String? archivedByName,
+  }) async {
     await _db
         .collection('conversations')
         .doc(convId)
@@ -227,6 +233,9 @@ class ChatService {
         .update({
       'text': newText,
       'editedAt': Timestamp.now(),
+      if (archive) 'isArchived': true,
+      if (archive && archivedByUid != null) 'archivedByUid': archivedByUid,
+      if (archive && archivedByName != null) 'archivedByName': archivedByName,
     });
   }
 

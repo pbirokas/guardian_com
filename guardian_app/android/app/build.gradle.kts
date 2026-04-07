@@ -6,6 +6,21 @@ plugins {
     id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
     id("com.google.gms.google-services")
+    id("com.google.firebase.crashlytics")
+}
+
+// ── Version aus Git ───────────────────────────────────────────────────────────
+// versionCode  = Anzahl aller Git-Commits (steigt automatisch mit jedem Commit)
+// versionName  = wird aus pubspec.yaml via Flutter übernommen
+fun gitCommitCount(): Int {
+    return try {
+        val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
+            .directory(rootProject.projectDir)
+            .start()
+        process.inputStream.bufferedReader().readText().trim().toInt()
+    } catch (e: Exception) {
+        1 // Fallback falls git nicht verfügbar (z.B. CI ohne git-History)
+    }
 }
 
 // ── Keystore ──────────────────────────────────────────────────────────────────
@@ -33,7 +48,7 @@ android {
         applicationId = "com.guardianapp.guardian_app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
+        versionCode = gitCommitCount()
         versionName = flutter.versionName
     }
 

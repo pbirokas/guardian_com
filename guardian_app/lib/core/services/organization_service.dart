@@ -4,6 +4,7 @@ import '../models/organization.dart';
 import '../models/app_user.dart';
 import '../models/org_member.dart';
 import '../models/member_suggestion.dart';
+import '../models/notification_settings.dart';
 
 class OrganizationService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -428,6 +429,19 @@ class OrganizationService {
         .doc(orgId)
         .snapshots()
         .map(Organization.fromFirestore);
+  }
+
+  Future<void> setOrgMessageInterval(
+      String orgId, MessageAlertInterval interval) async {
+    await _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('members')
+        .doc(_uid)
+        .update({
+      'messageAlertInterval': interval.name,
+      'notificationsEnabled': interval != MessageAlertInterval.never,
+    });
   }
 
   Stream<List<OrgMember>> watchMembers(String orgId) {

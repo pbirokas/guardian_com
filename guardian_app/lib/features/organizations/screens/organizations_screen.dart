@@ -171,9 +171,10 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             const SizedBox(height: 8),
             Container(
               width: 40,
@@ -243,6 +244,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
             ),
             const SizedBox(height: 8),
           ],
+        ),
         ),
       ),
     );

@@ -695,14 +695,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           convId: widget.chatId,
                           showSenderName:
                               showSender && msg.senderName.isNotEmpty,
+                          isModerating: isModeratorOrAdmin && !isMe,
                           onReport: isMe || conv == null || msg.pollId != null
                               ? null
                               : () => _confirmReport(conv, msg),
-                          onEdit: isMe &&
-                                  msg.pollId == null &&
+                          onEdit: msg.pollId == null &&
                                   msg.imageUrl == null &&
-                                  msg.audioUrl == null
-                              ? () => _editMessage(msg)
+                                  msg.audioUrl == null &&
+                                  (isMe || isModeratorOrAdmin)
+                              ? () => _editMessage(
+                                    msg,
+                                    archive: isModeratorOrAdmin && !isMe,
+                                  )
                               : null,
                           onImageTap: msg.imageUrl != null
                               ? () => _openImageFullscreen(context, msg.imageUrl!)
@@ -773,12 +777,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  Future<void> _editMessage(Message msg) async {
+  Future<void> _editMessage(Message msg, {bool archive = false}) async {
     final ctrl = TextEditingController(text: msg.text);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Nachricht bearbeiten'),
+        title: Text(archive ? 'Nachricht moderieren' : 'Nachricht bearbeiten'),
         content: TextField(
           controller: ctrl,
           autofocus: true,
@@ -802,9 +806,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final newText = ctrl.text.trim();
     if (newText.isEmpty || newText == msg.text) return;
     try {
-      await ref
-          .read(chatServiceProvider)
-          .editMessage(widget.chatId, msg.id, newText);
+      final currentUser = FirebaseAuth.instance.currentUser;
+      await ref.read(chatServiceProvider).editMessage(
+            widget.chatId,
+            msg.id,
+            newText,
+            archive: archive,
+            archivedByUid: archive ? currentUser?.uid : null,
+            archivedByName: archive ? currentUser?.displayName : null,
+          );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -877,6 +887,7 @@ class _MessageBubble extends StatelessWidget {
   final Message message;
   final bool isMe;
   final bool showSenderName;
+  final bool isModerating;
   final VoidCallback? onReport;
   final VoidCallback? onEdit;
   final VoidCallback? onImageTap;
@@ -887,6 +898,7 @@ class _MessageBubble extends StatelessWidget {
     required this.isMe,
     required this.convId,
     this.showSenderName = false,
+    this.isModerating = false,
     this.onReport,
     this.onEdit,
     this.onImageTap,
@@ -907,8 +919,12 @@ class _MessageBubble extends StatelessWidget {
                     children: [
                       if (onEdit != null)
                         ListTile(
-                          leading: const Icon(Icons.edit_outlined),
-                          title: const Text('Bearbeiten'),
+                          leading: Icon(isModerating
+                              ? Icons.shield_outlined
+                              : Icons.edit_outlined),
+                          title: Text(isModerating
+                              ? 'Moderieren'
+                              : 'Bearbeiten'),
                           onTap: () {
                             Navigator.pop(context);
                             onEdit!();
@@ -1007,14 +1023,50 @@ class _MessageBubble extends StatelessWidget {
               Text(
                 message.text,
                 style: TextStyle(
-                  color: isMe ? colorScheme.onPrimary : null,
+                  color: message.isArchived
+                      ? (isMe
+                          ? colorScheme.onPrimary.withAlpha(160)
+                          : Colors.grey[600])
+                      : (isMe ? colorScheme.onPrimary : null),
+                  fontStyle: message.isArchived
+                      ? FontStyle.italic
+                      : FontStyle.normal,
+                ),
+              ),
+            if (message.isArchived)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.shield_outlined,
+                      size: 11,
+                      color: isMe
+                          ? colorScheme.onPrimary.withAlpha(160)
+                          : Colors.grey,
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      message.archivedByName != null
+                          ? 'von ${message.archivedByName} moderiert'
+                          : 'von Moderator moderiert',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontStyle: FontStyle.italic,
+                        color: isMe
+                            ? colorScheme.onPrimary.withAlpha(160)
+                            : Colors.grey,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             const SizedBox(height: 2),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (message.editedAt != null)
+                if (message.editedAt != null && !message.isArchived)
                   Text(
                     'bearbeitet · ',
                     style: TextStyle(

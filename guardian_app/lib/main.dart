@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/providers/theme_provider.dart';
@@ -10,16 +14,32 @@ import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // ── Crashlytics ─────────────────────────────────────────────────────────────
+  // Im Debug-Modus Berichte deaktivieren, damit die Console nicht überflutet wird.
+  await FirebaseCrashlytics.instance
+      .setCrashlyticsCollectionEnabled(!kDebugMode);
+
+  // Flutter-Fehler (Widget-Fehler, etc.) an Crashlytics weiterleiten
+  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   final savedTheme = await loadSavedThemeMode();
 
-  runApp(ProviderScope(
-    overrides: [
-      themeModeProvider.overrideWith(() => ThemeModeNotifier(savedTheme)),
-    ],
-    child: const GuardianApp(),
-  ));
+  // Dart-Fehler außerhalb des Flutter-Frameworks abfangen (async, isolates)
+  await runZonedGuarded(
+    () async {
+      runApp(ProviderScope(
+        overrides: [
+          themeModeProvider.overrideWith(() => ThemeModeNotifier(savedTheme)),
+        ],
+        child: const GuardianApp(),
+      ));
+    },
+    (error, stack) =>
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true),
+  );
 }
 
 class GuardianApp extends ConsumerWidget {

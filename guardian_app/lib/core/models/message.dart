@@ -11,6 +11,9 @@ class Message {
   final int? audioDurationMs;
   final String? pollId;
   final DateTime? editedAt;
+  final bool isArchived;
+  final String? archivedByUid;
+  final String? archivedByName;
 
   const Message({
     required this.id,
@@ -23,6 +26,9 @@ class Message {
     this.audioDurationMs,
     this.pollId,
     this.editedAt,
+    this.isArchived = false,
+    this.archivedByUid,
+    this.archivedByName,
   });
 
   factory Message.fromFirestore(DocumentSnapshot doc) {
@@ -40,6 +46,9 @@ class Message {
       editedAt: data['editedAt'] != null
           ? (data['editedAt'] as Timestamp).toDate()
           : null,
+      isArchived: data['isArchived'] as bool? ?? false,
+      archivedByUid: data['archivedByUid'] as String?,
+      archivedByName: data['archivedByName'] as String?,
     );
   }
 
@@ -53,5 +62,8 @@ class Message {
         if (audioDurationMs != null) 'audioDurationMs': audioDurationMs,
         if (pollId != null) 'pollId': pollId,
         if (editedAt != null) 'editedAt': Timestamp.fromDate(editedAt!),
+        'isArchived': isArchived,
+        if (archivedByUid != null) 'archivedByUid': archivedByUid,
+        if (archivedByName != null) 'archivedByName': archivedByName,
       };
 }

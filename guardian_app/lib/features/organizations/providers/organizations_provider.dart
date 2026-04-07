@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/app_user.dart';
 import '../../../core/models/member_suggestion.dart';
+import '../../../core/models/notification_settings.dart';
 import '../../../core/models/organization.dart';
 import '../../../core/models/org_member.dart';
 import '../../../core/services/organization_service.dart';
@@ -69,4 +70,46 @@ final pendingMemberSuggestionsProvider =
   return ref
       .watch(organizationServiceProvider)
       .watchPendingSuggestions(orgId);
+});
+
+/// Globale Benachrichtigungseinstellungen des eingeloggten Nutzers
+final notificationSettingsProvider =
+    StreamProvider<NotificationSettings>((ref) {
+  ref.watch(authStateProvider);
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return Stream.value(const NotificationSettings());
+  return FirebaseFirestore.instance
+      .collection('users')
+      .doc(uid)
+      .snapshots()
+      .map((s) => NotificationSettings.fromMap(
+            s.data()?['notificationSettings'] as Map<String, dynamic>?,
+          ));
+});
+
+/// Benachrichtigungsintervall für eine bestimmte Org (eigener Member-Doc-Eintrag)
+final orgMessageIntervalProvider =
+    StreamProvider.family<MessageAlertInterval, String>((ref, orgId) {
+  ref.watch(authStateProvider);
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return Stream.value(MessageAlertInterval.always);
+  return FirebaseFirestore.instance
+      .collection('organizations')
+      .doc(orgId)
+      .collection('members')
+      .doc(uid)
+      .snapshots()
+      .map((s) {
+    final data = s.data();
+    // Legacy: if notificationsEnabled is false, treat as never
+    if (data?['notificationsEnabled'] == false &&
+        data?['messageAlertInterval'] == null) {
+      return MessageAlertInterval.never;
+    }
+    final name = data?['messageAlertInterval'] as String?;
+    return MessageAlertInterval.values
+            .where((e) => e.name == name)
+            .firstOrNull ??
+        MessageAlertInterval.always;
+  });
 });

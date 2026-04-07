@@ -6,7 +6,9 @@ import 'package:go_router/go_router.dart';
 import '../../../core/models/app_user.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/models/member_suggestion.dart';
+import '../../../core/models/notification_settings.dart';
 import '../../../core/models/org_member.dart';
+
 import '../../../core/models/organization.dart';
 import '../../chat/providers/chat_provider.dart';
 import '../providers/organizations_provider.dart';
@@ -63,6 +65,7 @@ class OrganizationDetailScreen extends ConsumerWidget {
                 ],
               ),
               actions: [
+                _OrgNotificationToggle(orgId: orgId),
                 if (isAdmin) ...[
                   IconButton(
                     icon: const Icon(Icons.manage_search_outlined),
@@ -1558,6 +1561,75 @@ class _SuggestionTile extends StatelessWidget {
   }
 }
 
+// ── Org Notification Toggle ──────────────────────────────────────────────────
+
+class _OrgNotificationToggle extends ConsumerWidget {
+  final String orgId;
+  const _OrgNotificationToggle({required this.orgId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final interval =
+        ref.watch(orgMessageIntervalProvider(orgId)).value ??
+            MessageAlertInterval.always;
+    final muted = interval == MessageAlertInterval.never;
+
+    return IconButton(
+      icon: Icon(
+        muted ? Icons.notifications_off_outlined : Icons.notifications_outlined,
+        color: muted ? Colors.grey : null,
+      ),
+      tooltip: 'Benachrichtigungen dieser Org',
+      onPressed: () => _showIntervalSheet(context, ref, interval),
+    );
+  }
+
+  void _showIntervalSheet(
+      BuildContext context, WidgetRef ref, MessageAlertInterval current) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                'Benachrichtigungen dieser Org',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+            RadioGroup<MessageAlertInterval>(
+              groupValue: current,
+              onChanged: (v) async {
+                Navigator.pop(ctx);
+                if (v == null) return;
+                await ref
+                    .read(organizationServiceProvider)
+                    .setOrgMessageInterval(orgId, v);
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: MessageAlertInterval.values
+                    .map((interval) => RadioListTile<MessageAlertInterval>(
+                          title: Text(interval.label),
+                          value: interval,
+                        ))
+                    .toList(),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ── Conversation Tile ────────────────────────────────────────────────────────
 
 class _ConversationTile extends StatelessWidget {
@@ -2400,107 +2472,174 @@ final _pendingReportsCountProvider =
 
 // ── Reports Tab ───────────────────────────────────────────────────────────────
 
-class _ReportsTab extends ConsumerWidget {
+class _ReportsTab extends ConsumerStatefulWidget {
   final Organization org;
   const _ReportsTab({required this.org});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final reportsAsync = ref.watch(_orgReportsProvider(org.id));
+  ConsumerState<_ReportsTab> createState() => _ReportsTabState();
+}
+
+class _ReportsTabState extends ConsumerState<_ReportsTab> {
+  bool _showArchived = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final reportsAsync = ref.watch(_orgReportsProvider(widget.org.id));
 
     return reportsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('Fehler: $e')),
-      data: (reports) {
-        if (reports.isEmpty) {
-          return const Center(
-            child: Text('Keine Meldungen',
-                style: TextStyle(color: Colors.grey)),
-          );
-        }
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: reports.length,
-          separatorBuilder: (_, _) => const Divider(height: 1),
-          itemBuilder: (ctx, i) {
-            final report = reports[i];
-            final isPending = report['status'] == 'pending';
-            return ListTile(
-              leading: CircleAvatar(
-                backgroundColor:
-                    isPending ? Colors.red.withAlpha(30) : Colors.grey.withAlpha(30),
-                child: Icon(Icons.flag_outlined,
-                    color: isPending ? Colors.red : Colors.grey, size: 20),
-              ),
-              title: Text(
-                report['messageSenderName'] as String? ?? '?',
-                style: TextStyle(
-                    fontWeight:
-                        isPending ? FontWeight.bold : FontWeight.normal),
-              ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    report['messageText'] as String? ?? '',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  Text(
-                    isPending ? 'Ausstehend' : 'Geprüft',
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: isPending ? Colors.red : Colors.grey),
-                  ),
-                ],
-              ),
-              isThreeLine: true,
-              trailing: PopupMenuButton<String>(
-                onSelected: (action) async {
-                  if (action == 'reviewed') {
-                    await ref
-                        .read(chatServiceProvider)
-                        .markReportReviewed(report['id'] as String);
-                  } else if (action == 'delete_msg') {
-                    await _deleteMessage(context, ref, report);
-                  }
-                },
-                itemBuilder: (_) => [
-                  if (isPending)
-                    const PopupMenuItem(
-                      value: 'reviewed',
-                      child: ListTile(
-                        leading: Icon(Icons.check_circle_outline,
-                            color: Colors.green),
-                        title: Text('Als geprüft markieren'),
-                        contentPadding: EdgeInsets.zero,
+      data: (allReports) {
+        final pending =
+            allReports.where((r) => r['status'] == 'pending').toList();
+        final archived =
+            allReports.where((r) => r['status'] == 'reviewed').toList();
+        final visible = _showArchived ? allReports : pending;
+
+        return Column(
+          children: [
+            // Toggle-Leiste
+            if (archived.isNotEmpty)
+              InkWell(
+                onTap: () => setState(() => _showArchived = !_showArchived),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _showArchived
+                            ? Icons.visibility_off_outlined
+                            : Icons.archive_outlined,
+                        size: 16,
+                        color: Colors.grey[600],
                       ),
-                    ),
-                  const PopupMenuItem(
-                    value: 'delete_msg',
-                    child: ListTile(
-                      leading: Icon(Icons.delete_outline, color: Colors.red),
-                      title: Text('Nachricht löschen',
-                          style: TextStyle(color: Colors.red)),
-                      contentPadding: EdgeInsets.zero,
-                    ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _showArchived
+                            ? 'Archivierte ausblenden'
+                            : 'Archivierte anzeigen (${archived.length})',
+                        style:
+                            TextStyle(fontSize: 13, color: Colors.grey[600]),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-              onTap: () {
-                final convId = report['convId'] as String?;
-                if (convId != null) context.push('/chat/$convId');
-              },
-            );
-          },
+            Expanded(
+              child: visible.isEmpty
+                  ? Center(
+                      child: Text(
+                        _showArchived
+                            ? 'Keine Meldungen'
+                            : 'Keine ausstehenden Meldungen',
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      itemCount: visible.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (ctx, i) {
+                        final report = visible[i];
+                        final isPending = report['status'] == 'pending';
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: isPending
+                                ? Colors.red.withAlpha(30)
+                                : Colors.grey.withAlpha(30),
+                            child: Icon(
+                              isPending
+                                  ? Icons.flag_outlined
+                                  : Icons.archive_outlined,
+                              color:
+                                  isPending ? Colors.red : Colors.grey,
+                              size: 20,
+                            ),
+                          ),
+                          title: Text(
+                            report['messageSenderName'] as String? ?? '?',
+                            style: TextStyle(
+                              fontWeight: isPending
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: isPending ? null : Colors.grey[600],
+                            ),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                report['messageText'] as String? ?? '',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: isPending ? null : Colors.grey[500],
+                                ),
+                              ),
+                              Text(
+                                isPending ? 'Ausstehend' : 'Geprüft · Archiviert',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: isPending ? Colors.red : Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                          isThreeLine: true,
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (action) async {
+                              if (action == 'reviewed') {
+                                await ref
+                                    .read(chatServiceProvider)
+                                    .markReportReviewed(
+                                        report['id'] as String);
+                              } else if (action == 'delete_msg') {
+                                await _deleteMessage(context, report);
+                              }
+                            },
+                            itemBuilder: (_) => [
+                              if (isPending)
+                                const PopupMenuItem(
+                                  value: 'reviewed',
+                                  child: ListTile(
+                                    leading: Icon(
+                                        Icons.check_circle_outline,
+                                        color: Colors.green),
+                                    title: Text('Als geprüft markieren'),
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                ),
+                              const PopupMenuItem(
+                                value: 'delete_msg',
+                                child: ListTile(
+                                  leading: Icon(Icons.delete_outline,
+                                      color: Colors.red),
+                                  title: Text('Nachricht löschen',
+                                      style: TextStyle(color: Colors.red)),
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                              ),
+                            ],
+                          ),
+                          onTap: () {
+                            final convId = report['convId'] as String?;
+                            if (convId != null) context.push('/chat/$convId');
+                          },
+                        );
+                      },
+                    ),
+            ),
+          ],
         );
       },
     );
   }
 
-  Future<void> _deleteMessage(BuildContext context, WidgetRef ref,
-      Map<String, dynamic> report) async {
+  Future<void> _deleteMessage(
+      BuildContext context, Map<String, dynamic> report) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(

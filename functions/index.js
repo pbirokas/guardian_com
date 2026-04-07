@@ -43,10 +43,29 @@ async function getTokensForUids(uids) {
 }
 
 /**
+ * Checks whether the cooldown for a given interval has passed.
+ * Returns true if notification should be sent (cooldown elapsed or no prior timestamp).
+ */
+function cooldownElapsed(interval, lastAlertTs) {
+  if (interval === 'always') return true;
+  if (!lastAlertTs) return true; // no prior timestamp → always send first one
+  const cooldownMs = interval === 'hourly' ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+  return Date.now() - lastAlertTs.toMillis() >= cooldownMs;
+}
+
+/**
  * Triggered when a new message is created in any conversation.
- * 1. Sends FCM push notification to all participants except the sender.
- * 2. If the org has keywords configured, checks the message text and notifies
- *    guardians + moderators when a keyword is found.
+ *
+ * Block 1 – Standard message notification:
+ *   Respects notificationsEnabled (per-org) and messageAlertInterval
+ *   (per-org override, falls back to global notificationSettings.newMessagesInterval).
+ *   Tracks lastMessageAlertAt.{convId} in the member doc for cooldown enforcement.
+ *
+ * Block 2 – Guardian child-activity notification:
+ *   Unchanged logic; reuses already-loaded memberMap.
+ *
+ * Block 3 – Keyword monitoring:
+ *   Reuses memberMap; loads tokens for non-participant alertees on demand.
  */
 exports.onNewMessage = onDocumentCreated(
   'conversations/{convId}/messages/{msgId}',
@@ -61,45 +80,99 @@ exports.onNewMessage = onDocumentCreated(
     const convSnap = await db.collection('conversations').doc(convId).get();
     if (!convSnap.exists) return;
     const conv = convSnap.data();
-
-    // Only process approved conversations
     if (conv.status !== 'approved') return;
 
-    // Load sender display name
-    const senderSnap = await db.collection('users').doc(senderId).get();
-    const senderName = senderSnap.exists
-      ? (senderSnap.data().displayName ?? 'Unbekannt')
-      : 'Unbekannt';
-
-    const chatTitle = conv.name ?? senderName;
-    const notifTitle = conv.name ? `${conv.name}: ${senderName}` : senderName;
-    const notifBody = text.length > 100 ? text.substring(0, 100) + '…' : text;
-
-    // --- 1. Standard message notification to participants ---
+    const orgId = conv.orgId;
     const participantUids = conv.participantUids ?? [];
     const recipientUids = participantUids.filter((uid) => uid !== senderId);
 
-    if (recipientUids.length > 0) {
-      const tokens = await getTokensForUids(recipientUids);
-      if (tokens.length > 0) {
-        await sendToTokens(tokens, notifTitle, notifBody, { convId, chatTitle });
-        console.log(`Sent ${tokens.length} message notification(s) for conv ${convId}`);
-      }
-    }
-
-    // --- 2. Guardian child-activity notification ---
-    const orgId = conv.orgId;
+    // ── Load member docs for the whole org upfront ──────────────────────────
+    // Used by all three blocks. Avoids redundant Firestore reads.
+    const memberMap = {};
     if (orgId) {
       const membersSnap = await db
         .collection('organizations')
         .doc(orgId)
         .collection('members')
         .get();
-
-      const memberMap = {};
       membersSnap.docs.forEach((doc) => { memberMap[doc.id] = doc.data(); });
+    }
 
-      // Find children involved in this conversation
+    // ── Load user docs for all recipients in one batch ───────────────────────
+    // Provides FCM tokens + global notification settings.
+    const userSnaps = await Promise.all(
+      recipientUids.map((uid) => db.collection('users').doc(uid).get())
+    );
+    const userMap = {};
+    userSnaps.forEach((snap) => { if (snap.exists) userMap[snap.id] = snap.data(); });
+
+    const senderName = userMap[senderId]
+      ? (userMap[senderId].displayName ?? 'Unbekannt')
+      : (await db.collection('users').doc(senderId).get().then((s) =>
+          s.exists ? (s.data().displayName ?? 'Unbekannt') : 'Unbekannt'
+        ));
+
+    const chatTitle = conv.name ?? senderName;
+    const notifTitle = conv.name ? `${conv.name}: ${senderName}` : senderName;
+    const notifBody = text.length > 100 ? text.substring(0, 100) + '…' : text;
+
+    // ── Block 1: Standard message notifications ──────────────────────────────
+    const tokensToNotify = [];
+    const cooldownUpdateUids = []; // UIDs whose lastMessageAlertAt needs updating
+
+    for (const uid of recipientUids) {
+      const memberData = memberMap[uid];
+      const userData = userMap[uid];
+      if (!userData?.fcmToken) continue;
+
+      // Per-org mute (bell toggle)
+      if (memberData?.notificationsEnabled === false) continue;
+
+      // Effective interval: per-org override → global setting → default 'always'
+      const interval =
+        memberData?.messageAlertInterval ??
+        userData?.notificationSettings?.newMessagesInterval ??
+        'always';
+
+      if (interval === 'never') continue;
+
+      // Cooldown check (only for throttled intervals with an org member doc)
+      if (interval !== 'always' && memberData) {
+        const lastAlertTs = memberData.lastMessageAlertAt?.[convId];
+        if (!cooldownElapsed(interval, lastAlertTs)) {
+          console.log(`Skipping notification for ${uid} (interval=${interval}, cooldown active)`);
+          continue;
+        }
+      }
+
+      tokensToNotify.push(userData.fcmToken);
+
+      if (interval !== 'always' && orgId && memberData) {
+        cooldownUpdateUids.push(uid);
+      }
+    }
+
+    if (tokensToNotify.length > 0) {
+      await sendToTokens(tokensToNotify, notifTitle, notifBody, { convId, chatTitle });
+      console.log(`Sent ${tokensToNotify.length} message notification(s) for conv ${convId}`);
+    }
+
+    // Persist lastMessageAlertAt for throttled recipients
+    if (cooldownUpdateUids.length > 0) {
+      await Promise.all(
+        cooldownUpdateUids.map((uid) =>
+          db
+            .collection('organizations')
+            .doc(orgId)
+            .collection('members')
+            .doc(uid)
+            .update({ [`lastMessageAlertAt.${convId}`]: new Date() })
+        )
+      );
+    }
+
+    // ── Block 2: Guardian child-activity notification ────────────────────────
+    if (orgId) {
       const childUids = participantUids.filter((uid) => memberMap[uid]?.role === 'child');
 
       for (const childUid of childUids) {
@@ -112,51 +185,53 @@ exports.onNewMessage = onDocumentCreated(
           const guardianData = memberMap[guardianUid];
           if (!guardianData) continue;
 
-        const interval = guardianData.childAlertInterval ?? 'hourly';
-        if (interval === 'never') continue;
+          const interval = guardianData.childAlertInterval ?? 'hourly';
+          if (interval === 'never') continue;
 
-        // Check cooldown
-        const lastAlertTs = guardianData.lastChildAlertAt?.[childUid];
-        if (interval !== 'always' && lastAlertTs) {
-          const lastAlertMs = lastAlertTs.toMillis();
-          const nowMs = Date.now();
-          const cooldownMs = interval === 'hourly' ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
-          if (nowMs - lastAlertMs < cooldownMs) continue;
+          const lastAlertTs = guardianData.lastChildAlertAt?.[childUid];
+          if (!cooldownElapsed(interval, lastAlertTs)) continue;
+
+          // Token: use userMap if guardian is a participant, else load on demand
+          let guardianToken = userMap[guardianUid]?.fcmToken;
+          if (!guardianToken) {
+            const snap = await db.collection('users').doc(guardianUid).get();
+            guardianToken = snap.exists ? snap.data().fcmToken : null;
+          }
+
+          if (guardianToken) {
+            const childName = memberMap[childUid]?.displayName ?? 'Kind';
+            const action =
+              senderId === childUid
+                ? 'hat eine Nachricht gesendet'
+                : 'hat eine Nachricht erhalten';
+            await sendToTokens(
+              [guardianToken],
+              `Kind-Aktivität: ${childName}`,
+              `${childName} ${action} in ${chatTitle}`,
+              { convId, chatTitle }
+            );
+          }
+
+          await db
+            .collection('organizations')
+            .doc(orgId)
+            .collection('members')
+            .doc(guardianUid)
+            .update({ [`lastChildAlertAt.${childUid}`]: new Date() });
         }
-
-        // Send notification to guardian
-        const guardianUserSnap = await db.collection('users').doc(guardianUid).get();
-        const guardianToken = guardianUserSnap.exists ? guardianUserSnap.data().fcmToken : null;
-        if (guardianToken) {
-          const childName = memberMap[childUid]?.displayName ?? 'Kind';
-          const action = senderId === childUid ? 'hat eine Nachricht gesendet' : 'hat eine Nachricht erhalten';
-          await sendToTokens(
-            [guardianToken],
-            `Kind-Aktivität: ${childName}`,
-            `${childName} ${action} in ${chatTitle}`,
-            { convId, chatTitle }
-          );
-        }
-
-        // Update lastChildAlertAt on guardian member doc
-        await db
-          .collection('organizations')
-          .doc(orgId)
-          .collection('members')
-          .doc(guardianUid)
-          .update({ [`lastChildAlertAt.${childUid}`]: new Date() });
-        } // end for guardianUid
-      } // end for childUid
+      }
     }
 
-    // --- 3. Keyword monitoring ---
+    // ── Block 3: Keyword monitoring ──────────────────────────────────────────
     if (!orgId) return;
 
     const orgSnap = await db.collection('organizations').doc(orgId).get();
     if (!orgSnap.exists) return;
     const org = orgSnap.data();
 
-    const keywords = (org.keywords ?? []).map((k) => k.toLowerCase().trim()).filter((k) => k.length > 0);
+    const keywords = (org.keywords ?? [])
+      .map((k) => k.toLowerCase().trim())
+      .filter((k) => k.length > 0);
     if (keywords.length === 0) return;
 
     const textLower = text.toLowerCase();
@@ -165,34 +240,35 @@ exports.onNewMessage = onDocumentCreated(
 
     console.log(`Keyword "${matchedKeyword}" found in conv ${convId}`);
 
-    // Collect UIDs to notify: guardians + moderators (excluding the sender)
-    const membersSnap = await db
-      .collection('organizations')
-      .doc(orgId)
-      .collection('members')
-      .get();
+    // Collect moderators + guardians + admin (excluding sender)
+    const alertUids = Object.entries(memberMap)
+      .filter(([uid, data]) =>
+        (data.role === 'moderator' || data.role === 'guardian') && uid !== senderId
+      )
+      .map(([uid]) => uid);
 
-    const alertUids = membersSnap.docs
-      .filter((doc) => {
-        const role = doc.data().role;
-        return (role === 'moderator' || role === 'guardian') && doc.id !== senderId;
-      })
-      .map((doc) => doc.id);
-
-    // Also include the org admin
     if (org.adminUid && org.adminUid !== senderId && !alertUids.includes(org.adminUid)) {
       alertUids.push(org.adminUid);
     }
-
     if (alertUids.length === 0) return;
 
-    const alertTokens = await getTokensForUids(alertUids);
+    // Build token list, using userMap cache first, loading missing on demand
+    const cachedTokens = alertUids
+      .filter((uid) => userMap[uid]?.fcmToken)
+      .map((uid) => userMap[uid].fcmToken);
+
+    const missingUids = alertUids.filter((uid) => !userMap[uid]);
+    const loadedTokens = missingUids.length > 0 ? await getTokensForUids(missingUids) : [];
+
+    const alertTokens = [...cachedTokens, ...loadedTokens];
     if (alertTokens.length === 0) return;
 
-    const alertTitle = '⚠️ Keyword erkannt';
-    const alertBody = `"${matchedKeyword}" in ${chatTitle}: ${notifBody}`;
-
-    await sendToTokens(alertTokens, alertTitle, alertBody, { convId, chatTitle, keyword: matchedKeyword });
+    await sendToTokens(
+      alertTokens,
+      '⚠️ Keyword erkannt',
+      `"${matchedKeyword}" in ${chatTitle}: ${notifBody}`,
+      { convId, chatTitle, keyword: matchedKeyword }
+    );
     console.log(`Sent ${alertTokens.length} keyword alert(s) for keyword "${matchedKeyword}"`);
   }
 );
@@ -229,7 +305,6 @@ exports.onNewReport = onDocumentCreated('reports/{reportId}', async (event) => {
 
   if (!orgId || !orgAdminUid) return;
 
-  // Collect admin + moderator UIDs
   const membersSnap = await db
     .collection('organizations')
     .doc(orgId)
@@ -297,7 +372,11 @@ exports.processMyInvitations = onCall(async (request) => {
     const userDoc = await db.collection('users').doc(uid).get();
     const userData = userDoc.data();
 
-    const memberRef = db.collection('organizations').doc(orgId).collection('members').doc(uid);
+    const memberRef = db
+      .collection('organizations')
+      .doc(orgId)
+      .collection('members')
+      .doc(uid);
     const existingMember = await memberRef.get();
 
     if (existingMember.exists) {

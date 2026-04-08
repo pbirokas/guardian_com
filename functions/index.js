@@ -1,8 +1,13 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { onCall } = require('firebase-functions/v2/https');
+const { defineSecret } = require('firebase-functions/params');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
+const { getAuth } = require('firebase-admin/auth');
+const nodemailer = require('nodemailer');
+
+const gmailAppPassword = defineSecret('GMAIL_APP_PASSWORD');
 
 initializeApp();
 const db = getFirestore();
@@ -275,25 +280,100 @@ exports.onNewMessage = onDocumentCreated(
 
 /**
  * Triggered when a new invitation is created.
- * Notifies all listed guardians that they need to approve a child invitation.
+ *
+ * - If the invited email is NOT yet registered: sends an invitation email via Gmail SMTP.
+ * - If the role is 'child': additionally notifies all listed guardians via push.
  */
-exports.onNewInvitation = onDocumentCreated('invitations/{inviteId}', async (event) => {
-  const invite = event.data.data();
-  const { email, orgName, role, guardianUids } = invite;
+exports.onNewInvitation = onDocumentCreated(
+  { document: 'invitations/{inviteId}', secrets: [gmailAppPassword] },
+  async (event) => {
+    const invite = event.data.data();
+    const { email, orgName, role, guardianUids, inviterName } = invite;
 
-  if (role !== 'child' || !guardianUids || guardianUids.length === 0) return;
+    // ── Check whether the invited email is already registered ───────────────
+    let userExists = false;
+    try {
+      await getAuth().getUserByEmail(email);
+      userExists = true;
+    } catch (err) {
+      // auth/user-not-found is expected for unregistered users
+      if (err.code !== 'auth/user-not-found') {
+        console.error('Error looking up user by email:', err);
+      }
+    }
 
-  const tokens = await getTokensForUids(guardianUids);
-  if (tokens.length === 0) return;
+    // ── Send invitation email to unregistered users ──────────────────────────
+    if (!userExists) {
+      const password = gmailAppPassword.value();
+      if (password) {
+        const transporter = nodemailer.createTransport({
+          service: 'gmail',
+          auth: { user: 'savespacedev@gmail.com', pass: password },
+        });
 
-  await sendToTokens(
-    tokens,
-    '👶 Kind-Einladung ausstehend',
-    `${email} wurde als Kind in "${orgName}" eingeladen. Bitte stimme zu.`,
-    { inviteId: event.params.inviteId }
-  );
-  console.log(`Sent ${tokens.length} guardian invitation notification(s) for ${email}`);
-});
+        const roleLabel = {
+          admin: 'Administrator',
+          moderator: 'Moderator',
+          member: 'Mitglied',
+          child: 'Kind',
+        }[role] ?? role;
+
+        const inviterLine = inviterName
+          ? `<p>${inviterName} hat dich eingeladen.</p>`
+          : '';
+
+        const html = `
+<!DOCTYPE html>
+<html lang="de">
+<head><meta charset="UTF-8" /></head>
+<body style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#1a1a1a">
+  <h2 style="color:#1565C0">Einladung zu Guardian Com</h2>
+  ${inviterLine}
+  <p>Du wurdest als <strong>${roleLabel}</strong> zur Organisation <strong>${orgName}</strong> eingeladen.</p>
+  <p>Lade die <strong>Guardian Com</strong>-App herunter und melde dich mit dieser E-Mail-Adresse an, um die Einladung anzunehmen:</p>
+  <p style="margin:24px 0">
+    <a href="https://play.google.com/store/apps/details?id=com.guardianapp.guardian_app"
+       style="background:#1565C0;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold">
+      App herunterladen
+    </a>
+  </p>
+  <p style="font-size:0.85rem;color:#666">
+    Wenn du diese Einladung nicht erwartet hast, kannst du diese E-Mail ignorieren.
+  </p>
+</body>
+</html>`;
+
+        try {
+          await transporter.sendMail({
+            from: '"Guardian Com" <savespacedev@gmail.com>',
+            to: email,
+            subject: `Einladung zu "${orgName}" auf Guardian Com`,
+            html,
+          });
+          console.log(`Invitation email sent to ${email} for org "${orgName}"`);
+        } catch (mailErr) {
+          console.error('Failed to send invitation email:', mailErr);
+        }
+      } else {
+        console.warn('GMAIL_APP_PASSWORD secret not available — skipping invitation email');
+      }
+    }
+
+    // ── Notify guardians for child invitations ───────────────────────────────
+    if (role !== 'child' || !guardianUids || guardianUids.length === 0) return;
+
+    const tokens = await getTokensForUids(guardianUids);
+    if (tokens.length === 0) return;
+
+    await sendToTokens(
+      tokens,
+      '👶 Kind-Einladung ausstehend',
+      `${email} wurde als Kind in "${orgName}" eingeladen. Bitte stimme zu.`,
+      { inviteId: event.params.inviteId }
+    );
+    console.log(`Sent ${tokens.length} guardian invitation notification(s) for ${email}`);
+  }
+);
 
 /**
  * Triggered when a new report is created.

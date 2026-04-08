@@ -71,6 +71,11 @@ class ChatService {
     for (final doc in existing.docs) {
       final conv = Conversation.fromFirestore(doc);
       if (conv.orgId == orgId && conv.participantUids.contains(targetUid)) {
+        // Abgelehnte oder archivierte Einträge ignorieren — neue Anfrage erlauben
+        if (conv.status == ConversationStatus.rejected ||
+            conv.status == ConversationStatus.archived) {
+          continue;
+        }
         throw Exception('Eine Konversation mit dieser Person existiert bereits.');
       }
     }
@@ -190,9 +195,9 @@ class ChatService {
   }
 
   Future<void> rejectConversation(String convId) async {
-    await _db.collection('conversations').doc(convId).update({
-      'status': ConversationStatus.rejected.name,
-    });
+    // Abgelehnte Anfragen werden gelöscht, damit dieselbe Anfrage später
+    // erneut gestellt werden kann.
+    await _db.collection('conversations').doc(convId).delete();
   }
 
   Future<void> sendMessage(String convId, String text) async {

@@ -1,14 +1,20 @@
+import 'dart:io' show Platform;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 
-/// Muss top-level sein (außerhalb jeder Klasse) für Background-Handler
+/// Muss top-level sein (außerhalb jeder Klasse) für Background-Handler.
+/// Wird nur auf mobilen Plattformen registriert.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // FCM zeigt Background/Terminated-Notifications automatisch an
 }
 
+/// FCM-basierter Notification-Service für Android und iOS.
+/// Auf Windows/Linux wird stattdessen [DesktopNotificationService] verwendet.
 class NotificationService {
   static GoRouter? _router;
   static void setRouter(GoRouter router) => _router = router;
@@ -20,6 +26,9 @@ class NotificationService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   Future<void> initialize() async {
+    // FCM wird auf Windows/Linux nicht unterstützt
+    if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) return;
+
     if (_initialized) {
       await refreshToken();
       return;
@@ -49,6 +58,7 @@ class NotificationService {
   }
 
   Future<void> refreshToken() async {
+    if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) return;
     final token = await _fcm.getToken();
     if (token != null) await _saveToken(token);
   }

@@ -1,10 +1,18 @@
+import 'dart:convert';
+import 'dart:io' show Platform;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/app_user.dart';
 import '../models/org_member.dart';
 import 'notification_service.dart';
+
+bool get _isDesktop =>
+    !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -33,20 +41,47 @@ class AuthService {
 
   // ── E-Mail-Link (Passwordless) ─────────────────────────────────────────────
 
+  // Firebase Web API Key (identisch mit android apiKey)
+  static const _webApiKey = 'AIzaSyBtuspjIwhor6w_SwnHynY4AJrGCqvGWI4';
+
   /// Sendet einen Anmeldelink an die angegebene E-Mail-Adresse.
   Future<void> sendSignInLink(String email) async {
-    final actionCodeSettings = ActionCodeSettings(
-      url: 'https://guardian-app-b0f6c.firebaseapp.com/emailLogin',
-      handleCodeInApp: true,
-      androidPackageName: 'com.guardianapp.guardian_app',
-      androidInstallApp: true,
-      androidMinimumVersion: '21',
-    );
-
-    await _auth.sendSignInLinkToEmail(
-      email: email,
-      actionCodeSettings: actionCodeSettings,
-    );
+    if (_isDesktop) {
+      // Firebase C++ SDK unterstützt sendSignInLinkToEmail nicht →
+      // direkt über die Identity Toolkit REST API senden.
+      final uri = Uri.parse(
+        'https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode'
+        '?key=$_webApiKey',
+      );
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'requestType': 'EMAIL_SIGNIN',
+          'email': email,
+          'continueUrl':
+              'https://guardian-app-b0f6c.firebaseapp.com/emailLogin',
+          'canHandleCodeInApp': true,
+        }),
+      );
+      if (response.statusCode != 200) {
+        final body = jsonDecode(response.body);
+        final message =
+            body['error']?['message'] as String? ?? 'Unbekannter Fehler';
+        throw Exception('E-Mail-Link senden fehlgeschlagen: $message');
+      }
+    } else {
+      await _auth.sendSignInLinkToEmail(
+        email: email,
+        actionCodeSettings: ActionCodeSettings(
+          url: 'https://guardian-app-b0f6c.firebaseapp.com/emailLogin',
+          handleCodeInApp: true,
+          androidPackageName: 'com.guardianapp.guardian_app',
+          androidInstallApp: true,
+          androidMinimumVersion: '21',
+        ),
+      );
+    }
 
     // E-Mail lokal speichern — wird beim Öffnen des Links gebraucht
     final prefs = await SharedPreferences.getInstance();
@@ -56,16 +91,81 @@ class AuthService {
   /// Prüft ob ein Deep Link ein E-Mail-Login-Link ist und meldet an.
   Future<AppUser?> handleEmailLink(Uri link) async {
     final linkStr = link.toString();
-    if (!_auth.isSignInWithEmailLink(linkStr)) return null;
 
     final prefs = await SharedPreferences.getInstance();
     final email = prefs.getString(_kPendingEmail);
     if (email == null || email.isEmpty) return null;
 
+    if (_isDesktop) {
+      return _handleEmailLinkViaRest(email, linkStr, prefs);
+    }
+
+    if (!_auth.isSignInWithEmailLink(linkStr)) return null;
+
     final userCredential = await _auth.signInWithEmailLink(
       email: email,
       emailLink: linkStr,
     );
+
+    await prefs.remove(_kPendingEmail);
+    return _ensureUserDocument(userCredential.user!);
+  }
+
+  /// Sign-in per E-Mail-Link auf Desktop (Windows/Linux).
+  ///
+  /// Da das Firebase C++ SDK signInWithEmailLink nicht unterstützt:
+  /// 1. oobCode aus URL extrahieren
+  /// 2. REST API: oobCode → idToken
+  /// 3. Cloud Function: idToken → Custom Token
+  /// 4. SDK: signInWithCustomToken → normaler Auth-Flow
+  Future<AppUser?> _handleEmailLinkViaRest(
+      String email, String linkStr, SharedPreferences prefs) async {
+    final oobCode = Uri.parse(linkStr).queryParameters['oobCode'];
+    if (oobCode == null || oobCode.isEmpty) {
+      throw Exception(
+          'Ungültiger Link — kein oobCode gefunden.\nBitte kopiere die vollständige URL aus dem Browser.');
+    }
+
+    // Schritt 1: oobCode → idToken via REST
+    final signInResponse = await http.post(
+      Uri.parse(
+        'https://identitytoolkit.googleapis.com/v1/accounts:signInWithEmailLink'
+        '?key=$_webApiKey',
+      ),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'oobCode': oobCode}),
+    );
+
+    if (signInResponse.statusCode != 200) {
+      final errBody = jsonDecode(signInResponse.body) as Map<String, dynamic>;
+      final message = errBody['error']?['message'] as String? ?? 'Fehler';
+      throw Exception('Anmeldung fehlgeschlagen: $message');
+    }
+
+    final signInData = jsonDecode(signInResponse.body) as Map<String, dynamic>;
+    final idToken = signInData['idToken'] as String?;
+    if (idToken == null) throw Exception('Kein idToken erhalten.');
+
+    // Schritt 2: idToken → Custom Token via Cloud Function
+    final customTokenResponse = await http.post(
+      Uri.parse(
+        'https://us-central1-guardian-app-b0f6c.cloudfunctions.net/getCustomToken',
+      ),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'idToken': idToken}),
+    );
+
+    if (customTokenResponse.statusCode != 200) {
+      throw Exception('Custom Token Fehler: ${customTokenResponse.body}');
+    }
+
+    final customTokenData =
+        jsonDecode(customTokenResponse.body) as Map<String, dynamic>;
+    final customToken = customTokenData['customToken'] as String?;
+    if (customToken == null) throw Exception('Kein Custom Token erhalten.');
+
+    // Schritt 3: SDK-Login mit Custom Token
+    final userCredential = await _auth.signInWithCustomToken(customToken);
 
     await prefs.remove(_kPendingEmail);
     return _ensureUserDocument(userCredential.user!);

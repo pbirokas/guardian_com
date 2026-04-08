@@ -1,6 +1,12 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
+
+bool get _isDesktop =>
+    !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -13,6 +19,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _loading = false;
   bool _emailLinkSent = false;
   final _emailController = TextEditingController();
+  final _linkController = TextEditingController();
   bool _emailValid = false;
 
   static final _emailRegex = RegExp(r'^[\w.+\-]+@[\w\-]+\.[\w.\-]+$');
@@ -20,6 +27,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void dispose() {
     _emailController.dispose();
+    _linkController.dispose();
     super.dispose();
   }
 
@@ -45,8 +53,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     setState(() => _loading = true);
     try {
       await ref.read(authServiceProvider).sendSignInLink(email);
+      if (mounted) setState(() => _emailLinkSent = true);
+    } catch (e) {
       if (mounted) {
-        setState(() => _emailLinkSent = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _signInWithPastedLink() async {
+    final url = _linkController.text.trim();
+    if (url.isEmpty) return;
+
+    setState(() => _loading = true);
+    try {
+      final result = await ref
+          .read(authServiceProvider)
+          .handleEmailLink(Uri.parse(url));
+      if (result == null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Ungültiger Link. Bitte prüfe die URL.')),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -65,95 +97,109 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.shield_outlined, size: 80, color: Colors.blue),
-              const SizedBox(height: 24),
-              const Text(
-                'Guardian Com',
-                style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Sichere Kommunikation für Organisationen',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
-              ),
-              const SizedBox(height: 48),
-
-              if (_loading)
-                const CircularProgressIndicator()
-              else if (_emailLinkSent)
-                _EmailLinkSentInfo(
-                  email: _emailController.text.trim(),
-                  onBack: () => setState(() => _emailLinkSent = false),
-                  onResend: _sendEmailLink,
-                )
-              else ...[
-                // ── Google Sign-In ──
-                FilledButton.icon(
-                  onPressed: _signInWithGoogle,
-                  icon: const Icon(Icons.login),
-                  label: const Text('Mit Google anmelden'),
-                ),
-
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.shield_outlined,
+                    size: 80, color: Colors.blue),
                 const SizedBox(height: 24),
-
-                // ── Trennlinie ──
-                Row(
-                  children: [
-                    const Expanded(child: Divider()),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text('oder',
-                          style: TextStyle(
-                              color: Colors.grey[600], fontSize: 13)),
-                    ),
-                    const Expanded(child: Divider()),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // ── E-Mail-Link Login ──
-                TextField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _emailValid ? _sendEmailLink() : null,
-                  onChanged: (v) => setState(() {
-                    _emailValid = _emailRegex.hasMatch(v.trim());
-                  }),
-                  decoration: InputDecoration(
-                    labelText: 'E-Mail-Adresse',
-                    hintText: 'name@beispiel.de',
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.email_outlined),
-                    errorText:
-                        _emailController.text.isNotEmpty && !_emailValid
-                            ? 'Ungültige E-Mail-Adresse'
-                            : null,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _emailValid ? _sendEmailLink : null,
-                    icon: const Icon(Icons.link),
-                    label: const Text('Anmeldelink senden'),
-                  ),
+                const Text(
+                  'Guardian Com',
+                  style: TextStyle(
+                      fontSize: 32, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  'Wir senden dir einen Link per E-Mail.\n'
-                  'Kein Passwort nötig.',
+                const Text(
+                  'Sichere Kommunikation für Organisationen',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  style: TextStyle(color: Colors.grey),
                 ),
+                const SizedBox(height: 48),
+
+                if (_loading)
+                  const CircularProgressIndicator()
+                else if (_emailLinkSent)
+                  _EmailLinkSentWidget(
+                    email: _emailController.text.trim(),
+                    isDesktop: _isDesktop,
+                    linkController: _linkController,
+                    onBack: () => setState(() {
+                      _emailLinkSent = false;
+                      _linkController.clear();
+                    }),
+                    onResend: _sendEmailLink,
+                    onSignInWithLink: _signInWithPastedLink,
+                  )
+                else ...[
+                  // ── Google Sign-In (nur mobil) ──
+                  if (!_isDesktop) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _signInWithGoogle,
+                        icon: const Icon(Icons.login),
+                        label: const Text('Mit Google anmelden'),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        const Expanded(child: Divider()),
+                        Padding(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text('oder',
+                              style: TextStyle(
+                                  color: Colors.grey[600], fontSize: 13)),
+                        ),
+                        const Expanded(child: Divider()),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+
+                  // ── E-Mail-Link ──
+                  TextField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) =>
+                        _emailValid ? _sendEmailLink() : null,
+                    onChanged: (v) => setState(() {
+                      _emailValid = _emailRegex.hasMatch(v.trim());
+                    }),
+                    decoration: InputDecoration(
+                      labelText: 'E-Mail-Adresse',
+                      hintText: 'name@beispiel.de',
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.email_outlined),
+                      errorText:
+                          _emailController.text.isNotEmpty && !_emailValid
+                              ? 'Ungültige E-Mail-Adresse'
+                              : null,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _emailValid ? _sendEmailLink : null,
+                      icon: const Icon(Icons.link),
+                      label: const Text('Anmeldelink senden'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Wir senden dir einen Link per E-Mail.\nKein Passwort nötig.',
+                    textAlign: TextAlign.center,
+                    style:
+                        TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -161,23 +207,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 }
 
-/// Info-Widget das nach dem Versand des Links angezeigt wird.
-class _EmailLinkSentInfo extends StatelessWidget {
+class _EmailLinkSentWidget extends StatelessWidget {
   final String email;
+  final bool isDesktop;
+  final TextEditingController linkController;
   final VoidCallback onBack;
   final VoidCallback onResend;
+  final VoidCallback onSignInWithLink;
 
-  const _EmailLinkSentInfo({
+  const _EmailLinkSentWidget({
     required this.email,
+    required this.isDesktop,
+    required this.linkController,
     required this.onBack,
     required this.onResend,
+    required this.onSignInWithLink,
   });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        const Icon(Icons.mark_email_read_outlined, size: 56, color: Colors.green),
+        const Icon(Icons.mark_email_read_outlined,
+            size: 56, color: Colors.green),
         const SizedBox(height: 16),
         const Text(
           'Link gesendet!',
@@ -190,12 +242,45 @@ class _EmailLinkSentInfo extends StatelessWidget {
           style: const TextStyle(fontSize: 14),
         ),
         const SizedBox(height: 8),
-        Text(
-          'Öffne die E-Mail und tippe auf den Link um dich anzumelden.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-        ),
-        const SizedBox(height: 24),
+
+        if (isDesktop) ...[
+          // ── Desktop: URL manuell einfügen ──
+          Text(
+            'Öffne die E-Mail in deinem Browser, klicke auf den Link\n'
+            'und kopiere die vollständige URL aus der Adressleiste.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: linkController,
+            decoration: const InputDecoration(
+              labelText: 'Link aus Browser einfügen',
+              hintText: 'https://guardian-app-b0f6c.firebaseapp.com/...',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.open_in_browser),
+            ),
+            onSubmitted: (_) => onSignInWithLink(),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: onSignInWithLink,
+              icon: const Icon(Icons.login),
+              label: const Text('Anmelden'),
+            ),
+          ),
+        ] else ...[
+          // ── Mobil: Deep Link ──
+          Text(
+            'Öffne die E-Mail und tippe auf den Link um dich anzumelden.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+          ),
+        ],
+
+        const SizedBox(height: 16),
         TextButton.icon(
           onPressed: onResend,
           icon: const Icon(Icons.refresh),

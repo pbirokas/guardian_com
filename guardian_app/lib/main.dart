@@ -48,9 +48,10 @@ void main() async {
   );
 
   if (!isDesktop) {
-    // Dart-Fehler außerhalb des Flutter-Frameworks abfangen (nur mobil)
-    await runZonedGuarded(
-      () async => runApp(app),
+    // Dart-Fehler außerhalb des Flutter-Frameworks abfangen (nur mobil).
+    // runApp muss synchron aufgerufen werden — nicht in einer async-Closure.
+    runZonedGuarded(
+      () => runApp(app),
       (error, stack) =>
           FirebaseCrashlytics.instance.recordError(error, stack, fatal: true),
     );

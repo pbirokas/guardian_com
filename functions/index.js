@@ -283,82 +283,101 @@ exports.onNewMessage = onDocumentCreated(
 /**
  * Triggered when a new conversation document is created.
  * Sends notifications for pending chat requests (Guardian-Modus):
- *   - Admin + Moderatoren (canApproveUids): müssen genehmigen
+ *   - Admin + Moderatoren (canApproveUids): Genehmigung ausstehend
  *   - Guardians der Teilnehmer (guardianUids): zur Information
- *   - Angefragter Teilnehmer (targetUid): wurde angefragt
+ *   - Angefragter Teilnehmer: wurde angefragt
  */
 exports.onNewConversationRequest = onDocumentCreated(
   'conversations/{convId}',
   async (event) => {
-    const conv = event.data.data();
-    const { convId } = event.params;
+    try {
+      const conv = event.data.data();
+      const { convId } = event.params;
 
-    // Nur pending-Anfragen (Guardian-Modus) benachrichtigen
-    if (conv.status !== 'pending') return;
+      // Nur pending-Anfragen (Guardian-Modus) benachrichtigen
+      if (conv.status !== 'pending') return;
 
-    const orgId = conv.orgId;
-    const requestedBy = conv.requestedBy;
-    const participantUids = conv.participantUids ?? [];
-    const canApproveUids = conv.canApproveUids ?? [];
-    const guardianUids = conv.guardianUids ?? [];
+      const orgId = conv.orgId;
+      const requestedBy = conv.requestedBy;
+      const participantUids = conv.participantUids ?? [];
+      const canApproveUids = conv.canApproveUids ?? [];
+      const guardianUids = conv.guardianUids ?? [];
 
-    // Name des Antragstellers laden
-    const requesterSnap = await db.collection('users').doc(requestedBy).get();
-    const requesterName = requesterSnap.exists
-      ? (requesterSnap.data().displayName ?? 'Unbekannt')
-      : 'Unbekannt';
+      console.log(`onNewConversationRequest: convId=${convId} requestedBy=${requestedBy} canApproveUids=${JSON.stringify(canApproveUids)} guardianUids=${JSON.stringify(guardianUids)}`);
 
-    // Angefragter Teilnehmer (nicht der Antragsteller)
-    const targetUid = participantUids.find((uid) => uid !== requestedBy);
+      // Angefragter Teilnehmer (nicht der Antragsteller)
+      const targetUid = participantUids.find((uid) => uid !== requestedBy) ?? null;
 
-    // Alle zu benachrichtigenden UIDs sammeln (ohne Duplikate, ohne Antragsteller)
-    const notifyUids = new Set([
-      ...canApproveUids,
-      ...guardianUids,
-      ...(targetUid ? [targetUid] : []),
-    ]);
-    notifyUids.delete(requestedBy);
+      // Alle zu benachrichtigenden UIDs (ohne Duplikate, ohne Antragsteller)
+      const notifyUids = new Set([
+        ...canApproveUids,
+        ...guardianUids,
+        ...(targetUid ? [targetUid] : []),
+      ]);
+      notifyUids.delete(requestedBy);
 
-    if (notifyUids.size === 0) return;
+      console.log(`onNewConversationRequest: notifyUids=${JSON.stringify([...notifyUids])}`);
 
-    // FCM-Tokens laden
-    const uidsArray = [...notifyUids];
-    const userSnaps = await Promise.all(
-      uidsArray.map((uid) => db.collection('users').doc(uid).get())
-    );
-
-    // Org-Name laden
-    const orgSnap = await db.collection('organizations').doc(orgId).get();
-    const orgName = orgSnap.exists ? (orgSnap.data().name ?? '') : '';
-
-    for (let i = 0; i < uidsArray.length; i++) {
-      const uid = uidsArray[i];
-      const userData = userSnaps[i].exists ? userSnaps[i].data() : null;
-      const token = userData?.fcmToken;
-      if (!token) continue;
-
-      const isApprover = canApproveUids.includes(uid);
-      const isTarget = uid === targetUid;
-
-      let title, body;
-      if (isApprover) {
-        title = `💬 Chat-Anfrage in "${orgName}"`;
-        body = `${requesterName} möchte einen Chat starten. Bitte genehmige oder lehne die Anfrage ab.`;
-      } else if (isTarget) {
-        title = `💬 Chat-Anfrage von ${requesterName}`;
-        body = `${requesterName} möchte in "${orgName}" einen Chat mit dir starten.`;
-      } else {
-        // Guardian
-        title = `💬 Chat-Anfrage (Kind-Aktivität)`;
-        body = `${requesterName} hat in "${orgName}" eine Chat-Anfrage gestellt.`;
+      if (notifyUids.size === 0) {
+        console.log('onNewConversationRequest: no recipients, skipping');
+        return;
       }
 
-      await sendToTokens([token], title, body, { convId, chatTitle: orgName });
-    }
+      // Org-Name + Antragsteller-Name parallel laden
+      const [orgSnap, requesterSnap] = await Promise.all([
+        db.collection('organizations').doc(orgId).get(),
+        db.collection('users').doc(requestedBy).get(),
+      ]);
+      const orgName = orgSnap.exists ? (orgSnap.data().name ?? orgId) : orgId;
+      const requesterName = requesterSnap.exists
+        ? (requesterSnap.data().displayName ?? 'Unbekannt')
+        : 'Unbekannt';
 
-    console.log(
-      `Sent conversation request notifications to ${notifyUids.size} user(s) for conv ${convId}`
-    );
+      // FCM-Tokens für alle Empfänger laden
+      const uidsArray = [...notifyUids];
+      const userSnaps = await Promise.all(
+        uidsArray.map((uid) => db.collection('users').doc(uid).get())
+      );
+
+      const sends = [];
+      for (let i = 0; i < uidsArray.length; i++) {
+        const uid = uidsArray[i];
+        const userData = userSnaps[i].exists ? userSnaps[i].data() : null;
+        const token = userData?.fcmToken;
+        if (!token) {
+          console.log(`onNewConversationRequest: no fcmToken for uid=${uid}`);
+          continue;
+        }
+
+        const isApprover = canApproveUids.includes(uid);
+        const isTarget = uid === targetUid;
+
+        let title, body;
+        if (isApprover && !isTarget) {
+          title = `💬 Chat-Anfrage in "${orgName}"`;
+          body = `${requesterName} möchte einen Chat starten. Bitte genehmige oder lehne die Anfrage ab.`;
+        } else if (isTarget) {
+          title = `💬 Chat-Anfrage von ${requesterName}`;
+          body = `${requesterName} möchte in "${orgName}" einen Chat mit dir starten.`;
+        } else {
+          // Guardian (nicht Approver, nicht Target)
+          title = `💬 Chat-Anfrage (Kind-Aktivität)`;
+          body = `${requesterName} hat in "${orgName}" eine Chat-Anfrage gestellt.`;
+        }
+
+        // convId weglassen für Approver/Guardian — kein Chat zum Navigieren
+        const data = isTarget
+          ? { convId, chatTitle: orgName }
+          : { chatTitle: orgName };
+
+        sends.push(sendToTokens([token], title, body, data));
+      }
+
+      await Promise.all(sends);
+      console.log(`onNewConversationRequest: sent ${sends.length} notification(s) for conv ${convId}`);
+    } catch (err) {
+      console.error('onNewConversationRequest error:', err);
+    }
   }
 );
 

@@ -1,6 +1,9 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/foundation.dart';
 import 'package:system_tray/system_tray.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:windows_taskbar/windows_taskbar.dart';
 
 /// Verwaltet das System-Tray-Icon und das Minimieren in die Taskleiste.
 /// Wird nur auf Windows/Linux verwendet.
@@ -10,19 +13,16 @@ class TrayService with WindowListener {
 
   final SystemTray _systemTray = SystemTray();
   bool _initialized = false;
+  int _unreadCount = 0;
 
   Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
 
-    // Fenster-Manager einrichten: Schließen → in Tray minimieren
     await windowManager.ensureInitialized();
     windowManager.addListener(this);
     await windowManager.setPreventClose(true);
 
-    // Tray-Icon initialisieren
-    // Hinweis: Für Windows wird eine .ico-Datei benötigt.
-    // Die PNG-Datei aus assets/icon/ muss in eine ICO-Datei konvertiert werden.
     await _systemTray.initSystemTray(
       title: '',
       iconPath: 'assets/icon/app_icon.ico',
@@ -43,7 +43,6 @@ class TrayService with WindowListener {
     ]);
     await _systemTray.setContextMenu(menu);
 
-    // Einfacher Klick / Doppelklick → Fenster anzeigen
     _systemTray.registerSystemTrayEventHandler((eventName) {
       if (eventName == kSystemTrayEventClick ||
           eventName == kSystemTrayEventDoubleClick) {
@@ -52,6 +51,44 @@ class TrayService with WindowListener {
     });
 
     debugPrint('TrayService initialized');
+  }
+
+  /// Aktualisiert den Badge-Zähler im Tray-Icon.
+  /// count == 0 → normales Icon + Standard-Tooltip
+  /// count  > 0 → Badge-Icon + Tooltip mit Anzahl
+  Future<void> updateBadge(int count) async {
+    if (!_initialized) return;
+    if (_unreadCount == count) return;
+    _unreadCount = count;
+
+    if (count > 0) {
+      // Tray-Icon: Badge-Variante
+      await _systemTray.setImage('assets/icon/app_icon_badge.ico');
+      await _systemTray.setToolTip(
+        'Guardian Com · $count ungelesene Nachricht${count == 1 ? '' : 'en'}',
+      );
+      // Taskleisten-Symbol: roter Overlay-Badge mit Zahl
+      if (!kIsWeb && Platform.isWindows) {
+        final label = count > 99 ? '99+' : '$count';
+        WindowsTaskbar.setOverlayIcon(
+          ThumbnailToolbarAssetIcon('assets/icon/app_icon_badge.ico'),
+          tooltip: '$label ungelesene Nachricht${count == 1 ? '' : 'en'}',
+        );
+        WindowsTaskbar.setFlashTaskbarAppIcon(
+          mode: TaskbarFlashMode.tray | TaskbarFlashMode.timer,
+          flashCount: 3,
+        );
+      }
+    } else {
+      // Tray-Icon: normales Icon
+      await _systemTray.setImage('assets/icon/app_icon.ico');
+      await _systemTray.setToolTip('Guardian Com');
+      // Taskleisten-Symbol: Overlay entfernen
+      if (!kIsWeb && Platform.isWindows) {
+        WindowsTaskbar.resetOverlayIcon();
+        WindowsTaskbar.resetFlashTaskbarAppIcon();
+      }
+    }
   }
 
   Future<void> _bringToFront() async {
@@ -64,7 +101,6 @@ class TrayService with WindowListener {
     await windowManager.close();
   }
 
-  // Wenn der Nutzer auf X klickt → Fenster ausblenden statt beenden
   @override
   void onWindowClose() async {
     await windowManager.hide();

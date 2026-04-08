@@ -6,7 +6,7 @@
 
 Eine Flutter-App für sichere, überwachte Kommunikation zwischen Kindern, Erziehungsberechtigten und Organisationen.
 
-Diese App wurde durch vipe-coding generiert.
+Diese App wurde vollständig durch vibe-coding generiert.
 Dazu wurde ClaudCode verwendet um meine Vorstellungen in eine App zu gießen.
 
 ## Technologie

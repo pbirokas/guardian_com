@@ -2132,10 +2132,79 @@ class _MemberTile extends StatelessWidget {
         ),
       ),
     );
-    if (confirmed == true && selected != member.role) {
+    if (confirmed != true || selected == member.role) return;
+
+    if (selected == OrgRole.child) {
+      // Guardian-Auswahl direkt anzeigen wenn Rolle auf Kind gesetzt wird
+      if (!context.mounted) return;
+      await _showRoleToChildGuardianDialog(context);
+    } else {
       await ref
           .read(organizationServiceProvider)
           .updateMemberRole(org.id, member.uid, selected);
+    }
+  }
+
+  Future<void> _showRoleToChildGuardianDialog(BuildContext context) async {
+    final possibleGuardians = allMembers
+        .where((m) => m.role != OrgRole.child && m.status == MemberStatus.active && m.uid != member.uid)
+        .toList();
+    final selected = <String>{};
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: Text('Guardian für ${member.displayName}'),
+          content: possibleGuardians.isEmpty
+              ? const Text('Keine möglichen Guardians in dieser Organisation.')
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Wähle mindestens einen Guardian für dieses Kind:',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                    const SizedBox(height: 8),
+                    ...possibleGuardians.map((g) => CheckboxListTile(
+                          value: selected.contains(g.uid),
+                          title: Text(g.displayName),
+                          subtitle: Text(g.email,
+                              style: const TextStyle(fontSize: 11)),
+                          secondary: const Icon(Icons.shield_outlined),
+                          contentPadding: EdgeInsets.zero,
+                          onChanged: (v) => setState(() {
+                            if (v == true) {
+                              selected.add(g.uid);
+                            } else {
+                              selected.remove(g.uid);
+                            }
+                          }),
+                        )),
+                  ],
+                ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: possibleGuardians.isEmpty || selected.isNotEmpty
+                  ? () => Navigator.pop(ctx, true)
+                  : null,
+              child: const Text('Speichern'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      final service = ref.read(organizationServiceProvider);
+      await service.updateMemberRole(org.id, member.uid, OrgRole.child);
+      if (selected.isNotEmpty) {
+        await service.updateGuardians(org.id, member.uid, selected.toList());
+      }
     }
   }
 

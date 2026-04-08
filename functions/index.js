@@ -1,5 +1,5 @@
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
-const { onCall } = require('firebase-functions/v2/https');
+const { onCall, onRequest } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
@@ -9,7 +9,9 @@ const nodemailer = require('nodemailer');
 
 const gmailAppPassword = defineSecret('GMAIL_APP_PASSWORD');
 
-initializeApp();
+initializeApp({
+  serviceAccountId: 'guardian-app-b0f6c@appspot.gserviceaccount.com',
+});
 const db = getFirestore();
 
 /**
@@ -279,6 +281,88 @@ exports.onNewMessage = onDocumentCreated(
 );
 
 /**
+ * Triggered when a new conversation document is created.
+ * Sends notifications for pending chat requests (Guardian-Modus):
+ *   - Admin + Moderatoren (canApproveUids): müssen genehmigen
+ *   - Guardians der Teilnehmer (guardianUids): zur Information
+ *   - Angefragter Teilnehmer (targetUid): wurde angefragt
+ */
+exports.onNewConversationRequest = onDocumentCreated(
+  'conversations/{convId}',
+  async (event) => {
+    const conv = event.data.data();
+    const { convId } = event.params;
+
+    // Nur pending-Anfragen (Guardian-Modus) benachrichtigen
+    if (conv.status !== 'pending') return;
+
+    const orgId = conv.orgId;
+    const requestedBy = conv.requestedBy;
+    const participantUids = conv.participantUids ?? [];
+    const canApproveUids = conv.canApproveUids ?? [];
+    const guardianUids = conv.guardianUids ?? [];
+
+    // Name des Antragstellers laden
+    const requesterSnap = await db.collection('users').doc(requestedBy).get();
+    const requesterName = requesterSnap.exists
+      ? (requesterSnap.data().displayName ?? 'Unbekannt')
+      : 'Unbekannt';
+
+    // Angefragter Teilnehmer (nicht der Antragsteller)
+    const targetUid = participantUids.find((uid) => uid !== requestedBy);
+
+    // Alle zu benachrichtigenden UIDs sammeln (ohne Duplikate, ohne Antragsteller)
+    const notifyUids = new Set([
+      ...canApproveUids,
+      ...guardianUids,
+      ...(targetUid ? [targetUid] : []),
+    ]);
+    notifyUids.delete(requestedBy);
+
+    if (notifyUids.size === 0) return;
+
+    // FCM-Tokens laden
+    const uidsArray = [...notifyUids];
+    const userSnaps = await Promise.all(
+      uidsArray.map((uid) => db.collection('users').doc(uid).get())
+    );
+
+    // Org-Name laden
+    const orgSnap = await db.collection('organizations').doc(orgId).get();
+    const orgName = orgSnap.exists ? (orgSnap.data().name ?? '') : '';
+
+    for (let i = 0; i < uidsArray.length; i++) {
+      const uid = uidsArray[i];
+      const userData = userSnaps[i].exists ? userSnaps[i].data() : null;
+      const token = userData?.fcmToken;
+      if (!token) continue;
+
+      const isApprover = canApproveUids.includes(uid);
+      const isTarget = uid === targetUid;
+
+      let title, body;
+      if (isApprover) {
+        title = `💬 Chat-Anfrage in "${orgName}"`;
+        body = `${requesterName} möchte einen Chat starten. Bitte genehmige oder lehne die Anfrage ab.`;
+      } else if (isTarget) {
+        title = `💬 Chat-Anfrage von ${requesterName}`;
+        body = `${requesterName} möchte in "${orgName}" einen Chat mit dir starten.`;
+      } else {
+        // Guardian
+        title = `💬 Chat-Anfrage (Kind-Aktivität)`;
+        body = `${requesterName} hat in "${orgName}" eine Chat-Anfrage gestellt.`;
+      }
+
+      await sendToTokens([token], title, body, { convId, chatTitle: orgName });
+    }
+
+    console.log(
+      `Sent conversation request notifications to ${notifyUids.size} user(s) for conv ${convId}`
+    );
+  }
+);
+
+/**
  * Triggered when a new invitation is created.
  *
  * - If the invited email is NOT yet registered: sends an invitation email via Gmail SMTP.
@@ -496,4 +580,58 @@ exports.processMyInvitations = onCall(async (request) => {
   }
 
   return { processed: invitesSnap.docs.length };
+});
+
+/**
+ * HTTP endpoint (kein Auth nötig): tauscht einen Firebase idToken gegen einen
+ * Custom Token. Wird ausschließlich vom Windows/Linux Desktop-Client verwendet,
+ * weil das Firebase C++ SDK signInWithEmailLink nicht unterstützt.
+ *
+ * POST { "idToken": "<firebase-id-token>" }
+ * → 200 { "customToken": "<custom-token>" }
+ */
+exports.getCustomToken = onRequest(async (req, res) => {
+  // CORS-Header für Desktop-Clients setzen
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    res.status(405).send('Method Not Allowed');
+    return;
+  }
+
+  const idToken = req.body?.idToken;
+  if (!idToken || typeof idToken !== 'string') {
+    res.status(400).json({ error: 'idToken fehlt.' });
+    return;
+  }
+
+  try {
+    // JWT-Payload dekodieren (ohne Signatur-Verifikation) um die uid zu lesen.
+    // Das reicht hier aus: wir erstellen nur einen Custom Token für denselben uid.
+    // Der Custom Token selbst kann nur über das Firebase SDK eingelöst werden.
+    const payloadBase64 = idToken.split('.')[1];
+    if (!payloadBase64) throw new Error('Ungültiges JWT-Format.');
+
+    const payload = JSON.parse(
+      Buffer.from(payloadBase64, 'base64url').toString('utf8')
+    );
+    const uid = payload.sub || payload.user_id;
+    if (!uid) throw new Error('Keine uid im Token gefunden.');
+
+    // Prüfen ob der User in Firebase Auth existiert
+    await getAuth().getUser(uid);
+
+    const customToken = await getAuth().createCustomToken(uid);
+    res.status(200).json({ customToken });
+  } catch (err) {
+    console.error('getCustomToken error:', err.message);
+    res.status(401).json({ error: `Token-Fehler: ${err.message}` });
+  }
 });

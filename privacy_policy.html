@@ -57,14 +57,25 @@
 
 <h3>3.1 Kontodaten</h3>
 <p>
-  Bei der Registrierung über Google Sign-In übermittelt Google folgende Daten
-  an uns:
+  Die App bietet zwei Anmeldemethoden:
 </p>
+<p><strong>Google Sign-In:</strong> Google übermittelt folgende Daten an uns:</p>
 <ul>
   <li>Name und E-Mail-Adresse</li>
   <li>Profilbild (URL)</li>
   <li>Eine eindeutige Nutzer-ID (Google UID)</li>
 </ul>
+<p><strong>E-Mail-Link (passwortlos):</strong> Du gibst deine E-Mail-Adresse ein
+  und erhältst einen Anmeldelink per E-Mail. Dabei werden folgende Daten erhoben:</p>
+<ul>
+  <li>E-Mail-Adresse</li>
+  <li>Eine eindeutige Nutzer-ID (Firebase UID)</li>
+</ul>
+<p>
+  Bei der E-Mail-Link-Anmeldung wird kein Passwort gespeichert. Die
+  E-Mail-Adresse wird lokal auf dem Gerät zwischengespeichert, bis der
+  Anmeldevorgang abgeschlossen ist, und danach entfernt.
+</p>
 
 <h3>3.2 Profilinhalte</h3>
 <ul>
@@ -119,7 +130,7 @@
     <td>Art. 6 Abs. 1 lit. f – Berechtigtes Interesse (Stabilität der App)</td>
   </tr>
   <tr>
-    <td>Google Sign-In / Authentifizierung</td>
+    <td>Authentifizierung (Google Sign-In oder E-Mail-Link)</td>
     <td>Art. 6 Abs. 1 lit. b – Vertragserfüllung</td>
   </tr>
   <tr>
@@ -155,7 +166,7 @@
   <tr><th>Dienst</th><th>Zweck</th><th>Datenschutzerklärung</th></tr>
   <tr>
     <td>Firebase Authentication</td>
-    <td>Anmeldung und Nutzerkonten</td>
+    <td>Anmeldung und Nutzerkonten (Google Sign-In und E-Mail-Link)</td>
     <td>policies.google.com/privacy</td>
   </tr>
   <tr>

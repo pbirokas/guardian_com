@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/app_user.dart';
 import '../models/org_member.dart';
 import 'notification_service.dart';
@@ -8,6 +9,8 @@ import 'notification_service.dart';
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  static const _kPendingEmail = 'emailLinkPendingEmail';
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
@@ -26,6 +29,52 @@ class AuthService {
     final user = userCredential.user!;
 
     return _ensureUserDocument(user);
+  }
+
+  // ── E-Mail-Link (Passwordless) ─────────────────────────────────────────────
+
+  /// Sendet einen Anmeldelink an die angegebene E-Mail-Adresse.
+  Future<void> sendSignInLink(String email) async {
+    final actionCodeSettings = ActionCodeSettings(
+      url: 'https://guardian-app-b0f6c.firebaseapp.com/emailLogin',
+      handleCodeInApp: true,
+      androidPackageName: 'com.guardianapp.guardian_app',
+      androidInstallApp: true,
+      androidMinimumVersion: '21',
+    );
+
+    await _auth.sendSignInLinkToEmail(
+      email: email,
+      actionCodeSettings: actionCodeSettings,
+    );
+
+    // E-Mail lokal speichern — wird beim Öffnen des Links gebraucht
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kPendingEmail, email.toLowerCase().trim());
+  }
+
+  /// Prüft ob ein Deep Link ein E-Mail-Login-Link ist und meldet an.
+  Future<AppUser?> handleEmailLink(Uri link) async {
+    final linkStr = link.toString();
+    if (!_auth.isSignInWithEmailLink(linkStr)) return null;
+
+    final prefs = await SharedPreferences.getInstance();
+    final email = prefs.getString(_kPendingEmail);
+    if (email == null || email.isEmpty) return null;
+
+    final userCredential = await _auth.signInWithEmailLink(
+      email: email,
+      emailLink: linkStr,
+    );
+
+    await prefs.remove(_kPendingEmail);
+    return _ensureUserDocument(userCredential.user!);
+  }
+
+  /// Gibt die gespeicherte E-Mail zurück (für UI-Anzeige nach Link-Versand).
+  Future<String?> getPendingEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kPendingEmail);
   }
 
   /// Stellt sicher dass ein Firestore-Dokument für den User existiert.
@@ -188,11 +237,14 @@ class AuthService {
   }
 
   Future<void> signOut() async {
-    await GoogleSignIn.instance.initialize(
-      serverClientId:
-          '689565503451-msp7j89869cr9ojvc2uhaph0ordri5vr.apps.googleusercontent.com',
-    );
-    await GoogleSignIn.instance.signOut();
+    // Google Sign-In abmelden (nur wenn Google-Provider verwendet wurde)
+    try {
+      await GoogleSignIn.instance.initialize(
+        serverClientId:
+            '689565503451-msp7j89869cr9ojvc2uhaph0ordri5vr.apps.googleusercontent.com',
+      );
+      await GoogleSignIn.instance.signOut();
+    } catch (_) {}
     await _auth.signOut();
   }
 

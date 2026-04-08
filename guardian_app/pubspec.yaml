@@ -61,6 +61,9 @@ dependencies:
   # Persistence
   shared_preferences: '>=2.2.2 <2.4.0'
 
+  # Deep Links
+  app_links: ^6.4.0
+
   # UI
   timeago: ^3.7.0
   url_launcher: ^6.3.1

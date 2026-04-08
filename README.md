@@ -17,7 +17,7 @@ Dazu wurde ClaudCode verwendet um meine Vorstellungen in eine App zu gießen.
 | **Backend** | Firebase (Auth, Firestore, Storage, FCM) |
 | **State Management** | Riverpod 3.x |
 | **Navigation** | GoRouter |
-| **Authentifizierung** | Google Sign-In |
+| **Authentifizierung** | Google Sign-In, E-Mail-Link (passwortlos) |
 
 ---
 
@@ -25,6 +25,7 @@ Dazu wurde ClaudCode verwendet um meine Vorstellungen in eine App zu gießen.
 
 ### Authentifizierung
 - Google Sign-In
+- **E-Mail-Link (passwortlos):** Nutzer gibt E-Mail ein → erhält Anmeldelink per E-Mail → Klick öffnet die App und meldet direkt an. Kein Passwort nötig.
 - Automatische Benutzerprofil-Erstellung bei der ersten Anmeldung
 - Pre-Registrierung: Einladungen werden beim ersten Login automatisch verarbeitet, sodass Rollen sofort aktiv sind
 

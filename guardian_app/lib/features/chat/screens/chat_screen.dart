@@ -3,12 +3,15 @@ import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/models/message.dart';
 import '../../../core/models/org_member.dart';
@@ -908,43 +911,59 @@ class _MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
+    final hasText = message.text.isNotEmpty &&
+        message.pollId == null &&
+        message.audioUrl == null &&
+        message.imageUrl == null;
+
     return GestureDetector(
-      onLongPress: (onReport == null && onEdit == null)
-          ? null
-          : () => showModalBottomSheet(
-                context: context,
-                builder: (_) => SafeArea(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (onEdit != null)
-                        ListTile(
-                          leading: Icon(isModerating
-                              ? Icons.shield_outlined
-                              : Icons.edit_outlined),
-                          title: Text(isModerating
-                              ? 'Moderieren'
-                              : 'Bearbeiten'),
-                          onTap: () {
-                            Navigator.pop(context);
-                            onEdit!();
-                          },
-                        ),
-                      if (onReport != null)
-                        ListTile(
-                          leading: const Icon(Icons.flag_outlined,
-                              color: Colors.red),
-                          title: const Text('Nachricht melden',
-                              style: TextStyle(color: Colors.red)),
-                          onTap: () {
-                            Navigator.pop(context);
-                            onReport!();
-                          },
-                        ),
-                    ],
-                  ),
-                ),
+      onLongPress: () => showModalBottomSheet(
+            context: context,
+            builder: (_) => SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (hasText)
+                    ListTile(
+                      leading: const Icon(Icons.copy_outlined),
+                      title: const Text('Text kopieren'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Clipboard.setData(ClipboardData(text: message.text));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Text kopiert'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                    ),
+                  if (onEdit != null)
+                    ListTile(
+                      leading: Icon(isModerating
+                          ? Icons.shield_outlined
+                          : Icons.edit_outlined),
+                      title: Text(isModerating ? 'Moderieren' : 'Bearbeiten'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        onEdit!();
+                      },
+                    ),
+                  if (onReport != null)
+                    ListTile(
+                      leading: const Icon(Icons.flag_outlined,
+                          color: Colors.red),
+                      title: const Text('Nachricht melden',
+                          style: TextStyle(color: Colors.red)),
+                      onTap: () {
+                        Navigator.pop(context);
+                        onReport!();
+                      },
+                    ),
+                ],
               ),
+            ),
+          ),
       child: Align(
         alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
         child: Container(
@@ -1020,8 +1039,8 @@ class _MessageBubble extends StatelessWidget {
                 ),
               )
             else
-              Text(
-                message.text,
+              _LinkText(
+                text: message.text,
                 style: TextStyle(
                   color: message.isArchived
                       ? (isMe
@@ -1032,6 +1051,9 @@ class _MessageBubble extends StatelessWidget {
                       ? FontStyle.italic
                       : FontStyle.normal,
                 ),
+                linkColor: isMe
+                    ? colorScheme.onPrimary
+                    : colorScheme.primary,
               ),
             if (message.isArchived)
               Padding(
@@ -1265,6 +1287,60 @@ class _InputBar extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+// ── Link-fähiger Text ─────────────────────────────────────────────────────────
+
+class _LinkText extends StatelessWidget {
+  final String text;
+  final TextStyle? style;
+  final Color? linkColor;
+
+  const _LinkText({required this.text, this.style, this.linkColor});
+
+  static final _pattern = RegExp(
+    r'(https?://[^\s]+|www\.[^\s]+|[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})',
+    caseSensitive: false,
+  );
+
+  Future<void> _launch(String raw) async {
+    String urlStr = raw;
+    if (!urlStr.startsWith('http') && urlStr.contains('@')) {
+      urlStr = 'mailto:$urlStr';
+    } else if (urlStr.startsWith('www.')) {
+      urlStr = 'https://$urlStr';
+    }
+    final uri = Uri.tryParse(urlStr);
+    if (uri != null && await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final spans = <InlineSpan>[];
+    int last = 0;
+    for (final match in _pattern.allMatches(text)) {
+      if (match.start > last) {
+        spans.add(TextSpan(text: text.substring(last, match.start), style: style));
+      }
+      final raw = match.group(0)!;
+      spans.add(TextSpan(
+        text: raw,
+        style: (style ?? const TextStyle()).copyWith(
+          color: linkColor ?? Colors.blue,
+          decoration: TextDecoration.underline,
+          decorationColor: linkColor ?? Colors.blue,
+        ),
+        recognizer: TapGestureRecognizer()..onTap = () => _launch(raw),
+      ));
+      last = match.end;
+    }
+    if (last < text.length) {
+      spans.add(TextSpan(text: text.substring(last), style: style));
+    }
+    return RichText(text: TextSpan(children: spans));
   }
 }
 

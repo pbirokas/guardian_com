@@ -14,12 +14,21 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     initialLocation: '/login',
+    // Firebase Auth Deep Links (/__/auth/...) sind keine App-Routen.
+    // Werden von app_links im Hintergrund verarbeitet.
+    // onException fängt den GoException ab und navigiert zur passenden Seite.
+    onException: (context, state, router) {
+      router.go(authState.value != null ? '/organizations' : '/login');
+    },
     redirect: (context, state) {
+      // Firebase Auth Deep Links vor dem Route-Matching abfangen
+      if (state.uri.path.startsWith('/__/auth/')) {
+        return authState.value != null ? '/organizations' : '/login';
+      }
       final isLoggedIn = authState.value != null;
-      final isLoginRoute = state.matchedLocation == '/login';
-
-      if (!isLoggedIn && !isLoginRoute) return '/login';
-      if (isLoggedIn && isLoginRoute) return '/organizations';
+      final isOnLogin = state.uri.path == '/login';
+      if (!isLoggedIn && !isOnLogin) return '/login';
+      if (isLoggedIn && isOnLogin) return '/organizations';
       return null;
     },
     routes: [

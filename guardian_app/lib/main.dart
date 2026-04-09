@@ -28,6 +28,12 @@ void main() async {
         .setCrashlyticsCollectionEnabled(!kDebugMode);
     FlutterError.onError =
         FirebaseCrashlytics.instance.recordFlutterFatalError;
+    // Dart-Fehler außerhalb des Flutter-Frameworks abfangen.
+    // PlatformDispatcher.onError vermeidet Zone-Konflikte mit runApp.
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
 
     // FCM Background-Handler nur auf mobilen Plattformen registrieren
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
@@ -47,17 +53,7 @@ void main() async {
     child: const GuardianApp(),
   );
 
-  if (!isDesktop) {
-    // Dart-Fehler außerhalb des Flutter-Frameworks abfangen (nur mobil).
-    // runApp muss synchron aufgerufen werden — nicht in einer async-Closure.
-    runZonedGuarded(
-      () => runApp(app),
-      (error, stack) =>
-          FirebaseCrashlytics.instance.recordError(error, stack, fatal: true),
-    );
-  } else {
-    runApp(app);
-  }
+  runApp(app);
 }
 
 class GuardianApp extends ConsumerStatefulWidget {

@@ -991,8 +991,7 @@ class _MembersTab extends ConsumerWidget {
                       ),
               ],
             ),
-          if (isAdmin ||
-              (isModerator && org.chatMode == ChatMode.sheltered))
+          if (isAdmin || isModerator)
             Positioned(
               bottom: 16,
               right: 16,

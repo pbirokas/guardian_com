@@ -1,0 +1,11 @@
+[
+  {
+    "origin": [
+      "https://guardian-app-b0f6c.web.app",
+      "https://guardian-app-b0f6c.firebaseapp.com",
+      "http://localhost:*"
+    ],
+    "method": ["GET", "HEAD"],
+    "maxAgeSeconds": 3600
+  }
+]

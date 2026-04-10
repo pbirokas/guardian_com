@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +10,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/models/conversation.dart';
@@ -108,12 +109,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
       return;
     }
-    final dir = await getTemporaryDirectory();
-    final path =
-        '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    final String path;
+    if (kIsWeb) {
+      // Auf Web gibt der Recorder eine Blob-URL zurück — kein Pfad nötig
+      path = '';
+    } else {
+      final dir = await getTemporaryDirectory();
+      path = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    }
 
     await _recorder.start(
-      const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 64000),
+      RecordConfig(
+        encoder: kIsWeb ? AudioEncoder.opus : AudioEncoder.aacLc,
+        bitRate: 64000,
+      ),
       path: path,
     );
 
@@ -141,9 +150,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
     if (path == null || durationMs < 500) return; // zu kurz → verwerfen
     try {
+      // XFile works for both file paths (mobile) and blob URLs (web)
+      final bytes = await XFile(path).readAsBytes();
+      final contentType = kIsWeb ? 'audio/webm' : 'audio/m4a';
       await ref
           .read(chatServiceProvider)
-          .sendVoiceMessage(widget.chatId, File(path), durationMs);
+          .sendVoiceMessage(widget.chatId, bytes, durationMs,
+              contentType: contentType);
       _markRead();
       _scrollToBottom();
     } catch (e) {
@@ -315,9 +328,38 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         imageQuality: 80,
       );
       if (picked == null || !mounted) return;
+      final bytes = await picked.readAsBytes();
       await ref
           .read(chatServiceProvider)
-          .sendImage(widget.chatId, File(picked.path));
+          .sendImage(widget.chatId, bytes);
+      _markRead();
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler beim Senden: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _pickingImage = false);
+    }
+  }
+
+  Future<void> _sendFile() async {
+    if (_pickingImage) return;
+    setState(() => _pickingImage = true);
+    try {
+      final result = await FilePicker.pickFiles(
+        allowMultiple: false,
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty || !mounted) return;
+      final picked = result.files.first;
+      final bytes = picked.bytes;
+      if (bytes == null) return;
+      await ref
+          .read(chatServiceProvider)
+          .sendFile(widget.chatId, bytes, picked.name, bytes.length);
       _markRead();
       _scrollToBottom();
     } catch (e) {
@@ -705,6 +747,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           onEdit: msg.pollId == null &&
                                   msg.imageUrl == null &&
                                   msg.audioUrl == null &&
+                                  msg.fileUrl == null &&
                                   (isMe || isModeratorOrAdmin)
                               ? () => _editMessage(
                                     msg,
@@ -728,6 +771,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               controller: _controller,
               onSend: _send,
               onSendImage: _pickingImage ? null : _sendImage,
+              onSendFile: _pickingImage ? null : _sendFile,
               isRecording: _isRecording,
               recordingDuration: _recordingDuration,
               onStartRecording: _startRecording,
@@ -1038,6 +1082,8 @@ class _MessageBubble extends StatelessWidget {
                   ),
                 ),
               )
+            else if (message.fileUrl != null)
+              _FileBubble(message: message, isMe: isMe)
             else
               _LinkText(
                 text: message.text,
@@ -1160,6 +1206,7 @@ class _InputBar extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
   final VoidCallback? onSendImage;
+  final VoidCallback? onSendFile;
   final bool isRecording;
   final Duration recordingDuration;
   final VoidCallback onStartRecording;
@@ -1171,6 +1218,7 @@ class _InputBar extends StatelessWidget {
     required this.controller,
     required this.onSend,
     this.onSendImage,
+    this.onSendFile,
     required this.isRecording,
     required this.recordingDuration,
     required this.onStartRecording,
@@ -1190,7 +1238,7 @@ class _InputBar extends StatelessWidget {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
-        child: isRecording ? _buildRecordingBar(context) : _buildNormalBar(),
+        child: isRecording ? _buildRecordingBar(context) : _buildNormalBar(context),
       ),
     );
   }
@@ -1240,20 +1288,64 @@ class _InputBar extends StatelessWidget {
     );
   }
 
-  Widget _buildNormalBar() {
+  void _showAttachMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.image_outlined),
+              title: const Text('Bild senden'),
+              onTap: onSendImage == null
+                  ? null
+                  : () {
+                      Navigator.pop(context);
+                      onSendImage!();
+                    },
+            ),
+            ListTile(
+              leading: const Icon(Icons.attach_file),
+              title: const Text('Datei senden (max. 5 MB)'),
+              onTap: onSendFile == null
+                  ? null
+                  : () {
+                      Navigator.pop(context);
+                      onSendFile!();
+                    },
+            ),
+            ListTile(
+              leading: const Icon(Icons.mic_outlined),
+              title: const Text('Sprachaufnahme'),
+              onTap: () {
+                Navigator.pop(context);
+                onStartRecording();
+              },
+            ),
+            if (onCreatePoll != null)
+              ListTile(
+                leading: const Icon(Icons.poll_outlined),
+                title: const Text('Umfrage erstellen'),
+                onTap: () {
+                  Navigator.pop(context);
+                  onCreatePoll!();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNormalBar(BuildContext context) {
     return Row(
       children: [
         IconButton(
-          icon: const Icon(Icons.image_outlined),
-          onPressed: onSendImage,
-          tooltip: 'Bild senden',
+          icon: const Icon(Icons.add_circle_outline),
+          tooltip: 'Anhang',
+          onPressed: () => _showAttachMenu(context),
         ),
-        if (onCreatePoll != null)
-          IconButton(
-            icon: const Icon(Icons.poll_outlined),
-            onPressed: onCreatePoll,
-            tooltip: 'Umfrage erstellen',
-          ),
         Expanded(
           child: TextField(
             controller: controller,
@@ -1286,6 +1378,67 @@ class _InputBar extends StatelessWidget {
           child: const Icon(Icons.send),
         ),
       ],
+    );
+  }
+}
+
+// ── Datei-Bubble ──────────────────────────────────────────────────────────────
+
+class _FileBubble extends StatelessWidget {
+  final Message message;
+  final bool isMe;
+
+  const _FileBubble({required this.message, required this.isMe});
+
+  String _formatSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final nameColor = isMe ? colorScheme.onPrimary : colorScheme.onSurface;
+    final subColor = isMe
+        ? colorScheme.onPrimary.withAlpha(180)
+        : colorScheme.onSurfaceVariant;
+
+    return GestureDetector(
+      onTap: () async {
+        final uri = Uri.tryParse(message.fileUrl!);
+        if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
+      },
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.insert_drive_file_outlined, color: nameColor, size: 32),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  message.fileName ?? 'Datei',
+                  style: TextStyle(
+                    color: nameColor,
+                    fontWeight: FontWeight.w500,
+                    decoration: TextDecoration.underline,
+                    decorationColor: nameColor,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (message.fileSizeBytes != null)
+                  Text(
+                    _formatSize(message.fileSizeBytes!),
+                    style: TextStyle(fontSize: 11, color: subColor),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

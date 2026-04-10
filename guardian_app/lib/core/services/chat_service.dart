@@ -1,9 +1,9 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../models/conversation.dart';
 import '../models/message.dart';
@@ -247,34 +247,42 @@ class ChatService {
   // Maximale Dateigröße für Chat-Bilder: 2 MB
   static const int _maxImageBytes = 2 * 1024 * 1024;
 
-  /// Gibt komprimierte JPEG-Bytes zurück.
+  /// Gibt komprimierte JPEG-Bytes zurück (auf Web: Bytes unverändert).
   /// Verringert Qualität schrittweise bis das Bild unter [_maxImageBytes] liegt.
   /// Wirft eine Exception wenn das Bild auch bei minimaler Qualität zu groß ist.
-  Future<Uint8List> _prepareImageForUpload(File imageFile) async {
+  Future<Uint8List> _prepareImageForUpload(Uint8List bytes) async {
+    // flutter_image_compress unterstützt kein Web → Bytes direkt verwenden
+    if (kIsWeb) {
+      if (bytes.length > _maxImageBytes) {
+        throw Exception(
+            'Das Bild ist zu groß (max. ${_maxImageBytes ~/ (1024 * 1024)} MB).');
+      }
+      return bytes;
+    }
+
     const maxDimension = 1024;
     final qualities = [80, 65, 50, 35];
 
     for (final quality in qualities) {
-      final result = await FlutterImageCompress.compressWithFile(
-        imageFile.absolute.path,
+      final result = await FlutterImageCompress.compressWithList(
+        bytes,
         minWidth: maxDimension,
         minHeight: maxDimension,
         quality: quality,
         format: CompressFormat.jpeg,
       );
-      if (result == null) break;
       if (result.length <= _maxImageBytes) return result;
     }
 
     // Letzte Chance: sehr kleine Auflösung
-    final fallback = await FlutterImageCompress.compressWithFile(
-      imageFile.absolute.path,
+    final fallback = await FlutterImageCompress.compressWithList(
+      bytes,
       minWidth: 512,
       minHeight: 512,
       quality: 25,
       format: CompressFormat.jpeg,
     );
-    if (fallback != null && fallback.length <= _maxImageBytes) return fallback;
+    if (fallback.length <= _maxImageBytes) return fallback;
 
     throw Exception(
         'Das Bild ist zu groß (max. ${_maxImageBytes ~/ (1024 * 1024)} MB). '
@@ -282,17 +290,19 @@ class ChatService {
   }
 
   Future<void> sendVoiceMessage(
-      String convId, File audioFile, int durationMs) async {
+      String convId, Uint8List audioBytes, int durationMs,
+      {String contentType = 'audio/m4a'}) async {
     final user = _auth.currentUser!;
     final msgRef =
         _db.collection('conversations').doc(convId).collection('messages').doc();
 
+    final ext = contentType.contains('webm') ? 'webm' : 'm4a';
     final storageRef = FirebaseStorage.instance
         .ref()
-        .child('voiceMessages/$convId/${_uid}_${msgRef.id}.m4a');
-    await storageRef.putFile(
-      audioFile,
-      SettableMetadata(contentType: 'audio/m4a'),
+        .child('voiceMessages/$convId/${_uid}_${msgRef.id}.$ext');
+    await storageRef.putData(
+      audioBytes,
+      SettableMetadata(contentType: contentType),
     );
     final audioUrl = await storageRef.getDownloadURL();
 
@@ -315,20 +325,20 @@ class ChatService {
     await batch.commit();
   }
 
-  Future<void> sendImage(String convId, File imageFile) async {
+  Future<void> sendImage(String convId, Uint8List imageBytes) async {
     final user = _auth.currentUser!;
     final msgRef =
         _db.collection('conversations').doc(convId).collection('messages').doc();
 
     // Bild komprimieren und Größe prüfen
-    final imageBytes = await _prepareImageForUpload(imageFile);
+    final compressed = await _prepareImageForUpload(imageBytes);
 
     // Komprimierte Bytes in Firebase Storage hochladen
     final storageRef = FirebaseStorage.instance
         .ref()
         .child('chatImages/$convId/${_uid}_${msgRef.id}.jpg');
     await storageRef.putData(
-      imageBytes,
+      compressed,
       SettableMetadata(contentType: 'image/jpeg'),
     );
     final imageUrl = await storageRef.getDownloadURL();
@@ -344,6 +354,43 @@ class ChatService {
     ).toFirestore());
     batch.update(_db.collection('conversations').doc(convId), {
       'lastMessage': '[Bild]',
+      'lastMessageAt': Timestamp.fromDate(DateTime.now()),
+    });
+    await batch.commit();
+  }
+
+  /// Datei (max. 5 MB) in den Chat senden.
+  Future<void> sendFile(
+      String convId, Uint8List fileBytes, String fileName, int fileSize) async {
+    const maxBytes = 5 * 1024 * 1024; // 5 MB
+    if (fileSize > maxBytes) {
+      throw Exception('Die Datei ist zu groß (max. 5 MB).');
+    }
+
+    final user = _auth.currentUser!;
+    final msgRef =
+        _db.collection('conversations').doc(convId).collection('messages').doc();
+
+    final ext = fileName.contains('.') ? fileName.split('.').last : '';
+    final storageRef = FirebaseStorage.instance
+        .ref()
+        .child('chatFiles/$convId/${_uid}_${msgRef.id}${ext.isNotEmpty ? '.$ext' : ''}');
+    await storageRef.putData(fileBytes);
+    final fileUrl = await storageRef.getDownloadURL();
+
+    final batch = _db.batch();
+    batch.set(msgRef, Message(
+      id: msgRef.id,
+      senderUid: _uid,
+      senderName: user.displayName ?? user.email ?? 'Unbekannt',
+      text: '',
+      sentAt: DateTime.now(),
+      fileUrl: fileUrl,
+      fileName: fileName,
+      fileSizeBytes: fileSize,
+    ).toFirestore());
+    batch.update(_db.collection('conversations').doc(convId), {
+      'lastMessage': '📎 $fileName',
       'lastMessageAt': Timestamp.fromDate(DateTime.now()),
     });
     await batch.commit();

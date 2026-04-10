@@ -10,6 +10,9 @@ class Message {
   final String? audioUrl;
   final int? audioDurationMs;
   final String? pollId;
+  final String? fileUrl;
+  final String? fileName;
+  final int? fileSizeBytes;
   final DateTime? editedAt;
   final bool isArchived;
   final String? archivedByUid;
@@ -25,6 +28,9 @@ class Message {
     this.audioUrl,
     this.audioDurationMs,
     this.pollId,
+    this.fileUrl,
+    this.fileName,
+    this.fileSizeBytes,
     this.editedAt,
     this.isArchived = false,
     this.archivedByUid,
@@ -43,6 +49,9 @@ class Message {
       audioUrl: data['audioUrl'] as String?,
       audioDurationMs: data['audioDurationMs'] as int?,
       pollId: data['pollId'] as String?,
+      fileUrl: data['fileUrl'] as String?,
+      fileName: data['fileName'] as String?,
+      fileSizeBytes: data['fileSizeBytes'] as int?,
       editedAt: data['editedAt'] != null
           ? (data['editedAt'] as Timestamp).toDate()
           : null,
@@ -61,6 +70,9 @@ class Message {
         if (audioUrl != null) 'audioUrl': audioUrl,
         if (audioDurationMs != null) 'audioDurationMs': audioDurationMs,
         if (pollId != null) 'pollId': pollId,
+        if (fileUrl != null) 'fileUrl': fileUrl,
+        if (fileName != null) 'fileName': fileName,
+        if (fileSizeBytes != null) 'fileSizeBytes': fileSizeBytes,
         if (editedAt != null) 'editedAt': Timestamp.fromDate(editedAt!),
         'isArchived': isArchived,
         if (archivedByUid != null) 'archivedByUid': archivedByUid,

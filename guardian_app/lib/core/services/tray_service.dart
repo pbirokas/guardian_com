@@ -47,6 +47,8 @@ class TrayService with WindowListener {
       if (eventName == kSystemTrayEventClick ||
           eventName == kSystemTrayEventDoubleClick) {
         _bringToFront();
+      } else if (eventName == kSystemTrayEventRightClick) {
+        _systemTray.popUpContextMenu();
       }
     });
 

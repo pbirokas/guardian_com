@@ -12,6 +12,7 @@ import '../../../core/models/org_member.dart';
 import '../../../core/models/organization.dart';
 import '../../chat/providers/chat_provider.dart';
 import '../providers/organizations_provider.dart';
+import 'bulk_import_screen.dart';
 
 class OrganizationDetailScreen extends ConsumerWidget {
   final String orgId;
@@ -132,6 +133,7 @@ class OrganizationDetailScreen extends ConsumerWidget {
                 TextField(
                   controller: nameController,
                   autofocus: true,
+                  maxLength: 40,
                   decoration: const InputDecoration(
                     labelText: 'Name',
                     border: OutlineInputBorder(),
@@ -735,6 +737,7 @@ Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref,
             children: [
               TextField(
                 controller: nameController,
+                maxLength: 40,
                 decoration: const InputDecoration(
                   labelText: 'Gruppenname',
                   border: OutlineInputBorder(),
@@ -995,12 +998,40 @@ class _MembersTab extends ConsumerWidget {
             Positioned(
               bottom: 16,
               right: 16,
-              child: FloatingActionButton.extended(
-                heroTag: 'invite',
-                onPressed: () =>
-                    _showInviteDialog(context, widgetRef, members),
-                icon: const Icon(Icons.person_add_outlined),
-                label: const Text('Mitglied einladen'),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (isAdmin && org.chatMode == ChatMode.sheltered)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: FloatingActionButton.extended(
+                        heroTag: 'bulk_import',
+                        backgroundColor:
+                            Theme.of(context).colorScheme.secondaryContainer,
+                        foregroundColor:
+                            Theme.of(context).colorScheme.onSecondaryContainer,
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => BulkImportScreen(
+                              org: org,
+                              members: members,
+                            ),
+                          ),
+                        ),
+                        icon: const Icon(Icons.upload_file_outlined),
+                        label: const Text('CSV importieren'),
+                      ),
+                    ),
+                  FloatingActionButton.extended(
+                    heroTag: 'invite',
+                    onPressed: () =>
+                        _showInviteDialog(context, widgetRef, members),
+                    icon: const Icon(Icons.person_add_outlined),
+                    label: const Text('Mitglied einladen'),
+                  ),
+                ],
               ),
             ),
           if (isRegularMember)

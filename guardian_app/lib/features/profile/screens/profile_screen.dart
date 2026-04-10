@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -21,7 +21,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late final TextEditingController _nameController;
   bool _saving = false;
   bool _pickingImage = false;
-  File? _pickedImage;
+  Uint8List? _pickedImageBytes;
 
   @override
   void initState() {
@@ -48,7 +48,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         imageQuality: 85,
       );
       if (picked != null && mounted) {
-        setState(() => _pickedImage = File(picked.path));
+        final bytes = await picked.readAsBytes();
+        setState(() => _pickedImageBytes = bytes);
       }
     } finally {
       if (mounted) setState(() => _pickingImage = false);
@@ -63,12 +64,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       final user = FirebaseAuth.instance.currentUser!;
       String? photoUrl;
 
-      if (_pickedImage != null) {
-        final ref = FirebaseStorage.instance
+      if (_pickedImageBytes != null) {
+        final storageRef = FirebaseStorage.instance
             .ref()
             .child('profileImages/${user.uid}');
-        await ref.putFile(_pickedImage!);
-        photoUrl = await ref.getDownloadURL();
+        await storageRef.putData(
+          _pickedImageBytes!,
+          SettableMetadata(contentType: 'image/jpeg'),
+        );
+        photoUrl = await storageRef.getDownloadURL();
         await user.updatePhotoURL(photoUrl);
       }
 
@@ -88,7 +92,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           .updateMyMemberProfile(name, photoUrl: photoUrl);
 
       if (mounted) {
-        setState(() => _pickedImage = null);
+        setState(() => _pickedImageBytes = null);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profil gespeichert.')),
         );
@@ -109,8 +113,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final user = FirebaseAuth.instance.currentUser;
 
     ImageProvider? avatarImage;
-    if (_pickedImage != null) {
-      avatarImage = FileImage(_pickedImage!);
+    if (_pickedImageBytes != null) {
+      avatarImage = MemoryImage(_pickedImageBytes!);
     } else if (user?.photoURL != null) {
       avatarImage = NetworkImage(user!.photoURL!);
     }
@@ -169,7 +173,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ),
           ),
-          if (_pickedImage != null)
+          if (_pickedImageBytes != null)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Center(

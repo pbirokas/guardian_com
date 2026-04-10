@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 
 import 'package:app_links/app_links.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -11,25 +11,36 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/router/app_router.dart';
 import 'core/services/auth_service.dart';
-import 'core/services/desktop_notification_service.dart';
+import 'core/services/desktop_notification_service_stub.dart'
+    if (dart.library.io) 'core/services/desktop_notification_service.dart';
 import 'core/services/notification_service.dart';
-import 'core/services/tray_service.dart';
+import 'core/services/tray_service_stub.dart'
+    if (dart.library.io) 'core/services/tray_service.dart';
 import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  final isDesktop = !kIsWeb && (Platform.isWindows || Platform.isLinux);
+  // App Check wird nur auf Android und Web unterstützt (nicht auf Windows/Linux).
+  if (kIsWeb || defaultTargetPlatform == TargetPlatform.android) {
+    await FirebaseAppCheck.instance.activate(
+      providerAndroid: kDebugMode
+          ? const AndroidDebugProvider()
+          : const AndroidPlayIntegrityProvider(),
+      providerWeb: kDebugMode ? WebDebugProvider() : null,
+    );
+  }
 
-  if (!isDesktop) {
-    // ── Crashlytics (nicht unterstützt auf Windows/Linux) ──────────────────
+  final isDesktop = !kIsWeb && (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux);
+
+  // Crashlytics und FCM nur auf mobilen Plattformen (nicht Web, nicht Desktop)
+  if (!kIsWeb && !isDesktop) {
     await FirebaseCrashlytics.instance
         .setCrashlyticsCollectionEnabled(!kDebugMode);
     FlutterError.onError =
         FirebaseCrashlytics.instance.recordFlutterFatalError;
-    // Dart-Fehler außerhalb des Flutter-Frameworks abfangen.
-    // PlatformDispatcher.onError vermeidet Zone-Konflikte mit runApp.
     PlatformDispatcher.instance.onError = (error, stack) {
       FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
       return true;
@@ -71,7 +82,9 @@ class _GuardianAppState extends ConsumerState<GuardianApp> {
   void initState() {
     super.initState();
     // App Links nur auf Plattformen mit Deep-Link-Support
-    if (!kIsWeb && !Platform.isWindows && !Platform.isLinux) {
+    if (!kIsWeb &&
+        defaultTargetPlatform != TargetPlatform.windows &&
+        defaultTargetPlatform != TargetPlatform.linux) {
       _appLinks = AppLinks();
       _handleIncomingLinks();
     }
@@ -105,7 +118,8 @@ class _GuardianAppState extends ConsumerState<GuardianApp> {
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeModeProvider);
     NotificationService.setRouter(router);
-    if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) {
+    if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux)) {
       DesktopNotificationService.setRouter(router);
     }
 

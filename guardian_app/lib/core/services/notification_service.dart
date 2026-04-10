@@ -1,5 +1,3 @@
-import 'dart:io' show Platform;
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -27,7 +25,8 @@ class NotificationService {
 
   Future<void> initialize() async {
     // FCM wird auf Windows/Linux nicht unterstützt
-    if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) return;
+    if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux)) { return; }
 
     if (_initialized) {
       await refreshToken();
@@ -58,7 +57,8 @@ class NotificationService {
   }
 
   Future<void> refreshToken() async {
-    if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) return;
+    if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux)) { return; }
     final token = await _fcm.getToken();
     if (token != null) await _saveToken(token);
   }

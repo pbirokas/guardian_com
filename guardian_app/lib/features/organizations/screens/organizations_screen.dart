@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/models/organization.dart';
@@ -94,6 +95,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                 TextField(
                   controller: nameController,
                   autofocus: true,
+                  maxLength: 40,
                   decoration: const InputDecoration(
                     labelText: 'Name der Organisation',
                     border: OutlineInputBorder(),
@@ -525,10 +527,33 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
       ),
       floatingActionButton: isChildInAnyOrg
           ? null
-          : FloatingActionButton.extended(
-              onPressed: () => _showCreateDialog(context),
-              icon: const Icon(Icons.add),
-              label: const Text('Organisation erstellen'),
+          : FutureBuilder<PackageInfo>(
+              future: PackageInfo.fromPlatform(),
+              builder: (context, snap) {
+                final info = snap.data;
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    if (info != null)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 10),
+                        child: Text(
+                          'v${info.version} (Build ${info.buildNumber})',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                    FloatingActionButton.extended(
+                      onPressed: () => _showCreateDialog(context),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Organisation erstellen'),
+                    ),
+                  ],
+                );
+              },
             ),
     );
   }

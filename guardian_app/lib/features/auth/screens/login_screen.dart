@@ -1,12 +1,13 @@
-import 'dart:io' show Platform;
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
 
 bool get _isDesktop =>
-    !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux ||
+        defaultTargetPlatform == TargetPlatform.macOS);
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});

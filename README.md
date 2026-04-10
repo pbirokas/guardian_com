@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
 [![Firebase](https://img.shields.io/badge/Firebase-Backend-FFCA28?logo=firebase)](https://firebase.google.com)
-[![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Windows%20%7C%20Web-green)](#builds)
+[![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Windows-green)](#builds)
 
 Eine Flutter-App für sichere, überwachte Kommunikation zwischen Kindern, Erziehungsberechtigten und Organisationen.
 
@@ -18,17 +18,16 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 | **Backend** | Firebase (Auth, Firestore, Storage, FCM, App Check) |
 | **State Management** | Riverpod 3.x |
 | **Navigation** | GoRouter |
-| **Authentifizierung** | Google Sign-In (Android, Web), E-Mail-Link (alle Plattformen) |
+| **Authentifizierung** | Google Sign-In (Android), E-Mail-Link (Android, Windows) |
 | **Cloud Functions** | Node.js 22 (Benachrichtigungen, E-Mail-Einladungen) |
-| **Hosting** | Firebase Hosting (Web-Build) |
 
 ---
 
 ## Funktionsübersicht
 
 ### Authentifizierung
-- **Google Sign-In** (Android, Web — via Firebase Auth Popup)
-- **E-Mail-Link (passwortlos):** Nutzer gibt E-Mail ein → erhält Anmeldelink per E-Mail → Klick öffnet die App und meldet direkt an. Kein Passwort nötig. Funktioniert auf allen Plattformen.
+- **Google Sign-In** (Android)
+- **E-Mail-Link (passwortlos):** Nutzer gibt E-Mail ein → erhält Anmeldelink per E-Mail → Klick öffnet die App und meldet direkt an. Kein Passwort nötig.
   - Auf Android: Deep Link öffnet die App automatisch (App Links mit assetlinks.json)
   - Auf Windows: Link aus dem Browser kopieren und in der App einfügen
 - Automatische Benutzerprofil-Erstellung bei der ersten Anmeldung
@@ -157,7 +156,7 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 - Dark / Light Mode
 - Spenden-Popup (Ko-fi / PayPal) — erscheint max. 1× pro Woche, nicht für Kinder
 - Firebase Crashlytics (Android)
-- Firebase App Check (Android + Web)
+- Firebase App Check (Android)
 - Versionsnummer automatisch aus Git-Commit-Anzahl generiert
 
 ---
@@ -168,7 +167,6 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 |---|---|---|
 | **Android** | ✅ | Google Play, FCM, Google Sign-In + E-Mail-Link, App Check |
 | **Windows** | ✅ | System Tray, Taskleisten-Badge, E-Mail-Link |
-| **Web** | ✅ | Firebase Hosting, Google Sign-In Popup, App Check |
 | **iOS / macOS** | ⏳ nicht konfiguriert | – |
 
 ### Windows-Build erstellen
@@ -190,14 +188,6 @@ cd guardian_app
 flutter build appbundle --release
 ```
 
-### Web-Build erstellen & deployen
-
-```bash
-cd guardian_app
-flutter build web --release
-cd ..
-firebase deploy --only hosting
-```
 ---
 
 ## Projektstruktur
@@ -216,16 +206,14 @@ guardian_app/
 │       ├── organizations/   # Org-Liste, Org-Detail, Bulk-Import, Provider
 │       └── profile/         # Profil-Screen
 ├── android/                 # Android-spezifische Konfiguration
-├── web/                     # Web-spezifische Konfiguration (index.html, Icons, assetlinks.json)
 ├── windows/                 # Windows-spezifische Konfiguration
 └── assets/
     ├── icon/                # App-Icons
     └── bulk_import_example.csv
 
-cors.json                    # Firebase Storage CORS-Konfiguration
 firestore.rules              # Firestore Security Rules
 storage.rules                # Firebase Storage Security Rules
-firebase.json                # Firebase-Konfiguration (Hosting → guardian_app/build/web)
+firebase.json                # Firebase-Konfiguration (Firestore, Storage, Functions)
 functions/
 └── index.js                 # Cloud Functions:
                              #   onNewMessage, onNewConversationRequest,
@@ -297,12 +285,11 @@ cd guardian_com
 #    → Firestore Database anlegen
 #    → Storage aktivieren
 #    → Cloud Functions aktivieren (Blaze-Plan)
-#    → Hosting aktivieren
-#    → App Check aktivieren (Android: Play Integrity, Web: reCAPTCHA)
+#    → App Check aktivieren (Android: Play Integrity)
 
 # 3. FlutterFire konfigurieren (erzeugt firebase_options.dart + google-services.json)
 cd guardian_app
-flutterfire configure --platforms=android,windows,web
+flutterfire configure --platforms=android,windows
 
 # 4. Abhängigkeiten installieren
 flutter pub get
@@ -314,19 +301,14 @@ npm install
 # 6. Gmail App-Passwort für Einladungs-E-Mails hinterlegen (optional)
 firebase functions:secrets:set GMAIL_APP_PASSWORD
 
-# 7. Firebase Storage CORS konfigurieren (einmalig)
+# 7. Firebase-Regeln & Functions deployen
 cd ..
-gsutil cors set cors.json gs://DEIN-BUCKET.firebasestorage.app
-
-# 8. Firebase-Regeln & Functions deployen
 firebase deploy --only firestore:rules,storage,functions
 
-# 9. App starten
+# 8. App starten
 cd guardian_app
 flutter run                     # Android
 flutter run -d windows          # Windows
-flutter run -d chrome           # Web (Debug)
-flutter build web --release && cd .. && firebase deploy --only hosting  # Web (Release)
 ```
 
 ### IAM-Berechtigung für Custom Token (Windows-Login)

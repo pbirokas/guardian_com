@@ -22,21 +22,20 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // App Check wird nur auf Android und Web unterstützt (nicht auf Windows/Linux).
-  if (kIsWeb || defaultTargetPlatform == TargetPlatform.android) {
+  // App Check wird nur auf Android unterstützt (nicht auf Windows/Linux).
+  if (defaultTargetPlatform == TargetPlatform.android) {
     await FirebaseAppCheck.instance.activate(
       providerAndroid: kDebugMode
           ? const AndroidDebugProvider()
           : const AndroidPlayIntegrityProvider(),
-      providerWeb: kDebugMode ? WebDebugProvider() : null,
     );
   }
 
-  final isDesktop = !kIsWeb && (defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.linux);
+  final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.linux;
 
-  // Crashlytics und FCM nur auf mobilen Plattformen (nicht Web, nicht Desktop)
-  if (!kIsWeb && !isDesktop) {
+  // Crashlytics und FCM nur auf mobilen Plattformen (nicht Desktop)
+  if (!isDesktop) {
     await FirebaseCrashlytics.instance
         .setCrashlyticsCollectionEnabled(!kDebugMode);
     FlutterError.onError =
@@ -82,8 +81,7 @@ class _GuardianAppState extends ConsumerState<GuardianApp> {
   void initState() {
     super.initState();
     // App Links nur auf Plattformen mit Deep-Link-Support
-    if (!kIsWeb &&
-        defaultTargetPlatform != TargetPlatform.windows &&
+    if (defaultTargetPlatform != TargetPlatform.windows &&
         defaultTargetPlatform != TargetPlatform.linux) {
       _appLinks = AppLinks();
       _handleIncomingLinks();
@@ -118,8 +116,8 @@ class _GuardianAppState extends ConsumerState<GuardianApp> {
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeModeProvider);
     NotificationService.setRouter(router);
-    if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.linux)) {
+    if (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux) {
       DesktopNotificationService.setRouter(router);
     }
 

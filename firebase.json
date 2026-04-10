@@ -1,17 +1,4 @@
 {
-  "hosting": {
-    "public": "guardian_app/build/web",
-    "ignore": ["firebase.json", "**/.*"],
-    "rewrites": [
-      { "source": "**", "destination": "/index.html" }
-    ],
-    "headers": [
-      {
-        "source": "/.well-known/assetlinks.json",
-        "headers": [{ "key": "Content-Type", "value": "application/json" }]
-      }
-    ]
-  },
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"

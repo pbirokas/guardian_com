@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,10 +11,9 @@ import '../models/org_member.dart';
 import 'notification_service.dart';
 
 bool get _isDesktop =>
-    !kIsWeb &&
-    (defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.linux ||
-        defaultTargetPlatform == TargetPlatform.macOS);
+    defaultTargetPlatform == TargetPlatform.windows ||
+    defaultTargetPlatform == TargetPlatform.linux ||
+    defaultTargetPlatform == TargetPlatform.macOS;
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -25,26 +24,16 @@ class AuthService {
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   Future<AppUser> signInWithGoogle() async {
-    UserCredential userCredential;
-
-    if (kIsWeb) {
-      // Auf Web: direkt Firebase Auth Popup — kein google_sign_in nötig
-      final provider = GoogleAuthProvider();
-      userCredential = await _auth.signInWithPopup(provider);
-    } else {
-      // Mobil/Desktop: google_sign_in Package
-      await GoogleSignIn.instance.initialize(
-        serverClientId:
-            '689565503451-msp7j89869cr9ojvc2uhaph0ordri5vr.apps.googleusercontent.com',
-      );
-      final googleAccount = await GoogleSignIn.instance.authenticate();
-      final googleAuth = googleAccount.authentication;
-      final credential = GoogleAuthProvider.credential(
-        idToken: googleAuth.idToken,
-      );
-      userCredential = await _auth.signInWithCredential(credential);
-    }
-
+    await GoogleSignIn.instance.initialize(
+      serverClientId:
+          '689565503451-msp7j89869cr9ojvc2uhaph0ordri5vr.apps.googleusercontent.com',
+    );
+    final googleAccount = await GoogleSignIn.instance.authenticate();
+    final googleAuth = googleAccount.authentication;
+    final credential = GoogleAuthProvider.credential(
+      idToken: googleAuth.idToken,
+    );
+    final userCredential = await _auth.signInWithCredential(credential);
     return _ensureUserDocument(userCredential.user!);
   }
 
@@ -346,16 +335,13 @@ class AuthService {
   }
 
   Future<void> signOut() async {
-    // Auf Web reicht Firebase Auth signOut — kein google_sign_in nötig
-    if (!kIsWeb) {
-      try {
-        await GoogleSignIn.instance.initialize(
-          serverClientId:
-              '689565503451-msp7j89869cr9ojvc2uhaph0ordri5vr.apps.googleusercontent.com',
-        );
-        await GoogleSignIn.instance.signOut();
-      } catch (_) {}
-    }
+    try {
+      await GoogleSignIn.instance.initialize(
+        serverClientId:
+            '689565503451-msp7j89869cr9ojvc2uhaph0ordri5vr.apps.googleusercontent.com',
+      );
+      await GoogleSignIn.instance.signOut();
+    } catch (_) {}
     await _auth.signOut();
   }
 

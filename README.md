@@ -198,16 +198,6 @@ flutter build web --release
 cd ..
 firebase deploy --only hosting
 ```
-
-Die App ist erreichbar unter:
-- `https://guardian-app-b0f6c.web.app`
-- `https://guardian-app-b0f6c.firebaseapp.com`
-
-> **Hinweis:** Firebase Storage CORS muss einmalig konfiguriert werden damit Bilder und Dateien im Browser laden:
-> ```bash
-> gsutil cors set cors.json gs://guardian-app-b0f6c.firebasestorage.app
-> ```
-
 ---
 
 ## Projektstruktur

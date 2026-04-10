@@ -79,3 +79,32 @@ android {
 flutter {
     source = "../.."
 }
+
+// ── Build-Output umbenennen ───────────────────────────────────────────────────
+// app-release.aab → app-release-{versionCode}.aab
+// app-release.apk → app-release-{versionCode}.apk
+android.applicationVariants.configureEach {
+    val variant = this
+    val versionCode = variant.versionCode
+
+    variant.outputs.configureEach {
+        val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+        val original = output.outputFileName
+        if (original.endsWith(".apk")) {
+            output.outputFileName = original.replace(".apk", "-$versionCode.apk")
+        }
+    }
+}
+
+tasks.whenTaskAdded {
+    if (name == "bundleRelease" || name == "bundleDebug") {
+        doLast {
+            val bundleDir = layout.buildDirectory.dir("outputs/bundle/${name.removePrefix("bundle").lowercase()}").get().asFile
+            bundleDir.listFiles { f -> f.extension == "aab" }?.forEach { aab ->
+                val versionCode = android.defaultConfig.versionCode ?: 1
+                val newName = aab.nameWithoutExtension + "-$versionCode.aab"
+                aab.renameTo(File(aab.parent, newName))
+            }
+        }
+    }
+}

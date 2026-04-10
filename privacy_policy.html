@@ -28,7 +28,7 @@
 <body>
 
 <h1>Datenschutzerklärung</h1>
-<p class="meta">App: <strong>Guardian Com</strong> &nbsp;|&nbsp; Stand: Juli 2025</p>
+<p class="meta">App: <strong>Guardian Com</strong> &nbsp;|&nbsp; Stand: April 2026</p>
 
 <!-- ─── 1. Verantwortlicher ─────────────────────────────────────── -->
 <h2>1. Verantwortlicher</h2>
@@ -88,6 +88,7 @@
   <li>Textnachrichten in genehmigten Chats</li>
   <li>Bilder, die du in Chats sendest (JPEG, max. 2 MB)</li>
   <li>Sprachnachrichten, die du aufnimmst (AAC-Audio)</li>
+  <li>Dateien, die du in Chats sendest (beliebige Dateitypen, max. 5 MB)</li>
   <li>Abstimmungen und deren Ergebnisse</li>
 </ul>
 
@@ -109,8 +110,10 @@
 <table>
   <tr><th>Berechtigung</th><th>Zweck</th></tr>
   <tr><td>Mikrofon (<code>RECORD_AUDIO</code>)</td><td>Sprachnachrichten aufnehmen</td></tr>
-  <tr><td>Kamera / Galerie</td><td>Bilder in Chats senden</td></tr>
-  <tr><td>Benachrichtigungen</td><td>Push-Benachrichtigungen empfangen</td></tr>
+  <tr><td>Fotos lesen (<code>READ_MEDIA_IMAGES</code>)</td><td>Bilder aus der Galerie in Chats senden</td></tr>
+  <tr><td>Videos lesen (<code>READ_MEDIA_VIDEO</code>)</td><td>Videodateien aus der Galerie als Dateianhang senden</td></tr>
+  <tr><td>Dateien lesen (<code>READ_EXTERNAL_STORAGE</code>, Android ≤ 12)</td><td>Dateien aus dem Gerätespeicher senden (ältere Android-Versionen)</td></tr>
+  <tr><td>Push-Benachrichtigungen (<code>POST_NOTIFICATIONS</code>)</td><td>Push-Benachrichtigungen empfangen</td></tr>
 </table>
 <p>
   Berechtigungen werden erst bei tatsächlicher Nutzung der jeweiligen Funktion
@@ -186,7 +189,12 @@
   </tr>
   <tr>
     <td>Firebase Crashlytics</td>
-    <td>Absturz- und Fehlerberichte</td>
+    <td>Absturz- und Fehlerberichte (nur Android)</td>
+    <td>policies.google.com/privacy</td>
+  </tr>
+  <tr>
+    <td>Firebase App Check</td>
+    <td>Schutz vor missbräuchlichem API-Zugriff (Android, Web)</td>
     <td>policies.google.com/privacy</td>
   </tr>
   <tr>

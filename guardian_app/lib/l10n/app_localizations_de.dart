@@ -858,6 +858,32 @@ class AppLocalizationsDe extends AppLocalizations {
   String get maybeLater => 'Vielleicht später';
 
   @override
+  String get aboutApp => 'Über die App';
+
+  @override
+  String get aboutAppDialogTitle => 'Guardian Com';
+
+  @override
+  String get aboutAppDescription =>
+      'Sichere, beaufsichtigte Kommunikation für Organisationen – kostenlos und werbefrei.';
+
+  @override
+  String get openSourceLicenses => 'Open-Source-Lizenzen';
+
+  @override
+  String get githubRepository => 'GitHub-Repository';
+
+  @override
+  String typingOne(String name) {
+    return '$name schreibt…';
+  }
+
+  @override
+  String typingMultiple(String names) {
+    return '$names schreiben…';
+  }
+
+  @override
   String get createOrganization => 'Organisation erstellen';
 
   @override

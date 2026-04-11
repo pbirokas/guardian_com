@@ -15,7 +15,24 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 /// Auf Windows/Linux wird stattdessen [DesktopNotificationService] verwendet.
 class NotificationService {
   static GoRouter? _router;
-  static void setRouter(GoRouter router) => _router = router;
+  static RemoteMessage? _pendingMessage;
+
+  static void setRouter(GoRouter router) {
+    _router = router;
+    if (_pendingMessage != null) {
+      final msg = _pendingMessage!;
+      _pendingMessage = null;
+      Future.microtask(() => _staticHandleTap(msg));
+    }
+  }
+
+  static void _staticHandleTap(RemoteMessage message) {
+    final convId = message.data['convId'] as String?;
+    if (convId != null) {
+      _router?.push('/chat/$convId',
+          extra: message.data['chatTitle'] as String?);
+    }
+  }
 
   static bool _initialized = false;
 
@@ -49,10 +66,12 @@ class NotificationService {
     // App war geschlossen, Notification getippt → navigieren
     final initial = await _fcm.getInitialMessage();
     if (initial != null) {
-      Future.delayed(
-        const Duration(milliseconds: 500),
-        () => _handleTap(initial),
-      );
+      if (_router != null) {
+        _handleTap(initial);
+      } else {
+        // Router noch nicht bereit → zwischenspeichern, wird in setRouter() abgefeuert
+        _pendingMessage = initial;
+      }
     }
   }
 

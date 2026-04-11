@@ -851,6 +851,32 @@ class AppLocalizationsEn extends AppLocalizations {
   String get maybeLater => 'Maybe later';
 
   @override
+  String get aboutApp => 'About';
+
+  @override
+  String get aboutAppDialogTitle => 'Guardian Com';
+
+  @override
+  String get aboutAppDescription =>
+      'Secure, supervised communication for organizations — free and ad-free.';
+
+  @override
+  String get openSourceLicenses => 'Open-source licenses';
+
+  @override
+  String get githubRepository => 'GitHub repository';
+
+  @override
+  String typingOne(String name) {
+    return '$name is typing…';
+  }
+
+  @override
+  String typingMultiple(String names) {
+    return '$names are typing…';
+  }
+
+  @override
   String get createOrganization => 'Create organization';
 
   @override

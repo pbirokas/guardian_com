@@ -20,6 +20,7 @@ class Message {
   final String? replyToId;
   final String? replyToSenderName;
   final String? replyToText;
+  final Map<String, String> reactions;
 
   const Message({
     required this.id,
@@ -41,6 +42,7 @@ class Message {
     this.replyToId,
     this.replyToSenderName,
     this.replyToText,
+    this.reactions = const {},
   });
 
   factory Message.fromFirestore(DocumentSnapshot doc) {
@@ -67,6 +69,9 @@ class Message {
       replyToId: data['replyToId'] as String?,
       replyToSenderName: data['replyToSenderName'] as String?,
       replyToText: data['replyToText'] as String?,
+      reactions: data['reactions'] != null
+          ? Map<String, String>.from(data['reactions'] as Map)
+          : const {},
     );
   }
 

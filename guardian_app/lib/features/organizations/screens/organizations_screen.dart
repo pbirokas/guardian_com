@@ -11,6 +11,8 @@ import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/chat/providers/chat_provider.dart';
 import '../providers/organizations_provider.dart';
 
+const _kGithubUrl = 'https://github.com/pbirokas/guardian_com';
+
 class OrganizationsScreen extends ConsumerStatefulWidget {
   const OrganizationsScreen({super.key});
 
@@ -163,6 +165,62 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
         }
       }
     }
+  }
+
+  void _showAboutAppDialog(BuildContext context, PackageInfo? info) {
+    final l = AppLocalizations.of(context);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.shield_outlined,
+                size: 28, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 12),
+            Text(l.aboutAppDialogTitle),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (info != null)
+              Text(
+                'v${info.version} (Build ${info.buildNumber})',
+                style: TextStyle(
+                    fontSize: 13, color: Colors.grey[600]),
+              ),
+            const SizedBox(height: 12),
+            Text(l.aboutAppDescription),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.code),
+                label: Text(l.githubRepository),
+                onPressed: () async {
+                  final uri = Uri.parse(_kGithubUrl);
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                },
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              if (mounted) showLicensePage(context: context);
+            },
+            child: Text(l.openSourceLicenses),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l.close),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showProfileMenu(BuildContext context, User user) {
@@ -320,8 +378,8 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                 InkWell(
                   onTap: () => setState(() => _showArchived = !_showArchived),
                   child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
                     child: Row(
                       children: [
                         Icon(
@@ -343,8 +401,19 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                     ),
                   ),
                 ),
+              // LayoutBuilder reads the actual available size so we can clamp
+              // the list to max 640 px without overflow on small windows.
               Expanded(
-                child: ListView.separated(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final listWidth =
+                        constraints.maxWidth.clamp(0.0, 640.0);
+                    return Align(
+                      alignment: Alignment.topLeft,
+                      child: SizedBox(
+                        width: listWidth,
+                        height: constraints.maxHeight,
+                        child: ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   itemCount: visibleOrgs.length,
                   separatorBuilder: (_, idx) => const SizedBox(height: 8),
@@ -500,42 +569,47 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                 ),
               );
             },
-          ),
-        ),
-      ],
-    );
+          ),            // closes ListView.separated
+        ),            // closes SizedBox
+      );              // closes Align (return)
+    },                // closes LayoutBuilder builder
+  ),                  // closes LayoutBuilder
+),                    // closes Expanded
+],                    // closes Column children
+);                    // closes Column
+        },            // closes data:
+      ),              // closes orgsAsync.when(
+      floatingActionButton: FutureBuilder<PackageInfo>(
+        future: PackageInfo.fromPlatform(),
+        builder: (context, snap) {
+          final info = snap.data;
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              FloatingActionButton.extended(
+                heroTag: 'about',
+                onPressed: () => _showAboutAppDialog(context, info),
+                backgroundColor:
+                    Theme.of(context).colorScheme.secondaryContainer,
+                foregroundColor:
+                    Theme.of(context).colorScheme.onSecondaryContainer,
+                icon: const Icon(Icons.info_outline),
+                label: Text(l.aboutApp),
+              ),
+              if (!isChildInAnyOrg) ...[
+                const SizedBox(width: 12),
+                FloatingActionButton.extended(
+                  heroTag: 'create',
+                  onPressed: () => _showCreateDialog(context),
+                  icon: const Icon(Icons.add),
+                  label: Text(l.createOrganization),
+                ),
+              ],
+            ],
+          );
         },
       ),
-      floatingActionButton: isChildInAnyOrg
-          ? null
-          : FutureBuilder<PackageInfo>(
-              future: PackageInfo.fromPlatform(),
-              builder: (context, snap) {
-                final info = snap.data;
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    if (info != null)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 10),
-                        child: Text(
-                          'v${info.version} (Build ${info.buildNumber})',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ),
-                    FloatingActionButton.extended(
-                      onPressed: () => _showCreateDialog(context),
-                      icon: const Icon(Icons.add),
-                      label: Text(l.createOrganization),
-                    ),
-                  ],
-                );
-              },
-            ),
     );
   }
 }

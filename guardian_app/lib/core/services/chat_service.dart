@@ -832,4 +832,33 @@ class ChatService {
     await sendMessage(sm.convId, sm.text);
     await deleteScheduledMessage(sm.convId, sm.id);
   }
+
+  // ── Tipp-Indikator ────────────────────────────────────────────────────────
+
+  /// Setzt oder löscht den Tipp-Indikator für den aktuellen Benutzer.
+  Future<void> setTyping(String convId, bool isTyping) async {
+    await _db.collection('conversations').doc(convId).update({
+      'typingUsers.$_uid': isTyping
+          ? Timestamp.fromDate(DateTime.now())
+          : FieldValue.delete(),
+    });
+  }
+
+  // ── Nachrichten-Reaktionen ────────────────────────────────────────────────
+
+  /// Setzt oder entfernt eine Reaktion (Emoji) des aktuellen Benutzers.
+  /// [emoji] == null → Reaktion entfernen.
+  Future<void> setReaction(
+      String convId, String msgId, String? emoji) async {
+    final msgRef = _db
+        .collection('conversations')
+        .doc(convId)
+        .collection('messages')
+        .doc(msgId);
+    if (emoji == null) {
+      await msgRef.update({'reactions.$_uid': FieldValue.delete()});
+    } else {
+      await msgRef.update({'reactions.$_uid': emoji});
+    }
+  }
 }

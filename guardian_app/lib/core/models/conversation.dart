@@ -20,6 +20,7 @@ class Conversation {
   final List<String> canApproveUids;
   final List<String> guardianUids;
   final Map<String, DateTime> lastReadAt;
+  final Map<String, DateTime> typingUsers;
 
   const Conversation({
     required this.id,
@@ -39,6 +40,7 @@ class Conversation {
     this.canApproveUids = const [],
     this.guardianUids = const [],
     this.lastReadAt = const {},
+    this.typingUsers = const {},
   });
 
   bool hasUnread(String uid) {
@@ -54,6 +56,13 @@ class Conversation {
     final lastReadAt = rawLastRead == null
         ? <String, DateTime>{}
         : Map<String, dynamic>.from(rawLastRead as Map).map(
+            (uid, ts) => MapEntry<String, DateTime>(
+                uid, (ts as Timestamp).toDate()),
+          );
+    final rawTyping = data['typingUsers'];
+    final typingUsers = rawTyping == null
+        ? <String, DateTime>{}
+        : Map<String, dynamic>.from(rawTyping as Map).map(
             (uid, ts) => MapEntry<String, DateTime>(
                 uid, (ts as Timestamp).toDate()),
           );
@@ -80,6 +89,7 @@ class Conversation {
       canApproveUids: List<String>.from(data['canApproveUids'] as List? ?? []),
       guardianUids: List<String>.from(data['guardianUids'] as List? ?? []),
       lastReadAt: lastReadAt,
+      typingUsers: typingUsers,
     );
   }
 

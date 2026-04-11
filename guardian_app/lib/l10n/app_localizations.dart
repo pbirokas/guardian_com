@@ -1610,6 +1610,48 @@ abstract class AppLocalizations {
   /// **'Vielleicht später'**
   String get maybeLater;
 
+  /// No description provided for @aboutApp.
+  ///
+  /// In de, this message translates to:
+  /// **'Über die App'**
+  String get aboutApp;
+
+  /// No description provided for @aboutAppDialogTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Guardian Com'**
+  String get aboutAppDialogTitle;
+
+  /// No description provided for @aboutAppDescription.
+  ///
+  /// In de, this message translates to:
+  /// **'Sichere, beaufsichtigte Kommunikation für Organisationen – kostenlos und werbefrei.'**
+  String get aboutAppDescription;
+
+  /// No description provided for @openSourceLicenses.
+  ///
+  /// In de, this message translates to:
+  /// **'Open-Source-Lizenzen'**
+  String get openSourceLicenses;
+
+  /// No description provided for @githubRepository.
+  ///
+  /// In de, this message translates to:
+  /// **'GitHub-Repository'**
+  String get githubRepository;
+
+  /// No description provided for @typingOne.
+  ///
+  /// In de, this message translates to:
+  /// **'{name} schreibt…'**
+  String typingOne(String name);
+
+  /// No description provided for @typingMultiple.
+  ///
+  /// In de, this message translates to:
+  /// **'{names} schreiben…'**
+  String typingMultiple(String names);
+
   /// No description provided for @createOrganization.
   ///
   /// In de, this message translates to:

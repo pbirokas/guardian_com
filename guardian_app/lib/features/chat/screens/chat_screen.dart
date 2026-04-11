@@ -49,6 +49,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   // ── Geplante Nachrichten ───────────────────────────────────────────────────
   Timer? _scheduleTimer;
 
+  // ── Tipp-Indikator ────────────────────────────────────────────────────────
+  Timer? _typingTimer;
+  bool _isTyping = false;
+
   // ── Suche ──────────────────────────────────────────────────────────────────
   bool _isSearching = false;
   String _searchQuery = '';
@@ -65,11 +69,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     super.initState();
     _markRead();
     _scrollController.addListener(_onScroll);
+    _controller.addListener(_onTextChanged);
     // Jede Minute prüfen ob eine geplante Nachricht fällig ist
     _scheduleTimer = Timer.periodic(
       const Duration(minutes: 1),
       (_) => _checkScheduledMessages(),
     );
+  }
+
+  void _onTextChanged() {
+    if (_controller.text.trim().isNotEmpty) {
+      if (!_isTyping) {
+        _isTyping = true;
+        ref.read(chatServiceProvider).setTyping(widget.chatId, true).catchError((_) {});
+      }
+      _typingTimer?.cancel();
+      _typingTimer = Timer(const Duration(seconds: 4), () {
+        _isTyping = false;
+        ref.read(chatServiceProvider).setTyping(widget.chatId, false).catchError((_) {});
+      });
+    } else if (_isTyping) {
+      _typingTimer?.cancel();
+      _isTyping = false;
+      ref.read(chatServiceProvider).setTyping(widget.chatId, false).catchError((_) {});
+    }
+  }
+
+  Future<void> _setReaction(Message msg, String? emoji) async {
+    try {
+      await ref.read(chatServiceProvider).setReaction(widget.chatId, msg.id, emoji);
+    } catch (_) {}
   }
 
   void _onScroll() {
@@ -105,6 +134,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
+    _controller.removeListener(_onTextChanged);
+    _typingTimer?.cancel();
+    if (_isTyping) {
+      ref.read(chatServiceProvider).setTyping(widget.chatId, false).catchError((_) {});
+    }
     _controller.dispose();
     _scrollController.dispose();
     _searchController.dispose();
@@ -432,6 +466,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
     _controller.clear();
+    _typingTimer?.cancel();
+    if (_isTyping) {
+      _isTyping = false;
+      ref.read(chatServiceProvider).setTyping(widget.chatId, false).catchError((_) {});
+    }
     final reply = _replyingTo;
     setState(() => _replyingTo = null);
     final l = AppLocalizations.of(context);
@@ -972,6 +1011,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           message: msg,
                           isMe: isMe,
                           convId: widget.chatId,
+                          currentUid: currentUid,
                           showSenderName:
                               showSender && msg.senderName.isNotEmpty,
                           isModerating: isModeratorOrAdmin && !isMe,
@@ -1004,6 +1044,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                           offset: _controller.text.length),
                                     );
                                   }),
+                          onReact: isArchived
+                              ? null
+                              : (emoji) => _setReaction(msg, emoji),
                         ),
                       ],
                     );
@@ -1016,7 +1059,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               },
             ),
           ),
-          if (!isArchived)
+          if (!isArchived) ...[
+            if (conv != null)
+              _TypingIndicator(
+                conv: conv,
+                currentUid: currentUid,
+                members: members,
+              ),
             _InputBar(
               controller: _controller,
               onSend: _send,
@@ -1032,6 +1081,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               replyMessage: _replyingTo,
               onCancelReply: () => setState(() => _replyingTo = null),
             ),
+          ],
         ],
       ),
     );
@@ -1219,7 +1269,9 @@ class _MessageBubble extends StatelessWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onImageTap;
   final VoidCallback? onReply;
+  final void Function(String? emoji)? onReact;
   final String convId;
+  final String currentUid;
   // null = fremde Nachricht, 0 = gesendet, 1 = teilweise gelesen, 2 = alle gelesen
   final int? readStatus;
 
@@ -1227,12 +1279,14 @@ class _MessageBubble extends StatelessWidget {
     required this.message,
     required this.isMe,
     required this.convId,
+    required this.currentUid,
     this.showSenderName = false,
     this.isModerating = false,
     this.onReport,
     this.onEdit,
     this.onImageTap,
     this.onReply,
+    this.onReact,
     this.readStatus,
   });
 
@@ -1246,6 +1300,8 @@ class _MessageBubble extends StatelessWidget {
         message.audioUrl == null &&
         message.imageUrl == null;
 
+    final myReaction = message.reactions[currentUid];
+
     return GestureDetector(
       onLongPress: () => showModalBottomSheet(
             context: context,
@@ -1253,6 +1309,37 @@ class _MessageBubble extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (onReact != null) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: ['👍', '❤️', '😂', '😮', '😢', '😡', '👎']
+                            .map((e) => GestureDetector(
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    onReact!(myReaction == e ? null : e);
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: myReaction == e
+                                          ? Theme.of(context)
+                                              .colorScheme
+                                              .primaryContainer
+                                          : null,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Text(e,
+                                        style: const TextStyle(fontSize: 26)),
+                                  ),
+                                ))
+                            .toList(),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                  ],
                   if (onReply != null)
                     ListTile(
                       leading: const Icon(Icons.reply_outlined),
@@ -1305,7 +1392,11 @@ class _MessageBubble extends StatelessWidget {
           ),
       child: Align(
         alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
+        child: Column(
+          crossAxisAlignment:
+              isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+        Container(
         margin: EdgeInsets.only(
           top: 2,
           bottom: 2,
@@ -1470,7 +1561,16 @@ class _MessageBubble extends StatelessWidget {
             ),
           ],
         ),
-      ),
+        ),
+        if (message.reactions.isNotEmpty)
+          _ReactionChips(
+            reactions: message.reactions,
+            currentUid: currentUid,
+            isMe: isMe,
+            onTap: onReact,
+          ),
+          ],
+        ),
       ),
     );
   }
@@ -1652,6 +1752,186 @@ class _DateDivider extends StatelessWidget {
           ),
           const Expanded(child: Divider()),
         ],
+      ),
+    );
+  }
+}
+
+// ── Tipp-Indikator ────────────────────────────────────────────────────────────
+
+class _TypingIndicator extends StatelessWidget {
+  final Conversation conv;
+  final String currentUid;
+  final List<OrgMember>? members;
+
+  const _TypingIndicator({
+    required this.conv,
+    required this.currentUid,
+    required this.members,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final now = DateTime.now();
+    final active = conv.typingUsers.entries
+        .where((e) =>
+            e.key != currentUid &&
+            now.difference(e.value).inSeconds < 10)
+        .map((e) {
+          final m = members?.where((m) => m.uid == e.key).firstOrNull;
+          return m?.displayName ?? '…';
+        })
+        .toList();
+
+    if (active.isEmpty) return const SizedBox.shrink();
+
+    final label = active.length == 1
+        ? l.typingOne(active.first)
+        : l.typingMultiple(active.join(', '));
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        children: [
+          _DotsAnimation(),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DotsAnimation extends StatefulWidget {
+  @override
+  State<_DotsAnimation> createState() => _DotsAnimationState();
+}
+
+class _DotsAnimationState extends State<_DotsAnimation>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.onSurfaceVariant;
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, _) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(3, (i) {
+            final phase = (_ctrl.value * 3 - i).clamp(0.0, 1.0);
+            final opacity = (phase < 0.5 ? phase : 1.0 - phase) * 2;
+            return Container(
+              width: 5,
+              height: 5,
+              margin: const EdgeInsets.symmetric(horizontal: 1),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color.withAlpha((opacity * 200).toInt()),
+              ),
+            );
+          }),
+        );
+      },
+    );
+  }
+}
+
+// ── Nachrichten-Reaktionen ────────────────────────────────────────────────────
+
+class _ReactionChips extends StatelessWidget {
+  final Map<String, String> reactions;
+  final String currentUid;
+  final bool isMe;
+  final void Function(String? emoji)? onTap;
+
+  const _ReactionChips({
+    required this.reactions,
+    required this.currentUid,
+    required this.isMe,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Group by emoji
+    final counts = <String, int>{};
+    for (final emoji in reactions.values) {
+      counts[emoji] = (counts[emoji] ?? 0) + 1;
+    }
+    final myEmoji = reactions[currentUid];
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 2, bottom: 4),
+      child: Wrap(
+        alignment: isMe ? WrapAlignment.end : WrapAlignment.start,
+        spacing: 4,
+        children: counts.entries.map((e) {
+          final isMyReaction = myEmoji == e.key;
+          return GestureDetector(
+            onTap: () => onTap?.call(isMyReaction ? null : e.key),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: isMyReaction
+                    ? Theme.of(context).colorScheme.primaryContainer
+                    : Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+                border: isMyReaction
+                    ? Border.all(
+                        color: Theme.of(context).colorScheme.primary,
+                        width: 1,
+                      )
+                    : null,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(e.key, style: const TextStyle(fontSize: 13)),
+                  if (e.value > 1) ...[
+                    const SizedBox(width: 3),
+                    Text(
+                      '${e.value}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isMyReaction
+                            ? Theme.of(context).colorScheme.onPrimaryContainer
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }

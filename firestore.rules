@@ -168,10 +168,18 @@ service cloud.firestore {
       // ─── Scheduled Messages subcollection ────────────────────────────────
 
       match /scheduledMessages/{smId} {
+        function convData() {
+          return get(/databases/$(database)/documents/conversations/$(convId)).data;
+        }
+        function canSendInConv() {
+          return request.auth.uid in convData().participantUids ||
+                 convData().orgAdminUid == request.auth.uid ||
+                 request.auth.uid in convData().canApproveUids;
+        }
         // Only the sender can read, create and delete their own scheduled messages
         allow read:   if isSignedIn() && request.auth.uid == resource.data.senderUid;
         allow create: if isSignedIn() &&
-          request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.participantUids &&
+          canSendInConv() &&
           request.resource.data.senderUid == request.auth.uid;
         allow delete: if isSignedIn() && request.auth.uid == resource.data.senderUid;
       }
@@ -232,7 +240,10 @@ service cloud.firestore {
 
         allow update: if isSignedIn() && (
           request.auth.uid == resource.data.senderUid ||
-          isAdminOrMod(get(/databases/$(database)/documents/conversations/$(convId)).data.orgId)
+          isAdminOrMod(get(/databases/$(database)/documents/conversations/$(convId)).data.orgId) ||
+          // Reactions: any participant can set/remove their own reaction
+          (request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.participantUids &&
+           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']))
         );
 
         allow delete: if isSignedIn() &&

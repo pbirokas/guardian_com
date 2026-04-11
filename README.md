@@ -89,6 +89,9 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 - Sprachnachrichten aufnehmen und abspielen (AAC/Opus, max. 10 MB)
 - **Dateien senden** (max. 5 MB, beliebige Dateitypen) — per „+"-Menü im Chat
 - **Abstimmungen** in Sheltered-Chats erstellen und abstimmen
+- **Tipp-Indikator** — „schreibt gerade…" in Echtzeit über der Eingabeleiste, mit animierten Punkten
+- **Nachrichten-Reaktionen** — per langem Druck Emoji-Reaktion wählen (👍❤️😂😮😢😡👎), Reaktionen erscheinen als Chips unter der Nachricht; erneutes Antippen entfernt die eigene Reaktion
+- **Antworten auf Nachrichten** (Reply-Zitat in der Blase)
 - Scrollbar an der rechten Seite
 - Ältere Nachrichten automatisch nachladen beim Hochscrollen
 
@@ -96,6 +99,7 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 - Chats archivieren (werden read-only)
 - Chats dauerhaft löschen (inkl. aller Nachrichten)
 - Ausstehende Chat-Anfragen genehmigen oder ablehnen
+- **Geplante Nachrichten** können auch von Admins/Moderatoren geplant werden, die nicht direkte Chat-Teilnehmer sind (z. B. Admin in Sheltered-Gruppen)
 
 ### Ungelesene Nachrichten
 - Badge-Anzeige auf Chat-Kacheln
@@ -108,7 +112,7 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 - Benachrichtigung bei neuer Nachricht in genehmigten Chats
 - Benachrichtigung bei neuer Chat-Anfrage (Guardian-Modus) — für Approver, Guardian und Angefragten
 - Foreground & Background: native System-Benachrichtigung
-- Tap auf Benachrichtigung öffnet direkt den Chat
+- **Tap auf Benachrichtigung öffnet direkt den Chat** — auch wenn die App geschlossen war (robustes Deep-Link-Handling via Pending-Message-Pattern, kein fragiles Timeout mehr)
 - Benachrichtigungsintervall global und pro Organisation einstellbar:
   - Jede Nachricht
   - Max. 1x pro Stunde
@@ -154,6 +158,9 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 
 ### Sonstiges
 - Dark / Light Mode
+- **UI-Skalierung (Windows/Linux)** — 100 % bis 200 % in Schritten, einstellbar im Profil — optimiert für 4K-Monitore
+- **„Über die App"-Dialog** — zeigt Versionsnummer, Open-Source-Lizenzen und GitHub-Link
+- Organisations-Liste auf Desktop auf max. 640 px Breite begrenzt (linksbündig)
 - Spenden-Popup (Ko-fi / PayPal) — erscheint max. 1× pro Woche, nicht für Kinder
 - Firebase Crashlytics (Android)
 - Firebase App Check (Android)
@@ -239,7 +246,9 @@ organizations/{orgId}
     lastChildAlertAt
 
 conversations/{convId}
+  typingUsers/{uid}        ← Timestamp (Tipp-Indikator)
   messages/{msgId}
+    reactions/{uid}        ← Emoji-String (Nachrichten-Reaktionen)
   polls/{pollId}
 
 invitations/{inviteId}

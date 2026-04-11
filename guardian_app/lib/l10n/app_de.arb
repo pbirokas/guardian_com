@@ -383,6 +383,21 @@
   "paypalButton": "PayPal spenden",
   "maybeLater": "Vielleicht später",
 
+  "aboutApp": "Über die App",
+  "aboutAppDialogTitle": "Guardian Com",
+  "aboutAppDescription": "Sichere, beaufsichtigte Kommunikation für Organisationen – kostenlos und werbefrei.",
+  "openSourceLicenses": "Open-Source-Lizenzen",
+  "githubRepository": "GitHub-Repository",
+
+  "typingOne": "{name} schreibt…",
+  "@typingOne": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "typingMultiple": "{names} schreiben…",
+  "@typingMultiple": {
+    "placeholders": { "names": { "type": "String" } }
+  },
+
   "createOrganization": "Organisation erstellen",
   "orgNameLabel": "Name der Organisation",
   "myOrganizations": "Meine Organisationen",

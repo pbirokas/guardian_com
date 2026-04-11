@@ -195,15 +195,40 @@ class _GuardianAppState extends ConsumerState<GuardianApp> {
 
         if (scale == 1.0) return content;
 
-        // Apply UI scaling: shrink the logical canvas by 1/scale so that
-        // Transform.scale zooms it back up to fill the actual window.
+        // Apply UI scaling.
+        //
+        // Problem: MaterialApp passes TIGHT constraints (exactly the window
+        // size) down the tree. A plain SizedBox(w/scale, h/scale) cannot
+        // satisfy tight constraints that are LARGER than its configured size,
+        // so it silently renders at the full window size. After
+        // Transform.scale(1.25) the content then overflows 25% beyond the
+        // window edge, hiding the AppBar actions and FABs.
+        //
+        // Fix: OverflowBox breaks the tight-constraint chain by forwarding
+        // LOOSE constraints (0..scaledSize) to its child, allowing the inner
+        // SizedBox to actually constrain the layout to scaledSize.
+        // Transform.scale then zooms that smaller canvas back up to fill the
+        // physical window. MediaQuery.size is overridden so that dialogs,
+        // bottom sheets and other overlay widgets position themselves relative
+        // to the smaller logical size.
+        final scaledSize = Size(mq.size.width / scale, mq.size.height / scale);
         return Transform.scale(
           scale: scale,
           alignment: Alignment.topLeft,
-          child: SizedBox(
-            width: mq.size.width / scale,
-            height: mq.size.height / scale,
-            child: content,
+          child: OverflowBox(
+            alignment: Alignment.topLeft,
+            minWidth: 0,
+            maxWidth: scaledSize.width,
+            minHeight: 0,
+            maxHeight: scaledSize.height,
+            child: MediaQuery(
+              data: mq.copyWith(size: scaledSize),
+              child: SizedBox(
+                width: scaledSize.width,
+                height: scaledSize.height,
+                child: content,
+              ),
+            ),
           ),
         );
       },

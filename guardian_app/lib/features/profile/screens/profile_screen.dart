@@ -1,11 +1,13 @@
-import 'dart:typed_data';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:guardian_app/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/providers/locale_provider.dart';
+import '../../../core/providers/scale_provider.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/organizations/providers/organizations_provider.dart';
@@ -78,7 +80,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
       await user.updateDisplayName(name);
 
-      // Firestore user doc synchronisieren
       final updates = <String, dynamic>{'displayName': name};
       if (photoUrl != null) updates['photoUrl'] = photoUrl;
       await FirebaseFirestore.instance
@@ -86,21 +87,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           .doc(user.uid)
           .update(updates);
 
-      // displayName (und ggf. photoUrl) in allen Org-Mitgliedsdokumenten aktualisieren
       await ref
           .read(organizationServiceProvider)
           .updateMyMemberProfile(name, photoUrl: photoUrl);
 
       if (mounted) {
         setState(() => _pickedImageBytes = null);
+        final l = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profil gespeichert.')),
+          SnackBar(content: Text(l.profileSaved)),
         );
       }
     } catch (e) {
       if (mounted) {
+        final l = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler: $e')),
+          SnackBar(content: Text(l.errorMessage(e.toString()))),
         );
       }
     } finally {
@@ -110,6 +112,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final user = FirebaseAuth.instance.currentUser;
 
     ImageProvider? avatarImage;
@@ -126,7 +129,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profil bearbeiten'),
+        title: Text(l.editProfile),
         actions: [
           TextButton(
             onPressed: _saving ? null : _save,
@@ -136,7 +139,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Speichern'),
+                : Text(l.save),
           ),
         ],
       ),
@@ -177,7 +180,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Center(
-                child: Text('Neues Bild ausgewählt — speichern um zu übernehmen',
+                child: Text(l.newImageSelected,
                     style: TextStyle(fontSize: 12, color: Colors.grey[600])),
               ),
             ),
@@ -191,10 +194,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           const SizedBox(height: 32),
           TextField(
             controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: 'Anzeigename',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.person_outline),
+            decoration: InputDecoration(
+              labelText: l.displayName,
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.person_outline),
             ),
           ),
           const SizedBox(height: 24),
@@ -204,14 +207,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             current: ref.watch(themeModeProvider),
             onChanged: (mode) => ref.read(themeModeProvider.notifier).set(mode),
           ),
+          const SizedBox(height: 16),
+          _LanguageSetting(
+            current: ref.watch(localeProvider).value ?? const Locale('de'),
+            onChanged: (locale) =>
+                ref.read(localeProvider.notifier).setLocale(locale),
+          ),
+          if (defaultTargetPlatform == TargetPlatform.windows ||
+              defaultTargetPlatform == TargetPlatform.linux) ...[
+            const SizedBox(height: 16),
+            _ScaleSetting(
+              current: ref.watch(scaleFactorProvider),
+              onChanged: (v) => ref.read(scaleFactorProvider.notifier).set(v),
+            ),
+          ],
           const SizedBox(height: 8),
           const Divider(),
           const SizedBox(height: 8),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text('Abmelden',
-                style: TextStyle(color: Colors.red)),
+            title: Text(l.signOut,
+                style: const TextStyle(color: Colors.red)),
             onTap: () => ref.read(authServiceProvider).signOut(),
           ),
         ],
@@ -228,30 +245,99 @@ class _ThemeSetting extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.only(bottom: 8),
-          child: Text('Erscheinungsbild',
-              style: TextStyle(fontWeight: FontWeight.w600)),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(l.appearance,
+              style: const TextStyle(fontWeight: FontWeight.w600)),
         ),
         SegmentedButton<ThemeMode>(
-          segments: const [
+          segments: [
             ButtonSegment(
               value: ThemeMode.system,
-              icon: Icon(Icons.brightness_auto_outlined),
-              label: Text('System'),
+              icon: const Icon(Icons.brightness_auto_outlined),
+              label: Text(l.themeSystem),
             ),
             ButtonSegment(
               value: ThemeMode.light,
-              icon: Icon(Icons.light_mode_outlined),
-              label: Text('Hell'),
+              icon: const Icon(Icons.light_mode_outlined),
+              label: Text(l.themeLight),
             ),
             ButtonSegment(
               value: ThemeMode.dark,
-              icon: Icon(Icons.dark_mode_outlined),
-              label: Text('Dunkel'),
+              icon: const Icon(Icons.dark_mode_outlined),
+              label: Text(l.themeDark),
+            ),
+          ],
+          selected: {current},
+          onSelectionChanged: (selection) => onChanged(selection.first),
+        ),
+      ],
+    );
+  }
+}
+
+class _ScaleSetting extends StatelessWidget {
+  final double current;
+  final ValueChanged<double> onChanged;
+
+  const _ScaleSetting({required this.current, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(l.uiScale,
+              style: const TextStyle(fontWeight: FontWeight.w600)),
+        ),
+        SegmentedButton<double>(
+          segments: uiScaleSteps
+              .map((s) => ButtonSegment(
+                    value: s,
+                    label: Text('${(s * 100).round()}%'),
+                  ))
+              .toList(),
+          selected: {current},
+          onSelectionChanged: (selection) => onChanged(selection.first),
+        ),
+      ],
+    );
+  }
+}
+
+class _LanguageSetting extends StatelessWidget {
+  final Locale current;
+  final ValueChanged<Locale> onChanged;
+
+  const _LanguageSetting({required this.current, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(l.language,
+              style: const TextStyle(fontWeight: FontWeight.w600)),
+        ),
+        SegmentedButton<Locale>(
+          segments: [
+            ButtonSegment(
+              value: const Locale('de'),
+              label: Text(l.languageGerman),
+            ),
+            ButtonSegment(
+              value: const Locale('en'),
+              label: Text(l.languageEnglish),
             ),
           ],
           selected: {current},

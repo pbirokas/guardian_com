@@ -82,6 +82,19 @@ service cloud.firestore {
         allow delete: if isAdmin(orgId);
       }
 
+      // ─── Announcements subcollection (Pinnwand) ──────────────────────────
+
+      match /announcements/{announcementId} {
+        // All org members can read announcements
+        allow read: if isMember(orgId);
+        allow list: if isMember(orgId);
+
+        // Only admin and moderators can create, update, delete
+        allow create: if isAdminOrMod(orgId);
+        allow update: if isAdminOrMod(orgId);
+        allow delete: if isAdminOrMod(orgId);
+      }
+
       // ─── Members subcollection ────────────────────────────────────────────
 
       match /members/{memberId} {
@@ -151,6 +164,17 @@ service cloud.firestore {
       );
 
       allow delete: if isSignedIn() && isAdmin(resource.data.orgId);
+
+      // ─── Scheduled Messages subcollection ────────────────────────────────
+
+      match /scheduledMessages/{smId} {
+        // Only the sender can read, create and delete their own scheduled messages
+        allow read:   if isSignedIn() && request.auth.uid == resource.data.senderUid;
+        allow create: if isSignedIn() &&
+          request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.participantUids &&
+          request.resource.data.senderUid == request.auth.uid;
+        allow delete: if isSignedIn() && request.auth.uid == resource.data.senderUid;
+      }
 
       // ─── Polls subcollection ──────────────────────────────────────────────
 

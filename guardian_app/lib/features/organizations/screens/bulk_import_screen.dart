@@ -1,6 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:flutter/material.dart';
+import 'package:guardian_app/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/app_user.dart';
@@ -69,8 +70,6 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
   String? _fileName;
   final List<String> _importLog = [];
 
-  // ── File picker ───────────────────────────────────────────────────────────
-
   Future<void> _pickFile() async {
     if (_picking) return;
     setState(() => _picking = true);
@@ -102,8 +101,6 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
     }
   }
 
-  // ── CSV parsing ───────────────────────────────────────────────────────────
-
   List<_CsvRow> _parseCSV(String text) {
     final lines = text
         .replaceAll('\r\n', '\n')
@@ -111,14 +108,12 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
         .split('\n');
     if (lines.isEmpty) return [];
 
-    // Auto-detect delimiter
     final first = lines.first;
     final delimiter =
         (first.split(';').length - 1) >= (first.split(',').length - 1)
             ? ';'
             : ',';
 
-    // Skip header row if first column is "email"
     final start =
         first.split(delimiter).first.trim().toLowerCase() == 'email' ? 1 : 0;
 
@@ -141,8 +136,6 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
     return rows;
   }
 
-  // ── Validation ────────────────────────────────────────────────────────────
-
   _RowStatus _rowStatus(_CsvRow row) {
     if (!row.emailValid || !row.roleValid) return _RowStatus.error;
     if (row.role == OrgRole.child) {
@@ -154,33 +147,31 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
     return _RowStatus.valid;
   }
 
-  String _rowStatusMessage(_CsvRow row) {
+  String _rowStatusMessage(_CsvRow row, AppLocalizations l) {
     final issues = <String>[];
-    if (!row.emailValid) issues.add('Ungültige E-Mail');
-    if (!row.roleValid) issues.add('Unbekannte Rolle: "${row.roleRaw}"');
+    if (!row.emailValid) issues.add(l.invalidEmail2);
+    if (!row.roleValid) issues.add(l.unknownRole(row.roleRaw));
     if (row.role == OrgRole.child) {
       if (row.guardianEmails.isEmpty) {
-        issues.add('Guardian fehlt');
+        issues.add(l.guardianMissing);
       } else {
         final resolved = _resolveGuardianUids(row.guardianEmails);
         if (resolved.isEmpty) {
-          issues.add('Kein Guardian in dieser Org gefunden');
+          issues.add(l.noGuardianInOrg);
         } else if (resolved.length < row.guardianEmails.length) {
           final missing = row.guardianEmails
-              .where((e) => !widget.members
-                  .any((m) => m.email.toLowerCase() == e))
+              .where((e) => !widget.members.any((m) => m.email.toLowerCase() == e))
               .toList();
-          issues.add('Guardian nicht in Org: ${missing.join(", ")}');
+          issues.add(l.guardianNotInOrg(missing.join(', ')));
         }
       }
     }
     if (issues.isNotEmpty) return issues.join(' · ');
-    // Show role (and guardian count) as info
     final roleLabel = switch (row.role!) {
-      OrgRole.admin => 'Admin',
-      OrgRole.moderator => 'Moderator',
-      OrgRole.member => 'Mitglied',
-      OrgRole.child => 'Kind',
+      OrgRole.admin => l.roleAdmin,
+      OrgRole.moderator => l.roleModerator,
+      OrgRole.member => l.roleMember,
+      OrgRole.child => l.roleChild,
     };
     if (row.role == OrgRole.child) {
       final count = _resolveGuardianUids(row.guardianEmails).length;
@@ -199,9 +190,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
         .toList();
   }
 
-  // ── Import ────────────────────────────────────────────────────────────────
-
-  Future<void> _import() async {
+  Future<void> _import(AppLocalizations l) async {
     final rows = _rows;
     if (rows == null) return;
     final validRows =
@@ -239,18 +228,18 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
       setState(() => _importing = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('$success eingeladen'
-              '${errors > 0 ? ', $errors Fehler' : ''}'),
+          content: Text(errors > 0
+              ? l.importSuccessWithErrors(success, errors)
+              : l.importSuccess(success)),
         ),
       );
       if (errors == 0) Navigator.pop(context);
     }
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final rows = _rows;
     final validCount =
         rows?.where((r) => _rowStatus(r) != _RowStatus.error).length ?? 0;
@@ -258,25 +247,24 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mitglieder importieren'),
+        title: Text(l.importMembers),
         actions: [
           if (rows != null && validCount > 0 && !showLog)
             TextButton(
-              onPressed: _importing ? null : _import,
+              onPressed: _importing ? null : () => _import(l),
               child: _importing
                   ? const SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Text('$validCount importieren'),
+                  : Text(l.importCount(validCount)),
             ),
         ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // File picker button
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: OutlinedButton.icon(
@@ -289,13 +277,12 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
                     )
                   : const Icon(Icons.upload_file_outlined),
               label: Text(
-                _fileName ?? 'CSV-Datei auswählen',
+                _fileName ?? l.selectCsvFile,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
           ),
 
-          // ── Empty state / format hint ──────────────────────────────────
           if (rows == null)
             Expanded(
               child: Padding(
@@ -340,13 +327,13 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
               ),
             ),
 
-          // ── Preview table ──────────────────────────────────────────────
           if (rows != null && !showLog) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
               child: Text(
-                '${rows.length} Zeilen · $validCount gültig'
-                '${rows.length - validCount > 0 ? ' · ${rows.length - validCount} fehlerhaft' : ''}',
+                rows.length - validCount > 0
+                    ? l.csvRowsErrors(rows.length, validCount, rows.length - validCount)
+                    : l.csvRowsValid(rows.length, validCount),
                 style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ),
@@ -360,14 +347,13 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
                   return _RowTile(
                     row: row,
                     status: status,
-                    message: _rowStatusMessage(row),
+                    message: _rowStatusMessage(row, l),
                   );
                 },
               ),
             ),
           ],
 
-          // ── Import log ─────────────────────────────────────────────────
           if (showLog)
             Expanded(
               child: ListView.builder(

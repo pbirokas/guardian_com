@@ -17,6 +17,9 @@ class Message {
   final bool isArchived;
   final String? archivedByUid;
   final String? archivedByName;
+  final String? replyToId;
+  final String? replyToSenderName;
+  final String? replyToText;
 
   const Message({
     required this.id,
@@ -35,6 +38,9 @@ class Message {
     this.isArchived = false,
     this.archivedByUid,
     this.archivedByName,
+    this.replyToId,
+    this.replyToSenderName,
+    this.replyToText,
   });
 
   factory Message.fromFirestore(DocumentSnapshot doc) {
@@ -58,6 +64,9 @@ class Message {
       isArchived: data['isArchived'] as bool? ?? false,
       archivedByUid: data['archivedByUid'] as String?,
       archivedByName: data['archivedByName'] as String?,
+      replyToId: data['replyToId'] as String?,
+      replyToSenderName: data['replyToSenderName'] as String?,
+      replyToText: data['replyToText'] as String?,
     );
   }
 
@@ -77,5 +86,8 @@ class Message {
         'isArchived': isArchived,
         if (archivedByUid != null) 'archivedByUid': archivedByUid,
         if (archivedByName != null) 'archivedByName': archivedByName,
+        if (replyToId != null) 'replyToId': replyToId,
+        if (replyToSenderName != null) 'replyToSenderName': replyToSenderName,
+        if (replyToText != null) 'replyToText': replyToText,
       };
 }

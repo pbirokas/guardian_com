@@ -1,8 +1,15 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:guardian_app/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/models/announcement.dart';
 import '../../../core/models/app_user.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/models/member_suggestion.dart';
@@ -21,6 +28,7 @@ class OrganizationDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
     final orgAsync = ref.watch(organizationProvider(orgId));
     final currentUid = FirebaseAuth.instance.currentUser!.uid;
 
@@ -29,7 +37,7 @@ class OrganizationDetailScreen extends ConsumerWidget {
     return orgAsync.when(
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (e, _) => Scaffold(body: Center(child: Text('Fehler: $e'))),
+      error: (e, _) => Scaffold(body: Center(child: Text(l.errorMessage(e.toString())))),
       data: (org) {
         final isAdmin = org.adminUid == currentUid;
         final currentMember = membersAsync.value
@@ -38,7 +46,7 @@ class OrganizationDetailScreen extends ConsumerWidget {
         final isModerator =
             !isAdmin && currentMember?.role == OrgRole.moderator;
 
-        final tabCount = (isAdmin || isModerator) ? 3 : 2;
+        final tabCount = (isAdmin || isModerator) ? 4 : 3;
         return DefaultTabController(
           length: tabCount,
           initialIndex: 1,
@@ -70,25 +78,27 @@ class OrganizationDetailScreen extends ConsumerWidget {
                 if (isAdmin) ...[
                   IconButton(
                     icon: const Icon(Icons.manage_search_outlined),
-                    tooltip: 'Schlüsselwörter',
+                    tooltip: l.keywordsTooltip,
                     onPressed: () => _showKeywordsDialog(context, ref, org),
                   ),
                   IconButton(
                     icon: const Icon(Icons.edit_outlined),
-                    tooltip: 'Bearbeiten',
+                    tooltip: l.editTooltip,
                     onPressed: () => _showEditDialog(context, ref, org),
                   ),
                 ],
               ],
               bottom: TabBar(
+                labelPadding: const EdgeInsets.symmetric(horizontal: 8),
                 tabs: [
-                  const Tab(icon: Icon(Icons.people_outline), text: 'Mitglieder'),
+                  Tab(icon: const Icon(Icons.people_outline), text: l.tabMembers),
                   Tab(
                     child: _ChatTabLabel(
                         orgId: orgId,
                         isAdminOrMod: isAdmin || isModerator,
                         currentUid: currentUid),
                   ),
+                  Tab(icon: const Icon(Icons.campaign_outlined), text: l.tabPinboard),
                   if (isAdmin || isModerator)
                     Tab(
                       child: _ReportsTabLabel(orgId: orgId),
@@ -104,6 +114,9 @@ class OrganizationDetailScreen extends ConsumerWidget {
                     currentUid: currentUid,
                     isAdmin: isAdmin,
                     isModerator: isModerator),
+                _PinnwandTab(
+                    orgId: orgId,
+                    canManage: isAdmin || isModerator),
                 if (isAdmin || isModerator)
                   _ReportsTab(org: org),
               ],
@@ -116,6 +129,7 @@ class OrganizationDetailScreen extends ConsumerWidget {
 
   Future<void> _showEditDialog(
       BuildContext context, WidgetRef ref, Organization org) async {
+    final l = AppLocalizations.of(context);
     final nameController = TextEditingController(text: org.name);
     OrgTag selectedTag = org.tag;
     ChatMode selectedMode = org.chatMode;
@@ -123,108 +137,111 @@ class OrganizationDetailScreen extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('Organisation bearbeiten'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: nameController,
-                  autofocus: true,
-                  maxLength: 40,
-                  decoration: const InputDecoration(
-                    labelText: 'Name',
-                    border: OutlineInputBorder(),
-                  ),
-                  textCapitalization: TextCapitalization.words,
-                ),
-                const SizedBox(height: 16),
-                const Text('Kategorie',
-                    style: TextStyle(fontSize: 12, color: Colors.grey)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: OrgTag.values.map((tag) {
-                    final selected = selectedTag == tag;
-                    return FilterChip(
-                      avatar: Icon(tag.icon,
-                          size: 16,
-                          color: selected ? Colors.white : tag.color),
-                      label: Text(tag.label),
-                      selected: selected,
-                      selectedColor: tag.color,
-                      labelStyle:
-                          TextStyle(color: selected ? Colors.white : null),
-                      onSelected: (_) => setState(() => selectedTag = tag),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 16),
-                const Text('Chat-Modus',
-                    style: TextStyle(fontSize: 12, color: Colors.grey)),
-                const SizedBox(height: 8),
-                ...ChatMode.values.map((mode) {
-                  final selected = selectedMode == mode;
-                  final color = Theme.of(ctx).colorScheme.primary;
-                  return GestureDetector(
-                    onTap: () => setState(() => selectedMode = mode),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: selected ? color : Colors.grey.shade300,
-                          width: selected ? 2 : 1,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        color: selected ? color.withAlpha(15) : null,
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(mode.icon,
-                              color: selected ? color : Colors.grey,
-                              size: 20),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(mode.label,
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: selected ? color : null,
-                                        fontSize: 13)),
-                                Text(mode.description,
-                                    style: const TextStyle(
-                                        fontSize: 11, color: Colors.grey)),
-                              ],
-                            ),
-                          ),
-                          if (selected)
-                            Icon(Icons.check_circle, color: color, size: 18),
-                        ],
-                      ),
+        builder: (ctx, setState) {
+          final ld = AppLocalizations.of(ctx);
+          return AlertDialog(
+            title: Text(ld.editOrganization),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: nameController,
+                    autofocus: true,
+                    maxLength: 40,
+                    decoration: InputDecoration(
+                      labelText: ld.orgName,
+                      border: const OutlineInputBorder(),
                     ),
-                  );
-                }),
-              ],
+                    textCapitalization: TextCapitalization.words,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(ld.category,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: OrgTag.values.map((tag) {
+                      final selected = selectedTag == tag;
+                      return FilterChip(
+                        avatar: Icon(tag.icon,
+                            size: 16,
+                            color: selected ? Colors.white : tag.color),
+                        label: Text(tag.label),
+                        selected: selected,
+                        selectedColor: tag.color,
+                        labelStyle:
+                            TextStyle(color: selected ? Colors.white : null),
+                        onSelected: (_) => setState(() => selectedTag = tag),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(ld.chatMode,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  const SizedBox(height: 8),
+                  ...ChatMode.values.map((mode) {
+                    final selected = selectedMode == mode;
+                    final color = Theme.of(ctx).colorScheme.primary;
+                    return GestureDetector(
+                      onTap: () => setState(() => selectedMode = mode),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: selected ? color : Colors.grey.shade300,
+                            width: selected ? 2 : 1,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          color: selected ? color.withAlpha(15) : null,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(mode.icon,
+                                color: selected ? color : Colors.grey,
+                                size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(mode.label,
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: selected ? color : null,
+                                          fontSize: 13)),
+                                  Text(mode.description,
+                                      style: const TextStyle(
+                                          fontSize: 11, color: Colors.grey)),
+                                ],
+                              ),
+                            ),
+                            if (selected)
+                              Icon(Icons.check_circle, color: color, size: 18),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Abbrechen'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Speichern'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(ld.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(ld.save),
+              ),
+            ],
+          );
+        },
       ),
     );
 
@@ -239,7 +256,7 @@ class OrganizationDetailScreen extends ConsumerWidget {
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Fehler: $e')),
+            SnackBar(content: Text(l.errorMessage(e.toString()))),
           );
         }
       }
@@ -248,105 +265,184 @@ class OrganizationDetailScreen extends ConsumerWidget {
 
   Future<void> _showKeywordsDialog(
       BuildContext context, WidgetRef ref, Organization org) async {
+    final l = AppLocalizations.of(context);
     final keywords = List<String>.from(org.keywords);
     final controller = TextEditingController();
+
+    // ── CSV Export ────────────────────────────────────────────────────────────
+    Future<void> exportCsv(StateSetter setState) async {
+      if (keywords.isEmpty) return;
+      try {
+        final csvContent = keywords.join('\n');
+        final dir = await getTemporaryDirectory();
+        final safeName = org.name.replaceAll(RegExp(r'[^\w]'), '_');
+        final file = File('${dir.path}/${safeName}_keywords.csv');
+        await file.writeAsString(csvContent);
+        await OpenFilex.open(file.path);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(l.keywordsExported)),
+          );
+        }
+      } catch (_) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(l.keywordsExportFailed)),
+          );
+        }
+      }
+    }
+
+    // ── CSV Import ────────────────────────────────────────────────────────────
+    Future<void> importCsv(StateSetter setState) async {
+      final result = await FilePicker.pickFiles(
+        dialogTitle: l.keywordsImportCsv,
+        type: FileType.custom,
+        allowedExtensions: ['csv', 'txt'],
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final bytes = result.files.first.bytes;
+      if (bytes == null) return;
+
+      final content = String.fromCharCodes(bytes);
+      // Unterstützt: eine Zeile pro Keyword ODER kommagetrennt
+      final raw = content
+          .split(RegExp(r'[\n,;]'))
+          .map((w) => w.trim().toLowerCase())
+          .where((w) => w.isNotEmpty)
+          .toList();
+
+      int added = 0;
+      setState(() {
+        for (final word in raw) {
+          if (!keywords.contains(word)) {
+            keywords.add(word);
+            added++;
+          }
+        }
+      });
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l.keywordsImported(added))),
+        );
+      }
+    }
 
     await showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('Schlüsselwörter'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+        builder: (ctx, setState) {
+          final ld = AppLocalizations.of(ctx);
+          return AlertDialog(
+            title: Row(
               children: [
-                const Text(
-                  'Guardians und Moderatoren werden benachrichtigt, wenn eines dieser Wörter in einem Chat auftaucht.',
-                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                Expanded(child: Text(ld.keywordsTitle)),
+                IconButton(
+                  icon: const Icon(Icons.upload_file_outlined),
+                  tooltip: ld.keywordsImportCsv,
+                  onPressed: () => importCsv(setState),
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: controller,
-                        decoration: const InputDecoration(
-                          hintText: 'Neues Wort hinzufügen',
-                          border: OutlineInputBorder(),
-                          isDense: true,
+                IconButton(
+                  icon: const Icon(Icons.download_outlined),
+                  tooltip: ld.keywordsExportCsv,
+                  onPressed: () => exportCsv(setState),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    ld.keywordsDescription,
+                    style: const TextStyle(fontSize: 13, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: controller,
+                          decoration: InputDecoration(
+                            hintText: ld.addKeywordHint,
+                            border: const OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          textCapitalization: TextCapitalization.none,
+                          onSubmitted: (value) {
+                            final word = value.trim().toLowerCase();
+                            if (word.isNotEmpty && !keywords.contains(word)) {
+                              setState(() => keywords.add(word));
+                              controller.clear();
+                            }
+                          },
                         ),
-                        textCapitalization: TextCapitalization.none,
-                        onSubmitted: (value) {
-                          final word = value.trim().toLowerCase();
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filled(
+                        icon: const Icon(Icons.add),
+                        onPressed: () {
+                          final word = controller.text.trim().toLowerCase();
                           if (word.isNotEmpty && !keywords.contains(word)) {
                             setState(() => keywords.add(word));
                             controller.clear();
                           }
                         },
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton.filled(
-                      icon: const Icon(Icons.add),
-                      onPressed: () {
-                        final word = controller.text.trim().toLowerCase();
-                        if (word.isNotEmpty && !keywords.contains(word)) {
-                          setState(() => keywords.add(word));
-                          controller.clear();
-                        }
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (keywords.isEmpty)
-                  const Text('Keine Schlüsselwörter definiert.',
-                      style: TextStyle(color: Colors.grey, fontSize: 13))
-                else
-                  Flexible(
-                    child: SingleChildScrollView(
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: keywords
-                            .map((kw) => Chip(
-                                  label: Text(kw),
-                                  onDeleted: () =>
-                                      setState(() => keywords.remove(kw)),
-                                ))
-                            .toList(),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (keywords.isEmpty)
+                    Text(ld.noKeywordsDefined,
+                        style: const TextStyle(color: Colors.grey, fontSize: 13))
+                  else
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: keywords
+                              .map((kw) => Chip(
+                                    label: Text(kw),
+                                    onDeleted: () =>
+                                        setState(() => keywords.remove(kw)),
+                                  ))
+                              .toList(),
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Abbrechen'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                Navigator.pop(ctx);
-                try {
-                  await ref
-                      .read(organizationServiceProvider)
-                      .updateKeywords(orgId, keywords);
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Fehler: $e')),
-                    );
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(ld.cancel),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  try {
+                    await ref
+                        .read(organizationServiceProvider)
+                        .updateKeywords(orgId, keywords);
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(l.errorMessage(e.toString()))),
+                      );
+                    }
                   }
-                }
-              },
-              child: const Text('Speichern'),
-            ),
-          ],
-        ),
+                },
+                child: Text(ld.save),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -369,6 +465,7 @@ class _ChatsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
     final convsAsync = isAdmin
         ? ref.watch(adminConversationsProvider(org.id))
         : ref.watch(orgConversationsProvider(org.id));
@@ -390,7 +487,7 @@ class _ChatsTab extends ConsumerWidget {
 
     return convsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Fehler: $e')),
+      error: (e, _) => Center(child: Text(l.errorMessage(e.toString()))),
       data: (convs) {
         final approved =
             convs.where((c) => c.status == ConversationStatus.approved).toList();
@@ -430,7 +527,7 @@ class _ChatsTab extends ConsumerWidget {
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                             child: Text(
-                              'Chat-Anfragen deiner Kinder (${guardianPending.length})',
+                              l.childChatRequests(guardianPending.length),
                               style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.amber[800],
@@ -464,7 +561,7 @@ class _ChatsTab extends ConsumerWidget {
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                             child: Text(
-                              'Ausstehende Anfragen (${moderatorPending.length})',
+                              l.pendingRequests(moderatorPending.length),
                               style: TextStyle(
                                   fontSize: 12,
                                   color: Theme.of(context).colorScheme.primary,
@@ -504,7 +601,7 @@ class _ChatsTab extends ConsumerWidget {
                             Padding(
                               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                               child: Text(
-                                'Ausstehende Anfragen (${pending.length})',
+                                l.pendingRequests(pending.length),
                                 style: TextStyle(
                                     fontSize: 12,
                                     color: Theme.of(context).colorScheme.primary,
@@ -544,7 +641,7 @@ class _ChatsTab extends ConsumerWidget {
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                             child: Text(
-                              'Ausstehende Anfragen (${ownPendingConvs.length})',
+                              l.pendingRequests(ownPendingConvs.length),
                               style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey[600],
@@ -578,8 +675,8 @@ class _ChatsTab extends ConsumerWidget {
                           const SizedBox(height: 12),
                           Text(
                             org.chatMode == ChatMode.guardian
-                                ? 'Noch keine Chats.\nStelle eine Anfrage um zu starten.'
-                                : 'Noch keine Chats.\nDer Admin legt Verbindungen fest.',
+                                ? l.noChatsGuardian
+                                : l.noChatsSheltered,
                             textAlign: TextAlign.center,
                             style: const TextStyle(color: Colors.grey),
                           ),
@@ -620,7 +717,7 @@ class _ChatsTab extends ConsumerWidget {
                                 size: 14, color: Colors.grey[600]),
                             const SizedBox(width: 6),
                             Text(
-                              'Überwachte Chats (${allSupervisorConvs.length})',
+                              l.monitoredChats(allSupervisorConvs.length),
                               style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey[600],
@@ -663,7 +760,7 @@ class _ChatsTab extends ConsumerWidget {
                                 size: 14, color: Colors.grey[500]),
                             const SizedBox(width: 6),
                             Text(
-                              'Archiviert (${archivedConvs.length})',
+                              l.archivedChats(archivedConvs.length),
                               style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey[500],
@@ -707,7 +804,7 @@ class _ChatsTab extends ConsumerWidget {
                     heroTag: 'create_group',
                     onPressed: () => _showCreateGroupDialog(context, ref, org, members),
                     icon: const Icon(Icons.group_add_outlined),
-                    label: const Text('Gruppe erstellen'),
+                    label: Text(l.createGroup),
                   ),
                   orElse: () => const SizedBox(),
                 ),
@@ -721,6 +818,7 @@ class _ChatsTab extends ConsumerWidget {
 
 Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref,
     Organization org, List<OrgMember> members) async {
+  final l = AppLocalizations.of(context);
   final nameController = TextEditingController();
   final nonAdmins = members.where((m) => m.uid != org.adminUid).toList();
   final selected = <String>{};
@@ -728,61 +826,64 @@ Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref,
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (ctx) => StatefulBuilder(
-      builder: (ctx, setState) => AlertDialog(
-        title: const Text('Gruppe erstellen'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: nameController,
-                maxLength: 40,
-                decoration: const InputDecoration(
-                  labelText: 'Gruppenname',
-                  border: OutlineInputBorder(),
+      builder: (ctx, setState) {
+        final ld = AppLocalizations.of(ctx);
+        return AlertDialog(
+          title: Text(ld.createGroup),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameController,
+                  maxLength: 40,
+                  decoration: InputDecoration(
+                    labelText: ld.groupName,
+                    border: const OutlineInputBorder(),
+                  ),
+                  textCapitalization: TextCapitalization.words,
                 ),
-                textCapitalization: TextCapitalization.words,
-              ),
-              const SizedBox(height: 16),
-              const Text('Mitglieder hinzufügen',
-                  style: TextStyle(fontSize: 12, color: Colors.grey)),
-              const SizedBox(height: 8),
-              ...nonAdmins.map((m) => CheckboxListTile(
-                    value: selected.contains(m.uid),
-                    onChanged: (v) => setState(() =>
-                        v == true ? selected.add(m.uid) : selected.remove(m.uid)),
-                    title: Text(m.displayName),
-                    subtitle: Text(m.email,
-                        style: const TextStyle(fontSize: 12)),
-                    secondary: CircleAvatar(
-                      radius: 16,
-                      backgroundImage: m.photoUrl != null
-                          ? NetworkImage(m.photoUrl!)
-                          : null,
-                      child: m.photoUrl == null
-                          ? Text((m.displayName.isNotEmpty ? m.displayName[0] : '?').toUpperCase())
-                          : null,
-                    ),
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                  )),
-            ],
+                const SizedBox(height: 16),
+                Text(ld.addMembers,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 8),
+                ...nonAdmins.map((m) => CheckboxListTile(
+                      value: selected.contains(m.uid),
+                      onChanged: (v) => setState(() =>
+                          v == true ? selected.add(m.uid) : selected.remove(m.uid)),
+                      title: Text(m.displayName),
+                      subtitle: Text(m.email,
+                          style: const TextStyle(fontSize: 12)),
+                      secondary: CircleAvatar(
+                        radius: 16,
+                        backgroundImage: m.photoUrl != null
+                            ? NetworkImage(m.photoUrl!)
+                            : null,
+                        child: m.photoUrl == null
+                            ? Text((m.displayName.isNotEmpty ? m.displayName[0] : '?').toUpperCase())
+                            : null,
+                      ),
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                    )),
+              ],
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Abbrechen'),
-          ),
-          FilledButton(
-            onPressed: selected.isEmpty || nameController.text.trim().isEmpty
-                ? null
-                : () => Navigator.pop(ctx, true),
-            child: const Text('Erstellen'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(ld.cancel),
+            ),
+            FilledButton(
+              onPressed: selected.isEmpty || nameController.text.trim().isEmpty
+                  ? null
+                  : () => Navigator.pop(ctx, true),
+              child: Text(ld.create),
+            ),
+          ],
+        );
+      },
     ),
   );
 
@@ -796,7 +897,7 @@ Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref,
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler: $e')),
+          SnackBar(content: Text(l.errorMessage(e.toString()))),
         );
       }
     }
@@ -817,6 +918,7 @@ class _ChatTabLabel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
     final pendingCount = isAdminOrMod
         ? (ref.watch(pendingRequestsProvider(orgId)).value?.length ?? 0)
         : 0;
@@ -837,11 +939,11 @@ class _ChatTabLabel extends ConsumerWidget {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        const Column(
+        Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.chat_outlined),
-            Text('Chats', style: TextStyle(fontSize: 10)),
+            const Icon(Icons.chat_outlined),
+            Text(l.tabChats, style: const TextStyle(fontSize: 10)),
           ],
         ),
         if (totalCount > 0)
@@ -879,6 +981,7 @@ class _MembersTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef widgetRef) {
+    final l = AppLocalizations.of(context);
     final membersAsync = widgetRef.watch(orgMembersProvider(org.id));
     final pendingChildInvites =
         widgetRef.watch(pendingChildInvitesProvider(org.id)).value ?? [];
@@ -890,7 +993,7 @@ class _MembersTab extends ConsumerWidget {
 
     return membersAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Fehler: $e')),
+      error: (e, _) => Center(child: Text(l.errorMessage(e.toString()))),
       data: (members) {
         final currentUid = FirebaseAuth.instance.currentUser!.uid;
         final currentMember =
@@ -913,7 +1016,7 @@ class _MembersTab extends ConsumerWidget {
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                           child: Text(
-                            'Vorschläge (${pendingSuggestions.length})',
+                            l.suggestions(pendingSuggestions.length),
                             style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.blue[700],
@@ -939,7 +1042,7 @@ class _MembersTab extends ConsumerWidget {
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                           child: Text(
-                            'Ausstehende Kind-Einladungen (${pendingChildInvites.length + pendingPreRegInvites.length})',
+                            l.pendingChildInvitations(pendingChildInvites.length + pendingPreRegInvites.length),
                             style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.amber[800],
@@ -964,10 +1067,10 @@ class _MembersTab extends ConsumerWidget {
                   ),
                 // Mitgliederliste
                 activeMembers.isEmpty
-                    ? const SliverFillRemaining(
+                    ? SliverFillRemaining(
                         child: Center(
-                          child: Text('Noch keine Mitglieder',
-                              style: TextStyle(color: Colors.grey)),
+                          child: Text(l.noMembers,
+                              style: const TextStyle(color: Colors.grey)),
                         ),
                       )
                     : SliverPadding(
@@ -1021,7 +1124,7 @@ class _MembersTab extends ConsumerWidget {
                           ),
                         ),
                         icon: const Icon(Icons.upload_file_outlined),
-                        label: const Text('CSV importieren'),
+                        label: Text(l.csvImport),
                       ),
                     ),
                   FloatingActionButton.extended(
@@ -1029,7 +1132,7 @@ class _MembersTab extends ConsumerWidget {
                     onPressed: () =>
                         _showInviteDialog(context, widgetRef, members),
                     icon: const Icon(Icons.person_add_outlined),
-                    label: const Text('Mitglied einladen'),
+                    label: Text(l.inviteMember),
                   ),
                 ],
               ),
@@ -1043,7 +1146,7 @@ class _MembersTab extends ConsumerWidget {
                 onPressed: () =>
                     _showSuggestDialog(context, widgetRef, members),
                 icon: const Icon(Icons.person_add_outlined),
-                label: const Text('Mitglied vorschlagen'),
+                label: Text(l.suggestMember),
               ),
             ),
           if (org.chatMode == ChatMode.guardian && !isAdmin && !isModerator && !isRegularMember)
@@ -1055,7 +1158,7 @@ class _MembersTab extends ConsumerWidget {
                 onPressed: () =>
                     _showChatRequestDialog(context, widgetRef, members),
                 icon: const Icon(Icons.chat_outlined),
-                label: const Text('Chat anfragen'),
+                label: Text(l.requestChat),
               ),
             ),
         ],
@@ -1066,16 +1169,11 @@ class _MembersTab extends ConsumerWidget {
 
   Future<void> _showInviteDialog(
       BuildContext context, WidgetRef ref, List<OrgMember> members) async {
+    final l = AppLocalizations.of(context);
     final emailController = TextEditingController();
     OrgRole selectedRole = OrgRole.member;
     final selectedGuardians = <OrgMember>{};
     bool emailValid = false;
-
-    final roleLabels = {
-      OrgRole.moderator: 'Moderator',
-      OrgRole.member: 'Mitglied',
-      OrgRole.child: 'Kind',
-    };
 
     // Mögliche Guardians: aktive Mitglieder und Moderatoren (keine Kinder)
     final possibleGuardians = members
@@ -1087,122 +1185,130 @@ class _MembersTab extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('Mitglied einladen'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: emailController,
-                  autofocus: true,
-                  keyboardType: TextInputType.emailAddress,
-                  onChanged: (v) => setState(() {
-                    emailValid = RegExp(
-                      r'^[\w.+\-]+@[\w\-]+\.[\w.\-]+$',
-                    ).hasMatch(v.trim());
-                  }),
-                  decoration: InputDecoration(
-                    labelText: 'E-Mail-Adresse',
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.email_outlined),
-                    errorText: emailController.text.isNotEmpty && !emailValid
-                        ? 'Ungültige E-Mail-Adresse'
-                        : null,
+        builder: (ctx, setState) {
+          final ld = AppLocalizations.of(ctx);
+          final roleLabels = {
+            OrgRole.moderator: ld.roleModerator,
+            OrgRole.member: ld.roleMember,
+            OrgRole.child: ld.roleChild,
+          };
+          return AlertDialog(
+            title: Text(ld.inviteMember),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: emailController,
+                    autofocus: true,
+                    keyboardType: TextInputType.emailAddress,
+                    onChanged: (v) => setState(() {
+                      emailValid = RegExp(
+                        r'^[\w.+\-]+@[\w\-]+\.[\w.\-]+$',
+                      ).hasMatch(v.trim());
+                    }),
+                    decoration: InputDecoration(
+                      labelText: ld.emailAddress,
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.email_outlined),
+                      errorText: emailController.text.isNotEmpty && !emailValid
+                          ? ld.invalidEmailAddress
+                          : null,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Rolle',
-                      style: TextStyle(fontSize: 12, color: Colors.grey)),
-                ),
-                const SizedBox(height: 8),
-                SegmentedButton<OrgRole>(
-                  segments: roleLabels.entries
-                      .map((e) => ButtonSegment(
-                            value: e.key,
-                            label: Text(e.value),
-                          ))
-                      .toList(),
-                  selected: {selectedRole},
-                  onSelectionChanged: (s) => setState(() {
-                    selectedRole = s.first;
-                    if (selectedRole != OrgRole.child) selectedGuardians.clear();
-                  }),
-                ),
-                if (selectedRole == OrgRole.child) ...[
                   const SizedBox(height: 16),
-                  const Align(
+                  Align(
                     alignment: Alignment.centerLeft,
-                    child: Text('Guardians (Elternteile)',
-                        style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.amber.withAlpha(20),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.amber.shade300),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.info_outline,
-                            size: 14, color: Colors.amber[800]),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            'Das Kind wird erst hinzugefügt, wenn ein Guardian zustimmt.',
-                            style: TextStyle(
-                                fontSize: 11, color: Colors.amber[900]),
-                          ),
-                        ),
-                      ],
-                    ),
+                    child: Text(ld.role,
+                        style: const TextStyle(fontSize: 12, color: Colors.grey)),
                   ),
                   const SizedBox(height: 8),
-                  if (possibleGuardians.isEmpty)
-                    const Text(
-                      'Keine Mitglieder als Guardian verfügbar.',
-                      style: TextStyle(fontSize: 12, color: Colors.red),
-                    )
-                  else
-                    ...possibleGuardians.map((m) => CheckboxListTile(
-                          value: selectedGuardians.contains(m),
-                          title: Text(m.displayName),
-                          subtitle: Text(m.email,
-                              style: const TextStyle(fontSize: 11)),
-                          secondary: const Icon(Icons.shield_outlined),
-                          contentPadding: EdgeInsets.zero,
-                          onChanged: (checked) => setState(() {
-                            if (checked == true) {
-                              selectedGuardians.add(m);
-                            } else {
-                              selectedGuardians.remove(m);
-                            }
-                          }),
-                        )),
+                  SegmentedButton<OrgRole>(
+                    segments: roleLabels.entries
+                        .map((e) => ButtonSegment(
+                              value: e.key,
+                              label: Text(e.value),
+                            ))
+                        .toList(),
+                    selected: {selectedRole},
+                    onSelectionChanged: (s) => setState(() {
+                      selectedRole = s.first;
+                      if (selectedRole != OrgRole.child) selectedGuardians.clear();
+                    }),
+                  ),
+                  if (selectedRole == OrgRole.child) ...[
+                    const SizedBox(height: 16),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(ld.guardians,
+                          style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withAlpha(20),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.amber.shade300),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline,
+                              size: 14, color: Colors.amber[800]),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              ld.childGuardianHint,
+                              style: TextStyle(
+                                  fontSize: 11, color: Colors.amber[900]),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (possibleGuardians.isEmpty)
+                      Text(
+                        ld.noGuardiansAvailable,
+                        style: const TextStyle(fontSize: 12, color: Colors.red),
+                      )
+                    else
+                      ...possibleGuardians.map((m) => CheckboxListTile(
+                            value: selectedGuardians.contains(m),
+                            title: Text(m.displayName),
+                            subtitle: Text(m.email,
+                                style: const TextStyle(fontSize: 11)),
+                            secondary: const Icon(Icons.shield_outlined),
+                            contentPadding: EdgeInsets.zero,
+                            onChanged: (checked) => setState(() {
+                              if (checked == true) {
+                                selectedGuardians.add(m);
+                              } else {
+                                selectedGuardians.remove(m);
+                              }
+                            }),
+                          )),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Abbrechen'),
-            ),
-            FilledButton(
-              onPressed: (!emailValid ||
-                      (selectedRole == OrgRole.child &&
-                          selectedGuardians.isEmpty))
-                  ? null
-                  : () => Navigator.pop(ctx, true),
-              child: const Text('Einladen'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(ld.cancel),
+              ),
+              FilledButton(
+                onPressed: (!emailValid ||
+                        (selectedRole == OrgRole.child &&
+                            selectedGuardians.isEmpty))
+                    ? null
+                    : () => Navigator.pop(ctx, true),
+                child: Text(ld.invite),
+              ),
+            ],
+          );
+        },
       ),
     );
 
@@ -1220,15 +1326,15 @@ class _MembersTab extends ConsumerWidget {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(selectedRole == OrgRole.child
-                  ? 'Einladung gesendet. Das Kind wird nach Registrierung und Guardian-Zustimmung hinzugefügt.'
-                  : 'Einladung gesendet.'),
+                  ? l.inviteSentChild
+                  : l.inviteSent),
             ),
           );
         }
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Fehler: $e')),
+            SnackBar(content: Text(l.errorMessage(e.toString()))),
           );
         }
       }
@@ -1237,6 +1343,7 @@ class _MembersTab extends ConsumerWidget {
 
   Future<void> _showChatRequestDialog(
       BuildContext context, WidgetRef ref, List<OrgMember> members) async {
+    final l = AppLocalizations.of(context);
     final currentUid = FirebaseAuth.instance.currentUser!.uid;
     final others = members.where((m) => m.uid != currentUid).toList();
     if (others.isEmpty) {
@@ -1251,78 +1358,81 @@ class _MembersTab extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('Chat anfragen'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Mit wem möchtest du chatten?',
-                  style: TextStyle(fontSize: 13, color: Colors.grey)),
-              const SizedBox(height: 12),
-              ...others.map((m) {
-                final isSelected = selected == m;
-                return InkWell(
-                  onTap: () => setState(() => selected = m),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundImage: m.photoUrl != null ? NetworkImage(m.photoUrl!) : null,
-                          child: m.photoUrl == null ? Text((m.displayName.isNotEmpty ? m.displayName[0] : '?').toUpperCase()) : null,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(m.displayName, style: const TextStyle(fontWeight: FontWeight.w500)),
-                              Text(m.email, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                            ],
+        builder: (ctx, setState) {
+          final ld = AppLocalizations.of(ctx);
+          return AlertDialog(
+            title: Text(ld.requestChat),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(ld.requestChatSubtitle,
+                    style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                const SizedBox(height: 12),
+                ...others.map((m) {
+                  final isSelected = selected == m;
+                  return InkWell(
+                    onTap: () => setState(() => selected = m),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundImage: m.photoUrl != null ? NetworkImage(m.photoUrl!) : null,
+                            child: m.photoUrl == null ? Text((m.displayName.isNotEmpty ? m.displayName[0] : '?').toUpperCase()) : null,
                           ),
-                        ),
-                        if (isSelected) const Icon(Icons.check_circle, color: Colors.blue),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withAlpha(20),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline,
-                        size: 16, color: Colors.blue),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Deine Anfrage wird von einem Admin oder Moderator geprüft.',
-                        style: TextStyle(fontSize: 12, color: Colors.blue),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(m.displayName, style: const TextStyle(fontWeight: FontWeight.w500)),
+                                Text(m.email, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                              ],
+                            ),
+                          ),
+                          if (isSelected) const Icon(Icons.check_circle, color: Colors.blue),
+                        ],
                       ),
                     ),
-                  ],
+                  );
+                }),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withAlpha(20),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline,
+                          size: 16, color: Colors.blue),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          ld.requestChatHint,
+                          style: const TextStyle(fontSize: 12, color: Colors.blue),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(ld.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(ld.requestChatButton),
               ),
             ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Abbrechen'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Anfragen'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
 
@@ -1333,13 +1443,13 @@ class _MembersTab extends ConsumerWidget {
             .requestConversation(org.id, selected!.uid);
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Chat-Anfrage wurde gesendet.')),
+            SnackBar(content: Text(l.chatRequestSent)),
           );
         }
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Fehler: $e')),
+            SnackBar(content: Text(l.errorMessage(e.toString()))),
           );
         }
       }
@@ -1348,15 +1458,11 @@ class _MembersTab extends ConsumerWidget {
 
   Future<void> _showSuggestDialog(
       BuildContext context, WidgetRef ref, List<OrgMember> members) async {
+    final l = AppLocalizations.of(context);
     final emailController = TextEditingController();
     OrgRole selectedRole = OrgRole.member;
     OrgMember? selectedGuardian;
     bool emailValid = false;
-
-    final roleLabels = {
-      OrgRole.member: 'Mitglied',
-      OrgRole.child: 'Kind',
-    };
 
     final possibleGuardians = members
         .where((m) =>
@@ -1366,99 +1472,106 @@ class _MembersTab extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('Mitglied vorschlagen'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: emailController,
-                  autofocus: true,
-                  keyboardType: TextInputType.emailAddress,
-                  onChanged: (v) => setState(() {
-                    emailValid = RegExp(
-                      r'^[\w.+\-]+@[\w\-]+\.[\w.\-]+$',
-                    ).hasMatch(v.trim());
-                  }),
-                  decoration: InputDecoration(
-                    labelText: 'E-Mail-Adresse',
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.email_outlined),
-                    errorText: emailController.text.isNotEmpty && !emailValid
-                        ? 'Ungültige E-Mail-Adresse'
-                        : null,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Rolle',
-                      style: TextStyle(fontSize: 12, color: Colors.grey)),
-                ),
-                const SizedBox(height: 8),
-                SegmentedButton<OrgRole>(
-                  segments: roleLabels.entries
-                      .map((e) => ButtonSegment(
-                            value: e.key,
-                            label: Text(e.value),
-                          ))
-                      .toList(),
-                  selected: {selectedRole},
-                  onSelectionChanged: (s) => setState(() {
-                    selectedRole = s.first;
-                    if (selectedRole != OrgRole.child) selectedGuardian = null;
-                  }),
-                ),
-                if (selectedRole == OrgRole.child) ...[
-                  const SizedBox(height: 16),
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text('Guardian',
-                        style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  ),
-                  const SizedBox(height: 4),
-                  if (possibleGuardians.isEmpty)
-                    const Text(
-                      'Keine Mitglieder als Guardian verfügbar.',
-                      style: TextStyle(fontSize: 12, color: Colors.red),
-                    )
-                  else
-                    DropdownButtonFormField<OrgMember>(
-                      initialValue: selectedGuardian,
-                      hint: const Text('Guardian wählen'),
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.shield_outlined),
-                      ),
-                      items: possibleGuardians
-                          .map((m) => DropdownMenuItem(
-                                value: m,
-                                child: Text(m.displayName),
-                              ))
-                          .toList(),
-                      onChanged: (m) => setState(() => selectedGuardian = m),
+        builder: (ctx, setState) {
+          final ld = AppLocalizations.of(ctx);
+          final roleLabels = {
+            OrgRole.member: ld.roleMember,
+            OrgRole.child: ld.roleChild,
+          };
+          return AlertDialog(
+            title: Text(ld.suggestMemberTitle),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: emailController,
+                    autofocus: true,
+                    keyboardType: TextInputType.emailAddress,
+                    onChanged: (v) => setState(() {
+                      emailValid = RegExp(
+                        r'^[\w.+\-]+@[\w\-]+\.[\w.\-]+$',
+                      ).hasMatch(v.trim());
+                    }),
+                    decoration: InputDecoration(
+                      labelText: ld.emailAddress,
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.email_outlined),
+                      errorText: emailController.text.isNotEmpty && !emailValid
+                          ? ld.invalidEmailAddress
+                          : null,
                     ),
+                  ),
+                  const SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(ld.role,
+                        style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  ),
+                  const SizedBox(height: 8),
+                  SegmentedButton<OrgRole>(
+                    segments: roleLabels.entries
+                        .map((e) => ButtonSegment(
+                              value: e.key,
+                              label: Text(e.value),
+                            ))
+                        .toList(),
+                    selected: {selectedRole},
+                    onSelectionChanged: (s) => setState(() {
+                      selectedRole = s.first;
+                      if (selectedRole != OrgRole.child) selectedGuardian = null;
+                    }),
+                  ),
+                  if (selectedRole == OrgRole.child) ...[
+                    const SizedBox(height: 16),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(ld.guardian,
+                          style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    ),
+                    const SizedBox(height: 4),
+                    if (possibleGuardians.isEmpty)
+                      Text(
+                        ld.noGuardiansAvailable,
+                        style: const TextStyle(fontSize: 12, color: Colors.red),
+                      )
+                    else
+                      DropdownButtonFormField<OrgMember>(
+                        initialValue: selectedGuardian,
+                        hint: const Text('Guardian wählen'),
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.shield_outlined),
+                        ),
+                        items: possibleGuardians
+                            .map((m) => DropdownMenuItem(
+                                  value: m,
+                                  child: Text(m.displayName),
+                                ))
+                            .toList(),
+                        onChanged: (m) => setState(() => selectedGuardian = m),
+                      ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Abbrechen'),
-            ),
-            FilledButton(
-              onPressed: (!emailValid ||
-                      (selectedRole == OrgRole.child &&
-                          selectedGuardian == null))
-                  ? null
-                  : () => Navigator.pop(ctx, true),
-              child: const Text('Vorschlagen'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(ld.cancel),
+              ),
+              FilledButton(
+                onPressed: (!emailValid ||
+                        (selectedRole == OrgRole.child &&
+                            selectedGuardian == null))
+                    ? null
+                    : () => Navigator.pop(ctx, true),
+                child: Text(ld.suggest),
+              ),
+            ],
+          );
+        },
       ),
     );
 
@@ -1474,15 +1587,15 @@ class _MembersTab extends ConsumerWidget {
             );
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Vorschlag wurde eingereicht und wartet auf Genehmigung.'),
+            SnackBar(
+              content: Text(l.suggestionSent),
             ),
           );
         }
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Fehler: $e')),
+            SnackBar(content: Text(l.errorMessage(e.toString()))),
           );
         }
       }
@@ -1507,6 +1620,7 @@ class _SuggestionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final guardianNames = suggestion.guardianUids
         .map((uid) =>
             allMembers.where((m) => m.uid == uid).firstOrNull?.displayName ??
@@ -1531,7 +1645,7 @@ class _SuggestionTile extends StatelessWidget {
                 Text(
                   suggestion.role == OrgRole.child
                       ? 'Kind · Guardian: ${guardianNames.isNotEmpty ? guardianNames : '–'}'
-                      : 'Mitglied',
+                      : l.roleMember,
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 Text(
@@ -1551,12 +1665,12 @@ class _SuggestionTile extends StatelessWidget {
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Fehler: $e')),
+                    SnackBar(content: Text(l.errorMessage(e.toString()))),
                   );
                 }
               }
             },
-            child: const Text('Ablehnen'),
+            child: Text(l.reject),
           ),
           FilledButton(
             onPressed: () async {
@@ -1572,18 +1686,18 @@ class _SuggestionTile extends StatelessWidget {
                     );
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Einladung gesendet.')),
+                    SnackBar(content: Text(l.inviteSent)),
                   );
                 }
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Fehler: $e')),
+                    SnackBar(content: Text(l.errorMessage(e.toString()))),
                   );
                 }
               }
             },
-            child: const Text('Annehmen'),
+            child: Text(l.accept),
           ),
         ],
       ),
@@ -1599,6 +1713,7 @@ class _OrgNotificationToggle extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
     final interval =
         ref.watch(orgMessageIntervalProvider(orgId)).value ??
             MessageAlertInterval.always;
@@ -1609,7 +1724,7 @@ class _OrgNotificationToggle extends ConsumerWidget {
         muted ? Icons.notifications_off_outlined : Icons.notifications_outlined,
         color: muted ? Colors.grey : null,
       ),
-      tooltip: 'Benachrichtigungen dieser Org',
+      tooltip: l.orgNotificationsTitle,
       onPressed: () => _showIntervalSheet(context, ref, interval),
     );
   }
@@ -1621,41 +1736,44 @@ class _OrgNotificationToggle extends ConsumerWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(
-                'Benachrichtigungen dieser Org',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+      builder: (ctx) {
+        final ld = AppLocalizations.of(ctx);
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Text(
+                  ld.orgNotificationsTitle,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
               ),
-            ),
-            RadioGroup<MessageAlertInterval>(
-              groupValue: current,
-              onChanged: (v) async {
-                Navigator.pop(ctx);
-                if (v == null) return;
-                await ref
-                    .read(organizationServiceProvider)
-                    .setOrgMessageInterval(orgId, v);
-              },
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: MessageAlertInterval.values
-                    .map((interval) => RadioListTile<MessageAlertInterval>(
-                          title: Text(interval.label),
-                          value: interval,
-                        ))
-                    .toList(),
+              RadioGroup<MessageAlertInterval>(
+                groupValue: current,
+                onChanged: (v) async {
+                  Navigator.pop(ctx);
+                  if (v == null) return;
+                  await ref
+                      .read(organizationServiceProvider)
+                      .setOrgMessageInterval(orgId, v);
+                },
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: MessageAlertInterval.values
+                      .map((interval) => RadioListTile<MessageAlertInterval>(
+                            title: Text(interval.label),
+                            value: interval,
+                          ))
+                      .toList(),
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -1684,6 +1802,7 @@ class _ConversationTile extends StatelessWidget {
   });
 
   void _showOptions(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final isArchived = conv.status == ConversationStatus.archived;
     showModalBottomSheet(
       context: context,
@@ -1694,19 +1813,19 @@ class _ConversationTile extends StatelessWidget {
             if (!isArchived && onArchive != null)
               ListTile(
                 leading: const Icon(Icons.archive_outlined),
-                title: const Text('Archivieren'),
+                title: Text(l.archive),
                 onTap: () { Navigator.pop(ctx); onArchive!(); },
               ),
             if (isArchived && onUnarchive != null)
               ListTile(
                 leading: const Icon(Icons.unarchive_outlined),
-                title: const Text('Aus Archiv wiederherstellen'),
+                title: Text(l.restore),
                 onTap: () { Navigator.pop(ctx); onUnarchive!(); },
               ),
             if (onDelete != null)
               ListTile(
                 leading: const Icon(Icons.delete_outline, color: Colors.red),
-                title: const Text('Löschen', style: TextStyle(color: Colors.red)),
+                title: Text(l.delete, style: const TextStyle(color: Colors.red)),
                 onTap: () { Navigator.pop(ctx); onDelete!(); },
               ),
           ],
@@ -1717,6 +1836,7 @@ class _ConversationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final isArchived = conv.status == ConversationStatus.archived;
     final String title;
     final Widget avatar;
@@ -1800,7 +1920,7 @@ class _ConversationTile extends StatelessWidget {
                   : hasUnread
                       ? const TextStyle(fontWeight: FontWeight.w500)
                       : null)
-          : Text('Noch keine Nachrichten',
+          : Text(l.noMessages,
               style: TextStyle(color: isArchived ? Colors.grey[400] : Colors.grey)),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1866,6 +1986,7 @@ class _PendingRequestTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final requester =
         members.where((m) => m.uid == conv.requestedBy).firstOrNull;
     final other = members
@@ -1881,18 +2002,18 @@ class _PendingRequestTile extends StatelessWidget {
       ),
       title: Text(
           '${requester?.displayName ?? '?'} → ${other?.displayName ?? '?'}'),
-      subtitle: const Text('Wartet auf Genehmigung'),
+      subtitle: Text(l.pendingApproval),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
             icon: const Icon(Icons.check_circle_outline, color: Colors.green),
-            tooltip: 'Genehmigen',
+            tooltip: l.approveTooltip,
             onPressed: onApprove,
           ),
           IconButton(
             icon: const Icon(Icons.cancel_outlined, color: Colors.red),
-            tooltip: 'Ablehnen',
+            tooltip: l.rejectTooltip,
             onPressed: onReject,
           ),
         ],
@@ -1920,11 +2041,11 @@ class _MemberTile extends StatelessWidget {
     required this.currentUid,
   });
 
-  String _roleLabel(OrgRole role) => switch (role) {
-        OrgRole.admin => 'Admin',
-        OrgRole.moderator => 'Moderator',
-        OrgRole.member => 'Mitglied',
-        OrgRole.child => 'Kind',
+  String _roleLabel(OrgRole role, AppLocalizations l) => switch (role) {
+        OrgRole.admin => l.roleAdmin,
+        OrgRole.moderator => l.roleModerator,
+        OrgRole.member => l.roleMember,
+        OrgRole.child => l.roleChild,
       };
 
   Color _roleColor(OrgRole role) => switch (role) {
@@ -1935,6 +2056,7 @@ class _MemberTile extends StatelessWidget {
       };
 
   void _showOptions(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final isOwnTile = member.uid == currentUid;
     final isGuardian = member.guardianUids.contains(currentUid);
     final isMod = !isAdmin &&
@@ -1953,7 +2075,7 @@ class _MemberTile extends StatelessWidget {
             if (isOwnTile)
               ListTile(
                 leading: const Icon(Icons.notifications_outlined),
-                title: const Text('Benachrichtigungseinstellungen'),
+                title: Text(l.notificationSettings),
                 onTap: () {
                   Navigator.pop(context);
                   _showAlertIntervalDialog(context);
@@ -1962,8 +2084,8 @@ class _MemberTile extends StatelessWidget {
             if (isOwnTile)
               ListTile(
                 leading: const Icon(Icons.exit_to_app, color: Colors.red),
-                title: const Text('Organisation verlassen',
-                    style: TextStyle(color: Colors.red)),
+                title: Text(l.leaveOrganization,
+                    style: const TextStyle(color: Colors.red)),
                 onTap: () {
                   Navigator.pop(context);
                   _confirmLeave(context);
@@ -1973,7 +2095,7 @@ class _MemberTile extends StatelessWidget {
             if ((isMod || isAdmin) && !isOwnTile && member.role == OrgRole.child)
               ListTile(
                 leading: const Icon(Icons.shield_outlined),
-                title: const Text('Guardians ändern'),
+                title: Text(l.changeGuardians),
                 onTap: () {
                   Navigator.pop(context);
                   _showGuardiansDialog(context);
@@ -1983,7 +2105,7 @@ class _MemberTile extends StatelessWidget {
             if (!isAdmin && !isOwnTile && isGuardian)
               ListTile(
                 leading: const Icon(Icons.chat_outlined),
-                title: const Text('Chat starten'),
+                title: Text(l.startChat),
                 onTap: () {
                   Navigator.pop(context);
                   _startAdminChat(context);
@@ -1993,7 +2115,7 @@ class _MemberTile extends StatelessWidget {
             if (!isAdmin && !isOwnTile && !isGuardian && org.chatMode == ChatMode.guardian)
               ListTile(
                 leading: const Icon(Icons.chat_outlined),
-                title: const Text('Chat anfragen'),
+                title: Text(l.requestChat),
                 onTap: () {
                   Navigator.pop(context);
                   _requestChat(context);
@@ -2003,7 +2125,7 @@ class _MemberTile extends StatelessWidget {
             if (isAdmin && !isOwnTile && member.role != OrgRole.admin) ...[
               ListTile(
                 leading: const Icon(Icons.chat_outlined),
-                title: const Text('Chat starten'),
+                title: Text(l.startChat),
                 onTap: () {
                   Navigator.pop(context);
                   _startAdminChat(context);
@@ -2011,7 +2133,7 @@ class _MemberTile extends StatelessWidget {
               ),
               ListTile(
                 leading: const Icon(Icons.swap_horiz),
-                title: const Text('Rolle ändern'),
+                title: Text(l.changeRole),
                 onTap: () {
                   Navigator.pop(context);
                   _showRoleDialog(context);
@@ -2020,8 +2142,8 @@ class _MemberTile extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.admin_panel_settings_outlined,
                     color: Colors.orange),
-                title: const Text('Admin-Rolle übertragen',
-                    style: TextStyle(color: Colors.orange)),
+                title: Text(l.transferAdmin,
+                    style: const TextStyle(color: Colors.orange)),
                 onTap: () {
                   Navigator.pop(context);
                   _confirmTransferAdmin(context);
@@ -2029,7 +2151,7 @@ class _MemberTile extends StatelessWidget {
               ),
               ListTile(
                 leading: const Icon(Icons.person_remove_outlined, color: Colors.red),
-                title: const Text('Entfernen', style: TextStyle(color: Colors.red)),
+                title: Text(l.remove, style: const TextStyle(color: Colors.red)),
                 onTap: () {
                   Navigator.pop(context);
                   _confirmRemove(context);
@@ -2037,9 +2159,9 @@ class _MemberTile extends StatelessWidget {
               ),
             ],
             if (!isOwnTile && !isGuardian && !isAdmin && !isMod)
-              const ListTile(
-                title: Text('Keine Aktionen verfügbar.',
-                    style: TextStyle(color: Colors.grey)),
+              ListTile(
+                title: Text(l.noActionsAvailable,
+                    style: const TextStyle(color: Colors.grey)),
               ),
           ],
         ),
@@ -2056,35 +2178,38 @@ class _MemberTile extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: Text('Guardians für ${member.displayName}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: possibleGuardians.map((g) {
-              return CheckboxListTile(
-                value: selected.contains(g.uid),
-                title: Text(g.displayName),
-                subtitle: Text(g.email, style: const TextStyle(fontSize: 11)),
-                secondary: const Icon(Icons.shield_outlined),
-                contentPadding: EdgeInsets.zero,
-                onChanged: (v) => setState(() {
-                  if (v == true) { selected.add(g.uid); }
-                  else { selected.remove(g.uid); }
-                }),
-              );
-            }).toList(),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Abbrechen'),
+        builder: (ctx, setState) {
+          final ld = AppLocalizations.of(ctx);
+          return AlertDialog(
+            title: Text(ld.guardiansFor(member.displayName)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: possibleGuardians.map((g) {
+                return CheckboxListTile(
+                  value: selected.contains(g.uid),
+                  title: Text(g.displayName),
+                  subtitle: Text(g.email, style: const TextStyle(fontSize: 11)),
+                  secondary: const Icon(Icons.shield_outlined),
+                  contentPadding: EdgeInsets.zero,
+                  onChanged: (v) => setState(() {
+                    if (v == true) { selected.add(g.uid); }
+                    else { selected.remove(g.uid); }
+                  }),
+                );
+              }).toList(),
             ),
-            FilledButton(
-              onPressed: selected.isEmpty ? null : () => Navigator.pop(ctx, true),
-              child: const Text('Speichern'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(ld.cancel),
+              ),
+              FilledButton(
+                onPressed: selected.isEmpty ? null : () => Navigator.pop(ctx, true),
+                child: Text(ld.save),
+              ),
+            ],
+          );
+        },
       ),
     );
     if (confirmed == true) {
@@ -2094,25 +2219,27 @@ class _MemberTile extends StatelessWidget {
   }
 
   Future<void> _requestChat(BuildContext context) async {
+    final l = AppLocalizations.of(context);
     try {
       await ref
           .read(chatServiceProvider)
           .requestConversation(org.id, member.uid);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Chat-Anfrage wurde gesendet.')),
+          SnackBar(content: Text(l.chatRequestSent)),
         );
       }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler: $e')),
+          SnackBar(content: Text(l.errorMessage(e.toString()))),
         );
       }
     }
   }
 
   Future<void> _startAdminChat(BuildContext context) async {
+    final l = AppLocalizations.of(context);
     try {
       final conv = await ref
           .read(chatServiceProvider)
@@ -2123,7 +2250,7 @@ class _MemberTile extends StatelessWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler: $e')),
+          SnackBar(content: Text(l.errorMessage(e.toString()))),
         );
       }
     }
@@ -2131,35 +2258,38 @@ class _MemberTile extends StatelessWidget {
 
   Future<void> _showRoleDialog(BuildContext context) async {
     OrgRole selected = member.role;
-    final roleLabels = {
-      OrgRole.moderator: 'Moderator',
-      OrgRole.member: 'Mitglied',
-      OrgRole.child: 'Kind',
-    };
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: Text('Rolle für ${member.displayName}'),
-          content: SegmentedButton<OrgRole>(
-            segments: roleLabels.entries
-                .map((e) =>
-                    ButtonSegment(value: e.key, label: Text(e.value)))
-                .toList(),
-            selected: {selected},
-            onSelectionChanged: (s) => setState(() => selected = s.first),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Abbrechen'),
+        builder: (ctx, setState) {
+          final ld = AppLocalizations.of(ctx);
+          final roleLabels = {
+            OrgRole.moderator: ld.roleModerator,
+            OrgRole.member: ld.roleMember,
+            OrgRole.child: ld.roleChild,
+          };
+          return AlertDialog(
+            title: Text(ld.roleFor(member.displayName)),
+            content: SegmentedButton<OrgRole>(
+              segments: roleLabels.entries
+                  .map((e) =>
+                      ButtonSegment(value: e.key, label: Text(e.value)))
+                  .toList(),
+              selected: {selected},
+              onSelectionChanged: (s) => setState(() => selected = s.first),
             ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Speichern'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(ld.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(ld.save),
+              ),
+            ],
+          );
+        },
       ),
     );
     if (confirmed != true || selected == member.role) return;
@@ -2184,48 +2314,51 @@ class _MemberTile extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: Text('Guardian für ${member.displayName}'),
-          content: possibleGuardians.isEmpty
-              ? const Text('Keine möglichen Guardians in dieser Organisation.')
-              : Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Wähle mindestens einen Guardian für dieses Kind:',
-                      style: TextStyle(fontSize: 13),
-                    ),
-                    const SizedBox(height: 8),
-                    ...possibleGuardians.map((g) => CheckboxListTile(
-                          value: selected.contains(g.uid),
-                          title: Text(g.displayName),
-                          subtitle: Text(g.email,
-                              style: const TextStyle(fontSize: 11)),
-                          secondary: const Icon(Icons.shield_outlined),
-                          contentPadding: EdgeInsets.zero,
-                          onChanged: (v) => setState(() {
-                            if (v == true) {
-                              selected.add(g.uid);
-                            } else {
-                              selected.remove(g.uid);
-                            }
-                          }),
-                        )),
-                  ],
-                ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Abbrechen'),
-            ),
-            FilledButton(
-              onPressed: possibleGuardians.isEmpty || selected.isNotEmpty
-                  ? () => Navigator.pop(ctx, true)
-                  : null,
-              child: const Text('Speichern'),
-            ),
-          ],
-        ),
+        builder: (ctx, setState) {
+          final ld = AppLocalizations.of(ctx);
+          return AlertDialog(
+            title: Text(ld.guardianFor(member.displayName)),
+            content: possibleGuardians.isEmpty
+                ? Text(ld.noGuardiansInOrg)
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        ld.selectGuardianHint,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      const SizedBox(height: 8),
+                      ...possibleGuardians.map((g) => CheckboxListTile(
+                            value: selected.contains(g.uid),
+                            title: Text(g.displayName),
+                            subtitle: Text(g.email,
+                                style: const TextStyle(fontSize: 11)),
+                            secondary: const Icon(Icons.shield_outlined),
+                            contentPadding: EdgeInsets.zero,
+                            onChanged: (v) => setState(() {
+                              if (v == true) {
+                                selected.add(g.uid);
+                              } else {
+                                selected.remove(g.uid);
+                              }
+                            }),
+                          )),
+                    ],
+                  ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(ld.cancel),
+              ),
+              FilledButton(
+                onPressed: possibleGuardians.isEmpty || selected.isNotEmpty
+                    ? () => Navigator.pop(ctx, true)
+                    : null,
+                child: Text(ld.save),
+              ),
+            ],
+          );
+        },
       ),
     );
 
@@ -2241,21 +2374,24 @@ class _MemberTile extends StatelessWidget {
   Future<void> _confirmRemove(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Mitglied entfernen'),
-        content: Text('${member.displayName} wirklich entfernen?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Abbrechen'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Entfernen'),
-          ),
-        ],
-      ),
+      builder: (ctx) {
+        final ld = AppLocalizations.of(ctx);
+        return AlertDialog(
+          title: Text(ld.removeMemberTitle),
+          content: Text(ld.removeMemberContent(member.displayName)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(ld.cancel),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(ld.remove),
+            ),
+          ],
+        );
+      },
     );
     if (confirmed == true) {
       await ref
@@ -2267,22 +2403,24 @@ class _MemberTile extends StatelessWidget {
   Future<void> _confirmLeave(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Organisation verlassen'),
-        content: Text(
-            'Möchtest du die Organisation "${org.name}" wirklich verlassen?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Abbrechen'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Verlassen'),
-          ),
-        ],
-      ),
+      builder: (ctx) {
+        final ld = AppLocalizations.of(ctx);
+        return AlertDialog(
+          title: Text(ld.leaveOrgTitle),
+          content: Text(ld.leaveOrgContent(org.name)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(ld.cancel),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(ld.leave),
+            ),
+          ],
+        );
+      },
     );
     if (confirmed == true && context.mounted) {
       try {
@@ -2300,26 +2438,27 @@ class _MemberTile extends StatelessWidget {
   }
 
   Future<void> _confirmTransferAdmin(BuildContext context) async {
+    final l = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Admin-Rolle übertragen'),
-        content: Text(
-          'Möchtest du die Admin-Rolle an ${member.displayName} übertragen?\n\n'
-          'Du wirst danach ein normales Mitglied dieser Organisation.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Abbrechen'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.orange),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Übertragen'),
-          ),
-        ],
-      ),
+      builder: (ctx) {
+        final ld = AppLocalizations.of(ctx);
+        return AlertDialog(
+          title: Text(ld.transferAdminTitle),
+          content: Text(ld.transferAdminContent(member.displayName)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(ld.cancel),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.orange),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(ld.transfer),
+            ),
+          ],
+        );
+      },
     );
     if (confirmed == true) {
       try {
@@ -2329,7 +2468,7 @@ class _MemberTile extends StatelessWidget {
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Fehler: $e')),
+            SnackBar(content: Text(l.errorMessage(e.toString()))),
           );
         }
       }
@@ -2338,6 +2477,7 @@ class _MemberTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     // Alle Guardians des Kindes ermitteln
     final guardians = member.role == OrgRole.child
         ? allMembers.where((m) => member.guardianUids.contains(m.uid)).toList()
@@ -2384,7 +2524,7 @@ class _MemberTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              _roleLabel(member.role),
+              _roleLabel(member.role, l),
               style: TextStyle(fontSize: 11, color: _roleColor(member.role)),
             ),
           ),
@@ -2403,34 +2543,37 @@ class _MemberTile extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('Kind-Aktivität Benachrichtigungen'),
-          content: RadioGroup<ChildAlertInterval>(
-            groupValue: selected,
-            onChanged: (v) => setState(() => selected = v!),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: ChildAlertInterval.values.map((interval) {
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Radio<ChildAlertInterval>(value: interval),
-                  title: Text(interval.label),
-                  onTap: () => setState(() => selected = interval),
-                );
-              }).toList(),
+        builder: (ctx, setState) {
+          final ld = AppLocalizations.of(ctx);
+          return AlertDialog(
+            title: Text(ld.childActivityNotifications),
+            content: RadioGroup<ChildAlertInterval>(
+              groupValue: selected,
+              onChanged: (v) => setState(() => selected = v!),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: ChildAlertInterval.values.map((interval) {
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Radio<ChildAlertInterval>(value: interval),
+                    title: Text(interval.label),
+                    onTap: () => setState(() => selected = interval),
+                  );
+                }).toList(),
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Abbrechen'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Speichern'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(ld.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(ld.save),
+              ),
+            ],
+          );
+        },
       ),
     );
     if (confirmed == true && selected != member.childAlertInterval) {
@@ -2456,6 +2599,7 @@ class _PendingChildTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: Colors.amber.withAlpha(40),
@@ -2463,7 +2607,7 @@ class _PendingChildTile extends StatelessWidget {
       ),
       title: Text(child.displayName),
       subtitle: Text(
-        '${child.email} · Wartet auf deine Zustimmung',
+        '${child.email} · ${l.pendingChildSubtitle}',
         style: const TextStyle(fontSize: 12),
       ),
       trailing: Row(
@@ -2471,7 +2615,7 @@ class _PendingChildTile extends StatelessWidget {
         children: [
           IconButton(
             icon: const Icon(Icons.check_circle_outline, color: Colors.green),
-            tooltip: 'Zustimmen',
+            tooltip: l.approveChildTooltip,
             onPressed: () async {
               try {
                 await ref
@@ -2481,20 +2625,20 @@ class _PendingChildTile extends StatelessWidget {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                         content:
-                            Text('${child.displayName} wurde hinzugefügt.')),
+                            Text(l.memberAdded(child.displayName))),
                   );
                 }
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context)
-                      .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                      .showSnackBar(SnackBar(content: Text(l.errorMessage(e.toString()))));
                 }
               }
             },
           ),
           IconButton(
             icon: const Icon(Icons.cancel_outlined, color: Colors.red),
-            tooltip: 'Ablehnen',
+            tooltip: l.rejectTooltip,
             onPressed: () async {
               try {
                 await ref
@@ -2503,7 +2647,7 @@ class _PendingChildTile extends StatelessWidget {
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context)
-                      .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+                      .showSnackBar(SnackBar(content: Text(l.errorMessage(e.toString()))));
                 }
               }
             },
@@ -2522,19 +2666,19 @@ class _ReportsTabLabel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
     final reportsAsync = ref.watch(_pendingReportsCountProvider(orgId));
     final count = reportsAsync.value ?? 0;
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        const Padding(
-          padding: EdgeInsets.only(right: 8),
-          child: Row(
+        Padding(
+          padding: EdgeInsets.only(right: count > 0 ? 8 : 0),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.flag_outlined, size: 16),
-              SizedBox(width: 4),
-              Text('Meldungen'),
+              const Icon(Icons.flag_outlined, size: 24),
+              Text(l.tabReports, style: const TextStyle(fontSize: 10)),
             ],
           ),
         ),
@@ -2584,11 +2728,12 @@ class _ReportsTabState extends ConsumerState<_ReportsTab> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final reportsAsync = ref.watch(_orgReportsProvider(widget.org.id));
 
     return reportsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Fehler: $e')),
+      error: (e, _) => Center(child: Text(l.errorMessage(e.toString()))),
       data: (allReports) {
         final pending =
             allReports.where((r) => r['status'] == 'pending').toList();
@@ -2617,8 +2762,8 @@ class _ReportsTabState extends ConsumerState<_ReportsTab> {
                       const SizedBox(width: 8),
                       Text(
                         _showArchived
-                            ? 'Archivierte ausblenden'
-                            : 'Archivierte anzeigen (${archived.length})',
+                            ? l.hideArchived
+                            : l.showArchived(archived.length),
                         style:
                             TextStyle(fontSize: 13, color: Colors.grey[600]),
                       ),
@@ -2631,8 +2776,8 @@ class _ReportsTabState extends ConsumerState<_ReportsTab> {
                   ? Center(
                       child: Text(
                         _showArchived
-                            ? 'Keine Meldungen'
-                            : 'Keine ausstehenden Meldungen',
+                            ? l.noReports
+                            : l.noPendingReports,
                         style: const TextStyle(color: Colors.grey),
                       ),
                     )
@@ -2679,7 +2824,7 @@ class _ReportsTabState extends ConsumerState<_ReportsTab> {
                                 ),
                               ),
                               Text(
-                                isPending ? 'Ausstehend' : 'Geprüft · Archiviert',
+                                isPending ? l.reportPending : l.reportReviewed,
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: isPending ? Colors.red : Colors.grey,
@@ -2701,23 +2846,23 @@ class _ReportsTabState extends ConsumerState<_ReportsTab> {
                             },
                             itemBuilder: (_) => [
                               if (isPending)
-                                const PopupMenuItem(
+                                PopupMenuItem(
                                   value: 'reviewed',
                                   child: ListTile(
-                                    leading: Icon(
+                                    leading: const Icon(
                                         Icons.check_circle_outline,
                                         color: Colors.green),
-                                    title: Text('Als geprüft markieren'),
+                                    title: Text(l.markReviewed),
                                     contentPadding: EdgeInsets.zero,
                                   ),
                                 ),
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'delete_msg',
                                 child: ListTile(
-                                  leading: Icon(Icons.delete_outline,
+                                  leading: const Icon(Icons.delete_outline,
                                       color: Colors.red),
-                                  title: Text('Nachricht löschen',
-                                      style: TextStyle(color: Colors.red)),
+                                  title: Text(l.deleteMessage,
+                                      style: const TextStyle(color: Colors.red)),
                                   contentPadding: EdgeInsets.zero,
                                 ),
                               ),
@@ -2741,21 +2886,23 @@ class _ReportsTabState extends ConsumerState<_ReportsTab> {
       BuildContext context, Map<String, dynamic> report) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Nachricht löschen'),
-        content: const Text(
-            'Diese Nachricht wird dauerhaft gelöscht und der Report als geprüft markiert.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Abbrechen')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Löschen'),
-          ),
-        ],
-      ),
+      builder: (ctx) {
+        final ld = AppLocalizations.of(ctx);
+        return AlertDialog(
+          title: Text(ld.deleteMessage),
+          content: Text(ld.deleteMessageContent),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(ld.cancel)),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(ld.delete),
+            ),
+          ],
+        );
+      },
     );
     if (confirmed != true) return;
 
@@ -2790,6 +2937,7 @@ class _PendingInviteTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final email = invite['email'] as String? ?? '?';
     return ListTile(
       leading: CircleAvatar(
@@ -2803,25 +2951,28 @@ class _PendingInviteTile extends StatelessWidget {
       ),
       trailing: IconButton(
         icon: const Icon(Icons.cancel_outlined, color: Colors.red),
-        tooltip: 'Einladung zurückziehen',
+        tooltip: l.withdrawInvitationTitle,
         onPressed: () async {
           final confirmed = await showDialog<bool>(
             context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('Einladung zurückziehen'),
-              content: Text('Einladung für $email wirklich zurückziehen?'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Abbrechen'),
-                ),
-                FilledButton(
-                  style: FilledButton.styleFrom(backgroundColor: Colors.red),
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Zurückziehen'),
-                ),
-              ],
-            ),
+            builder: (ctx) {
+              final ld = AppLocalizations.of(ctx);
+              return AlertDialog(
+                title: Text(ld.withdrawInvitationTitle),
+                content: Text(ld.withdrawInvitationContent(email)),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: Text(ld.cancel),
+                  ),
+                  FilledButton(
+                    style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: Text(ld.withdraw),
+                  ),
+                ],
+              );
+            },
           );
           if (confirmed == true) {
             await ref
@@ -2838,3 +2989,283 @@ final _orgReportsProvider =
     StreamProvider.family<List<Map<String, dynamic>>, String>((ref, orgId) {
   return ref.read(chatServiceProvider).watchReports(orgId);
 });
+
+// ── Pinnwand ──────────────────────────────────────────────────────────────────
+
+class _PinnwandTab extends ConsumerWidget {
+  final String orgId;
+  final bool canManage;
+
+  const _PinnwandTab({required this.orgId, required this.canManage});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final announcementsAsync = ref.watch(announcementsProvider(orgId));
+
+    return announcementsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text(l.errorMessage(e.toString()))),
+      data: (items) => Stack(
+        children: [
+          items.isEmpty
+              ? Center(
+                  child: Text(l.noAnnouncements,
+                      style: const TextStyle(color: Colors.grey)),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                  itemCount: items.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (_, i) => _AnnouncementCard(
+                    announcement: items[i],
+                    orgId: orgId,
+                    canManage: canManage,
+                  ),
+                ),
+          if (canManage)
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: FloatingActionButton.extended(
+                heroTag: 'pinnwand_fab',
+                icon: const Icon(Icons.add),
+                label: Text(l.newAnnouncement),
+                onPressed: () => _showEditDialog(context, ref, null),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showEditDialog(
+      BuildContext context, WidgetRef ref, Announcement? existing) async {
+    final l = AppLocalizations.of(context);
+    final titleCtrl = TextEditingController(text: existing?.title ?? '');
+    final contentCtrl = TextEditingController(text: existing?.content ?? '');
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final ld = AppLocalizations.of(ctx);
+        return AlertDialog(
+          title: Text(existing == null ? ld.newAnnouncement : ld.editAnnouncement),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleCtrl,
+                  autofocus: true,
+                  maxLength: 120,
+                  decoration: InputDecoration(
+                    labelText: ld.announcementTitleLabel,
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: contentCtrl,
+                  maxLines: 5,
+                  maxLength: 2000,
+                  decoration: InputDecoration(
+                    labelText: ld.announcementContentLabel,
+                    border: const OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(ld.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(existing == null ? ld.create : ld.save),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !context.mounted) return;
+    final title = titleCtrl.text.trim();
+    final content = contentCtrl.text.trim();
+    if (title.isEmpty || content.isEmpty) return;
+
+    try {
+      final service = ref.read(organizationServiceProvider);
+      if (existing == null) {
+        await service.createAnnouncement(orgId, title, content);
+      } else {
+        await service.editAnnouncement(orgId, existing.id, title, content);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l.errorMessage(e.toString()))),
+        );
+      }
+    }
+  }
+}
+
+class _AnnouncementCard extends ConsumerWidget {
+  final Announcement announcement;
+  final String orgId;
+  final bool canManage;
+
+  const _AnnouncementCard({
+    required this.announcement,
+    required this.orgId,
+    required this.canManage,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.campaign_outlined,
+                    size: 18, color: colorScheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    announcement.title,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                ),
+                if (canManage)
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert, size: 18),
+                    onSelected: (value) async {
+                      if (value == 'edit') {
+                        if (context.mounted) {
+                          await _PinnwandTab(
+                                  orgId: orgId, canManage: canManage)
+                              ._showEditDialog(context, ref, announcement);
+                        }
+                      } else if (value == 'delete') {
+                        await _confirmDelete(context, ref);
+                      }
+                    },
+                    itemBuilder: (_) => [
+                      PopupMenuItem(
+                        value: 'edit',
+                        child: ListTile(
+                          leading: const Icon(Icons.edit_outlined),
+                          title: Text(l.edit),
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: ListTile(
+                          leading:
+                              const Icon(Icons.delete_outline, color: Colors.red),
+                          title: Text(l.delete,
+                              style: const TextStyle(color: Colors.red)),
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(announcement.content),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(Icons.person_outline,
+                    size: 12, color: Colors.grey[500]),
+                const SizedBox(width: 4),
+                Text(
+                  l.announcementBy(announcement.authorName),
+                  style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                ),
+                const Spacer(),
+                if (announcement.updatedAt != null) ...[
+                  Text(
+                    '${l.announcementEdited} · ',
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[500],
+                        fontStyle: FontStyle.italic),
+                  ),
+                ],
+                Text(
+                  _formatDate(announcement.updatedAt ?? announcement.createdAt),
+                  style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final l = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final ld = AppLocalizations.of(ctx);
+        return AlertDialog(
+          title: Text(ld.deleteAnnouncementTitle),
+          content: Text(ld.deleteAnnouncementContent),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(ld.cancel),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(ld.delete),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed == true && context.mounted) {
+      try {
+        await ref
+            .read(organizationServiceProvider)
+            .deleteAnnouncement(orgId, announcement.id);
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(l.errorMessage(e.toString()))),
+          );
+        }
+      }
+    }
+  }
+
+  String _formatDate(DateTime dt) {
+    final now = DateTime.now();
+    if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
+      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    }
+    return '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
+  }
+}

@@ -1,0 +1,398 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "Guardian Com",
+  "appSubtitle": "Secure communication for organizations",
+  "noConnection": "No connection",
+
+  "cancel": "Cancel",
+  "save": "Save",
+  "delete": "Delete",
+  "edit": "Edit",
+  "close": "Close",
+  "remove": "Remove",
+  "create": "Create",
+  "invite": "Invite",
+  "add": "Add",
+  "accept": "Accept",
+  "reject": "Reject",
+  "transfer": "Transfer",
+  "leave": "Leave",
+  "archive": "Archive",
+  "restore": "Restore from archive",
+  "back": "Back",
+  "yes": "Yes",
+  "no": "No",
+  "errorMessage": "Error: {message}",
+  "@errorMessage": {
+    "placeholders": { "message": { "type": "String" } }
+  },
+
+  "signInWithGoogle": "Sign in with Google",
+  "or": "or",
+  "emailAddress": "Email address",
+  "emailHint": "name@example.com",
+  "invalidEmailAddress": "Invalid email address",
+  "sendSignInLink": "Send sign-in link",
+  "emailLinkHint": "We'll send you a link by email.\nNo password needed.",
+  "signInFailed": "Sign-in failed: {error}",
+  "@signInFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "linkSent": "Link sent!",
+  "linkSentDescription": "We sent a sign-in link to\n{email}.",
+  "@linkSentDescription": {
+    "placeholders": { "email": { "type": "String" } }
+  },
+  "desktopLinkInstructions": "Open the email in your browser, click the link\nand copy the full URL from the address bar.",
+  "pasteLinkLabel": "Paste link from browser",
+  "signIn": "Sign in",
+  "mobileLinkInstructions": "Open the email and tap the link to sign in.",
+  "resend": "Resend",
+  "useOtherEmail": "Use a different email",
+  "invalidLink": "Invalid link. Please check the URL.",
+
+  "editProfile": "Edit profile",
+  "newImageSelected": "New image selected — save to apply",
+  "displayName": "Display name",
+  "appearance": "Appearance",
+  "themeSystem": "System",
+  "themeLight": "Light",
+  "themeDark": "Dark",
+  "language": "Language",
+  "languageGerman": "Deutsch",
+  "languageEnglish": "English",
+  "uiScale": "UI scale (desktop)",
+  "signOut": "Sign out",
+  "profileSaved": "Profile saved.",
+
+  "privacyTitle": "Privacy",
+  "visibility": "Visibility",
+  "showOnlineStatus": "Show online status",
+  "showOnlineStatusSubtitle": "Other members can see when you're online",
+  "showLastSeen": "Last seen",
+  "showLastSeenSubtitle": "Other members can see when you were last active",
+  "showProfilePhoto": "Profile photo visible",
+  "showProfilePhotoSubtitle": "Members can see your profile photo",
+  "legal": "Legal",
+  "privacyPolicy": "Privacy policy",
+  "openInBrowser": "Open in browser",
+  "data": "Data",
+  "deleteAccount": "Delete account",
+  "deleteAccountSubtitle": "All data will be permanently deleted",
+  "deleteAccountConfirmContent": "Do you really want to delete your account? This action cannot be undone.",
+
+  "notificationsTitle": "Notifications",
+  "notificationsHint": "These settings apply as the default for all organizations. You can adjust them per organization via the bell icon.",
+  "messages": "Messages",
+  "newMessages": "New messages",
+  "chatRequests": "Chat requests",
+  "chatRequestsSubtitle": "When someone requests a chat",
+  "organizations": "Organizations",
+  "invitations": "Invitations",
+  "invitationsSubtitle": "When invited to organizations",
+  "orgChanges": "Org changes",
+  "orgChangesSubtitle": "When changes occur in my organizations",
+
+  "intervalAlways": "Every message",
+  "intervalHourly": "Max. once per hour",
+  "intervalDaily": "Max. once per day",
+  "intervalNever": "Never",
+
+  "keywordsTooltip": "Keywords",
+  "keywordsImportCsv": "Import CSV",
+  "keywordsExportCsv": "Export CSV",
+  "keywordsImported": "{count} keywords imported",
+  "@keywordsImported": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "keywordsExported": "Keywords saved to file",
+  "keywordsExportFailed": "Export failed",
+  "editTooltip": "Edit",
+  "editOrganization": "Edit organization",
+  "orgName": "Name",
+  "category": "Category",
+  "chatMode": "Chat mode",
+  "keywordsTitle": "Keywords",
+  "keywordsDescription": "Guardians and moderators will be notified when one of these words appears in a chat.",
+  "addKeywordHint": "Add new word",
+  "noKeywordsDefined": "No keywords defined.",
+  "tabMembers": "Members",
+  "tabChats": "Chats",
+  "tabReports": "Reports",
+  "childChatRequests": "Your children's chat requests ({count})",
+  "@childChatRequests": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "pendingRequests": "Pending requests ({count})",
+  "@pendingRequests": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "monitoredChats": "Monitored chats ({count})",
+  "@monitoredChats": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "archivedChats": "Archived ({count})",
+  "@archivedChats": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "noChatsGuardian": "No chats yet.\nSend a request to get started.",
+  "noChatsSheltered": "No chats yet.\nThe admin sets up connections.",
+  "createGroup": "Create group",
+  "groupName": "Group name",
+  "addMembers": "Add members",
+  "csvImport": "Import CSV",
+  "inviteMember": "Invite member",
+  "suggestMember": "Suggest member",
+  "requestChat": "Request chat",
+  "suggestions": "Suggestions ({count})",
+  "@suggestions": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "pendingChildInvitations": "Pending child invitations ({count})",
+  "@pendingChildInvitations": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "noMembers": "No members yet",
+  "inviteMemberTitle": "Invite member",
+  "role": "Role",
+  "guardians": "Guardians (parents)",
+  "childGuardianHint": "The child will only be added once a guardian approves.",
+  "noGuardiansAvailable": "No members available as guardian.",
+  "inviteSentChild": "Invitation sent. The child will be added after registration and guardian approval.",
+  "inviteSent": "Invitation sent.",
+  "requestChatTitle": "Request chat",
+  "requestChatSubtitle": "Who would you like to chat with?",
+  "requestChatHint": "Your request will be reviewed by an admin or moderator.",
+  "requestChatButton": "Request",
+  "chatRequestSent": "Chat request sent.",
+  "suggestMemberTitle": "Suggest member",
+  "guardian": "Guardian",
+  "suggest": "Suggest",
+  "suggestionSent": "Suggestion submitted and awaiting approval.",
+  "orgNotificationsTitle": "Organization notifications",
+  "noMessages": "No messages yet",
+  "hideArchived": "Hide archived",
+  "showArchived": "Show archived ({count})",
+  "@showArchived": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "noReports": "No reports",
+  "noPendingReports": "No pending reports",
+  "reportPending": "Pending",
+  "reportReviewed": "Reviewed · Archived",
+  "markReviewed": "Mark as reviewed",
+  "deleteMessage": "Delete message",
+  "deleteMessageTitle": "Delete message",
+  "deleteMessageContent": "This message will be permanently deleted and the report marked as reviewed.",
+  "pendingApproval": "Awaiting approval",
+  "approveTooltip": "Approve",
+  "rejectTooltip": "Reject",
+  "roleAdmin": "Admin",
+  "roleModerator": "Moderator",
+  "roleMember": "Member",
+  "roleChild": "Child",
+  "notificationSettings": "Notification settings",
+  "leaveOrganization": "Leave organization",
+  "changeGuardians": "Change guardians",
+  "startChat": "Start chat",
+  "changeRole": "Change role",
+  "transferAdmin": "Transfer admin role",
+  "noActionsAvailable": "No actions available.",
+  "guardiansFor": "Guardians for {name}",
+  "@guardiansFor": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "roleFor": "Role for {name}",
+  "@roleFor": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "guardianFor": "Guardian for {name}",
+  "@guardianFor": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "selectGuardianHint": "Select at least one guardian for this child:",
+  "noGuardiansInOrg": "No possible guardians in this organization.",
+  "removeMemberTitle": "Remove member",
+  "removeMemberContent": "Really remove {name}?",
+  "@removeMemberContent": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "leaveOrgTitle": "Leave organization",
+  "leaveOrgContent": "Do you really want to leave the organization \"{name}\"?",
+  "@leaveOrgContent": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "transferAdminTitle": "Transfer admin role",
+  "transferAdminContent": "Do you want to transfer the admin role to {name}?\n\nYou will become a regular member of this organization.",
+  "@transferAdminContent": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "childActivityNotifications": "Child activity notifications",
+  "pendingChildSubtitle": "Awaiting your approval",
+  "approveChildTooltip": "Approve",
+  "memberAdded": "{name} has been added.",
+  "@memberAdded": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "withdrawInvitationTitle": "Withdraw invitation",
+  "withdrawInvitationContent": "Really withdraw invitation for {email}?",
+  "@withdrawInvitationContent": {
+    "placeholders": { "email": { "type": "String" } }
+  },
+  "withdraw": "Withdraw",
+
+  "tabPinboard": "Pinboard",
+  "newAnnouncement": "New announcement",
+  "editAnnouncement": "Edit announcement",
+  "announcementTitleLabel": "Title",
+  "announcementContentLabel": "Message",
+  "noAnnouncements": "No announcements yet",
+  "deleteAnnouncementTitle": "Delete announcement",
+  "deleteAnnouncementContent": "Really delete this announcement?",
+  "announcementEdited": "edited",
+  "announcementBy": "by {name}",
+  "@announcementBy": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+
+  "scheduleMessage": "Schedule message",
+  "scheduledMessages": "Scheduled messages ({count})",
+  "@scheduledMessages": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "scheduleFor": "Send at",
+  "scheduledAt": "Scheduled for {time}",
+  "@scheduledAt": {
+    "placeholders": { "time": { "type": "String" } }
+  },
+  "cancelScheduled": "Cancel",
+  "scheduleHint": "Messages are only sent while the app is open.",
+
+  "searchMessages": "Search messages",
+  "searchHint": "Search…",
+  "searchNoResults": "No results",
+  "searchResults": "{count} results",
+  "@searchResults": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+
+  "reply": "Reply",
+  "replyingTo": "Replying to {name}",
+  "@replyingTo": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+
+  "microphoneDenied": "Microphone access was denied.",
+  "createPollTitle": "Create poll",
+  "pollQuestion": "Question",
+  "pollOptions": "Answer options",
+  "addOption": "Add option",
+  "multipleChoice": "Multiple choice",
+  "addMemberTitle": "Add member",
+  "allMembersInChat": "All members are already in the chat.",
+  "membersTooltip": "Show members",
+  "archivedReadOnly": "Archived – read only",
+  "sendError": "Send error: {error}",
+  "@sendError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "olderMessages": "Older messages",
+  "copyText": "Copy text",
+  "moderate": "Moderate",
+  "reportMessage": "Report message",
+  "editedPrefix": "edited · ",
+  "today": "Today",
+  "yesterday": "Yesterday",
+  "sendImage": "Send image",
+  "sendFile": "Send file (max. 5 MB)",
+  "voiceRecording": "Voice recording",
+  "createPoll": "Create poll",
+  "messageHint": "Write a message...",
+  "attachmentTooltip": "Attachment",
+  "voiceTooltip": "Voice message",
+  "recordingIndicator": "Recording…",
+  "endPollTitle": "End poll",
+  "endPollContent": "End the poll? Voting will no longer be possible.",
+  "endPoll": "End",
+  "pollClosed": "Closed",
+  "poll": "Poll",
+  "votes": "{count} votes",
+  "@votes": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "oneVote": "1 vote",
+  "removeMembersTitle": "Remove members",
+  "removeMemberFromChat": "Remove {name} from chat?",
+  "@removeMemberFromChat": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "moderatedBy": "moderated by {name}",
+  "@moderatedBy": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "moderatedByModerator": "moderated by moderator",
+
+  "importMembers": "Import members",
+  "selectCsvFile": "Select CSV file",
+  "importCount": "Import {count}",
+  "@importCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "csvRowsValid": "{total} rows · {valid} valid",
+  "@csvRowsValid": {
+    "placeholders": {
+      "total": { "type": "int" },
+      "valid": { "type": "int" }
+    }
+  },
+  "csvRowsErrors": "{total} rows · {valid} valid · {errors} errors",
+  "@csvRowsErrors": {
+    "placeholders": {
+      "total": { "type": "int" },
+      "valid": { "type": "int" },
+      "errors": { "type": "int" }
+    }
+  },
+  "importSuccess": "{count} invited",
+  "@importSuccess": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "importSuccessWithErrors": "{count} invited, {errors} errors",
+  "@importSuccessWithErrors": {
+    "placeholders": {
+      "count": { "type": "int" },
+      "errors": { "type": "int" }
+    }
+  },
+  "invalidEmail2": "Invalid email",
+  "unknownRole": "Unknown role: \"{role}\"",
+  "@unknownRole": {
+    "placeholders": { "role": { "type": "String" } }
+  },
+  "guardianMissing": "Guardian missing",
+  "noGuardianInOrg": "No guardian found in this org",
+  "guardianNotInOrg": "Guardian not in org: {emails}",
+  "@guardianNotInOrg": {
+    "placeholders": { "emails": { "type": "String" } }
+  },
+
+  "donationTitle": "Support Guardian Com",
+  "donationContent": "Guardian Com is free and ad-free. If you enjoy the app, I'd appreciate a small donation!",
+  "kofiButton": "Donate via Ko-fi",
+  "paypalButton": "Donate via PayPal",
+  "maybeLater": "Maybe later",
+
+  "createOrganization": "Create organization",
+  "orgNameLabel": "Organization name",
+  "myOrganizations": "My Organizations",
+  "noOrganizations": "No organizations yet",
+  "archivedBadge": "Archived",
+  "deleteOrgTitle": "Delete organization?",
+  "deleteOrgContent": "\"{name}\" and all memberships will be permanently deleted.",
+  "@deleteOrgContent": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "open": "Open",
+  "unarchive": "Restore"
+}

@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:guardian_app/l10n/app_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -39,29 +40,26 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
   }
 
   Future<void> _showDonationDialog() async {
+    final l = AppLocalizations.of(context);
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Guardian Com unterstützen'),
+        title: Text(l.donationTitle),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Guardian Com ist kostenlos und werbefrei. '
-              'Wenn dir die App gefällt, freue ich mich über eine kleine Spende!',
-              style: TextStyle(fontSize: 14),
-            ),
+            Text(l.donationContent, style: const TextStyle(fontSize: 14)),
             const SizedBox(height: 20),
             _DonationButton(
               icon: Icons.coffee_outlined,
-              label: 'Ko-fi spenden',
+              label: l.kofiButton,
               color: const Color(0xFF29ABE0),
               url: 'https://ko-fi.com/pantelisbirokas',
             ),
             const SizedBox(height: 10),
             _DonationButton(
               icon: Icons.payment_outlined,
-              label: 'PayPal spenden',
+              label: l.paypalButton,
               color: const Color(0xFF003087),
               url: 'https://paypal.me/pantirokas',
             ),
@@ -70,7 +68,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Vielleicht später'),
+            child: Text(l.maybeLater),
           ),
         ],
       ),
@@ -78,6 +76,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
   }
 
   Future<void> _showCreateDialog(BuildContext context) async {
+    final l = AppLocalizations.of(context);
     final nameController = TextEditingController();
     OrgTag selectedTag = OrgTag.sonstiges;
     ChatMode selectedMode = ChatMode.guardian;
@@ -86,7 +85,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-          title: const Text('Organisation erstellen'),
+          title: Text(l.createOrganization),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -96,15 +95,15 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                   controller: nameController,
                   autofocus: true,
                   maxLength: 40,
-                  decoration: const InputDecoration(
-                    labelText: 'Name der Organisation',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l.orgNameLabel,
+                    border: const OutlineInputBorder(),
                   ),
                   textCapitalization: TextCapitalization.words,
                 ),
                 const SizedBox(height: 16),
-                const Text('Kategorie',
-                    style: TextStyle(fontSize: 12, color: Colors.grey)),
+                Text(l.category,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -125,8 +124,8 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                   }).toList(),
                 ),
                 const SizedBox(height: 16),
-                const Text('Chat-Modus',
-                    style: TextStyle(fontSize: 12, color: Colors.grey)),
+                Text(l.chatMode,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
                 const SizedBox(height: 8),
                 ...ChatMode.values.map((mode) => _ChatModeOption(
                       mode: mode,
@@ -139,11 +138,11 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Abbrechen'),
+              child: Text(l.cancel),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Erstellen'),
+              child: Text(l.create),
             ),
           ],
         ),
@@ -159,7 +158,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Fehler: $e')),
+            SnackBar(content: Text(l.errorMessage(e.toString()))),
           );
         }
       }
@@ -167,6 +166,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
   }
 
   void _showProfileMenu(BuildContext context, User user) {
+    final l = AppLocalizations.of(context);
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -200,49 +200,31 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                   : null,
             ),
             const SizedBox(height: 8),
-            Text(
-              user.displayName ?? '',
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            Text(
-              user.email ?? '',
-              style: const TextStyle(color: Colors.grey, fontSize: 13),
-            ),
+            Text(user.displayName ?? '',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(user.email ?? '',
+                style: const TextStyle(color: Colors.grey, fontSize: 13)),
             const Divider(height: 32),
             ListTile(
               leading: const Icon(Icons.person_outline),
-              title: const Text('Profil bearbeiten'),
-              onTap: () {
-                Navigator.pop(context);
-                context.push('/profile');
-              },
+              title: Text(l.editProfile),
+              onTap: () { Navigator.pop(context); context.push('/profile'); },
             ),
             ListTile(
               leading: const Icon(Icons.notifications_outlined),
-              title: const Text('Benachrichtigungen'),
-              onTap: () {
-                Navigator.pop(context);
-                context.push('/settings/notifications');
-              },
+              title: Text(l.notificationsTitle),
+              onTap: () { Navigator.pop(context); context.push('/settings/notifications'); },
             ),
             ListTile(
               leading: const Icon(Icons.privacy_tip_outlined),
-              title: const Text('Datenschutz'),
-              onTap: () {
-                Navigator.pop(context);
-                context.push('/settings/privacy');
-              },
+              title: Text(l.privacyTitle),
+              onTap: () { Navigator.pop(context); context.push('/settings/privacy'); },
             ),
             const Divider(height: 8),
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text('Abmelden',
-                  style: TextStyle(color: Colors.red)),
-              onTap: () {
-                Navigator.pop(context);
-                ref.read(authServiceProvider).signOut();
-              },
+              title: Text(l.signOut, style: const TextStyle(color: Colors.red)),
+              onTap: () { Navigator.pop(context); ref.read(authServiceProvider).signOut(); },
             ),
             const SizedBox(height: 8),
           ],
@@ -254,6 +236,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final orgsAsync = ref.watch(myOrganizationsProvider);
     final user = FirebaseAuth.instance.currentUser;
     final currentAppUserAsync = ref.watch(currentAppUserProvider);
@@ -281,7 +264,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Meine Organisationen'),
+        title: Text(l.myOrganizations),
         actions: [
           if (user != null)
             Padding(
@@ -310,7 +293,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
       ),
       body: orgsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Fehler: $e')),
+        error: (e, _) => Center(child: Text(l.errorMessage(e.toString()))),
         data: (orgs) {
           final hasArchived = orgs.any((o) => o.isArchived);
           final visibleOrgs = _showArchived
@@ -319,14 +302,14 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
           final hiddenCount = orgs.length - visibleOrgs.length;
 
           if (visibleOrgs.isEmpty && !hasArchived) {
-            return const Center(
+            return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.groups_outlined, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text('Noch keine Organisationen',
-                      style: TextStyle(color: Colors.grey)),
+                  const Icon(Icons.groups_outlined, size: 64, color: Colors.grey),
+                  const SizedBox(height: 16),
+                  Text(l.noOrganizations,
+                      style: const TextStyle(color: Colors.grey)),
                 ],
               ),
             );
@@ -351,8 +334,8 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                         const SizedBox(width: 8),
                         Text(
                           _showArchived
-                              ? 'Archivierte ausblenden'
-                              : 'Archivierte anzeigen ($hiddenCount)',
+                              ? l.hideArchived
+                              : l.showArchived(hiddenCount),
                           style: TextStyle(
                               fontSize: 13, color: Colors.grey[600]),
                         ),
@@ -413,7 +396,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                   subtitle: Row(
                     children: [
                       if (org.isArchived)
-                        Text('Archiviert',
+                        Text(l.archivedBadge,
                             style: TextStyle(
                                 fontSize: 11, color: Colors.grey[500]))
                       else ...[
@@ -452,21 +435,20 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                               final confirmed = await showDialog<bool>(
                                 context: context,
                                 builder: (ctx) => AlertDialog(
-                                  title: const Text('Organisation löschen?'),
-                                  content: Text(
-                                      '"${org.name}" und alle Mitgliedschaften werden unwiderruflich gelöscht.'),
+                                  title: Text(l.deleteOrgTitle),
+                                  content: Text(l.deleteOrgContent(org.name)),
                                   actions: [
                                     TextButton(
                                       onPressed: () =>
                                           Navigator.pop(ctx, false),
-                                      child: const Text('Abbrechen'),
+                                      child: Text(l.cancel),
                                     ),
                                     FilledButton(
                                       style: FilledButton.styleFrom(
                                           backgroundColor: Colors.red),
                                       onPressed: () =>
                                           Navigator.pop(ctx, true),
-                                      child: const Text('Löschen'),
+                                      child: Text(l.delete),
                                     ),
                                   ],
                                 ),
@@ -481,34 +463,33 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                             }
                           },
                           itemBuilder: (_) => [
-                            const PopupMenuItem(
+                            PopupMenuItem(
                                 value: 'open',
                                 child: ListTile(
-                                    leading: Icon(Icons.open_in_new),
-                                    title: Text('Öffnen'),
+                                    leading: const Icon(Icons.open_in_new),
+                                    title: Text(l.open),
                                     contentPadding: EdgeInsets.zero)),
                             if (!org.isArchived)
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                   value: 'archive',
                                   child: ListTile(
-                                      leading: Icon(Icons.archive_outlined),
-                                      title: Text('Archivieren'),
+                                      leading: const Icon(Icons.archive_outlined),
+                                      title: Text(l.archive),
                                       contentPadding: EdgeInsets.zero)),
                             if (org.isArchived)
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                   value: 'unarchive',
                                   child: ListTile(
-                                      leading: Icon(Icons.unarchive_outlined),
-                                      title: Text('Wiederherstellen'),
+                                      leading: const Icon(Icons.unarchive_outlined),
+                                      title: Text(l.unarchive),
                                       contentPadding: EdgeInsets.zero)),
-                            const PopupMenuItem(
+                            PopupMenuItem(
                                 value: 'delete',
                                 child: ListTile(
-                                    leading: Icon(Icons.delete_outline,
+                                    leading: const Icon(Icons.delete_outline,
                                         color: Colors.red),
-                                    title: Text('Löschen',
-                                        style:
-                                            TextStyle(color: Colors.red)),
+                                    title: Text(l.delete,
+                                        style: const TextStyle(color: Colors.red)),
                                     contentPadding: EdgeInsets.zero)),
                           ],
                         )
@@ -549,7 +530,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                     FloatingActionButton.extended(
                       onPressed: () => _showCreateDialog(context),
                       icon: const Icon(Icons.add),
-                      label: const Text('Organisation erstellen'),
+                      label: Text(l.createOrganization),
                     ),
                   ],
                 );

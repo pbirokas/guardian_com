@@ -68,6 +68,14 @@ dependencies:
   # HTTP (für Firebase REST API auf Desktop)
   http: ^1.2.0
 
+  # Localization
+  intl: ^0.20.2
+  flutter_localizations:
+    sdk: flutter
+
+  # Network
+  connectivity_plus: ^6.1.4
+
   # UI
   timeago: ^3.7.0
   url_launcher: ^6.3.1
@@ -107,6 +115,7 @@ flutter_launcher_icons:
 
 # The following section is specific to Flutter packages.
 flutter:
+  generate: true
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

@@ -1,0 +1,398 @@
+{
+  "@@locale": "de",
+
+  "appTitle": "Guardian Com",
+  "appSubtitle": "Sichere Kommunikation für Organisationen",
+  "noConnection": "Keine Verbindung",
+
+  "cancel": "Abbrechen",
+  "save": "Speichern",
+  "delete": "Löschen",
+  "edit": "Bearbeiten",
+  "close": "Schließen",
+  "remove": "Entfernen",
+  "create": "Erstellen",
+  "invite": "Einladen",
+  "add": "Hinzufügen",
+  "accept": "Annehmen",
+  "reject": "Ablehnen",
+  "transfer": "Übertragen",
+  "leave": "Verlassen",
+  "archive": "Archivieren",
+  "restore": "Aus Archiv wiederherstellen",
+  "back": "Zurück",
+  "yes": "Ja",
+  "no": "Nein",
+  "errorMessage": "Fehler: {message}",
+  "@errorMessage": {
+    "placeholders": { "message": { "type": "String" } }
+  },
+
+  "signInWithGoogle": "Mit Google anmelden",
+  "or": "oder",
+  "emailAddress": "E-Mail-Adresse",
+  "emailHint": "name@beispiel.de",
+  "invalidEmailAddress": "Ungültige E-Mail-Adresse",
+  "sendSignInLink": "Anmeldelink senden",
+  "emailLinkHint": "Wir senden dir einen Link per E-Mail.\nKein Passwort nötig.",
+  "signInFailed": "Anmeldung fehlgeschlagen: {error}",
+  "@signInFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "linkSent": "Link gesendet!",
+  "linkSentDescription": "Wir haben einen Anmeldelink an\n{email} gesendet.",
+  "@linkSentDescription": {
+    "placeholders": { "email": { "type": "String" } }
+  },
+  "desktopLinkInstructions": "Öffne die E-Mail in deinem Browser, klicke auf den Link\nund kopiere die vollständige URL aus der Adressleiste.",
+  "pasteLinkLabel": "Link aus Browser einfügen",
+  "signIn": "Anmelden",
+  "mobileLinkInstructions": "Öffne die E-Mail und tippe auf den Link um dich anzumelden.",
+  "resend": "Erneut senden",
+  "useOtherEmail": "Andere E-Mail verwenden",
+  "invalidLink": "Ungültiger Link. Bitte prüfe die URL.",
+
+  "editProfile": "Profil bearbeiten",
+  "newImageSelected": "Neues Bild ausgewählt — speichern um zu übernehmen",
+  "displayName": "Anzeigename",
+  "appearance": "Erscheinungsbild",
+  "themeSystem": "System",
+  "themeLight": "Hell",
+  "themeDark": "Dunkel",
+  "language": "Sprache",
+  "languageGerman": "Deutsch",
+  "languageEnglish": "English",
+  "uiScale": "Skalierung (Desktop)",
+  "signOut": "Abmelden",
+  "profileSaved": "Profil gespeichert.",
+
+  "privacyTitle": "Datenschutz",
+  "visibility": "Sichtbarkeit",
+  "showOnlineStatus": "Online-Status anzeigen",
+  "showOnlineStatusSubtitle": "Andere Mitglieder sehen wann du online bist",
+  "showLastSeen": "Zuletzt gesehen",
+  "showLastSeenSubtitle": "Andere Mitglieder sehen wann du zuletzt aktiv warst",
+  "showProfilePhoto": "Profilbild sichtbar",
+  "showProfilePhotoSubtitle": "Mitglieder können dein Profilbild sehen",
+  "legal": "Rechtliches",
+  "privacyPolicy": "Datenschutzerklärung",
+  "openInBrowser": "Im Browser öffnen",
+  "data": "Daten",
+  "deleteAccount": "Konto löschen",
+  "deleteAccountSubtitle": "Alle Daten werden unwiderruflich gelöscht",
+  "deleteAccountConfirmContent": "Möchtest du dein Konto wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+
+  "notificationsTitle": "Benachrichtigungen",
+  "notificationsHint": "Diese Einstellungen gelten als Standard für alle Organisationen. Du kannst sie pro Organisation über das Glocken-Symbol anpassen.",
+  "messages": "Nachrichten",
+  "newMessages": "Neue Nachrichten",
+  "chatRequests": "Chat-Anfragen",
+  "chatRequestsSubtitle": "Wenn jemand einen Chat anfragt",
+  "organizations": "Organisationen",
+  "invitations": "Einladungen",
+  "invitationsSubtitle": "Bei Einladungen in Organisationen",
+  "orgChanges": "Org-Änderungen",
+  "orgChangesSubtitle": "Bei Änderungen in meinen Organisationen",
+
+  "intervalAlways": "Jede Nachricht",
+  "intervalHourly": "Max. 1x pro Stunde",
+  "intervalDaily": "Max. 1x pro Tag",
+  "intervalNever": "Nie",
+
+  "keywordsTooltip": "Schlüsselwörter",
+  "keywordsImportCsv": "CSV importieren",
+  "keywordsExportCsv": "CSV exportieren",
+  "keywordsImported": "{count} Keywords importiert",
+  "@keywordsImported": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "keywordsExported": "Keywords als Datei gespeichert",
+  "keywordsExportFailed": "Export fehlgeschlagen",
+  "editTooltip": "Bearbeiten",
+  "editOrganization": "Organisation bearbeiten",
+  "orgName": "Name",
+  "category": "Kategorie",
+  "chatMode": "Chat-Modus",
+  "keywordsTitle": "Schlüsselwörter",
+  "keywordsDescription": "Guardians und Moderatoren werden benachrichtigt, wenn eines dieser Wörter in einem Chat auftaucht.",
+  "addKeywordHint": "Neues Wort hinzufügen",
+  "noKeywordsDefined": "Keine Schlüsselwörter definiert.",
+  "tabMembers": "Mitglieder",
+  "tabChats": "Chats",
+  "tabReports": "Meldungen",
+  "childChatRequests": "Chat-Anfragen deiner Kinder ({count})",
+  "@childChatRequests": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "pendingRequests": "Ausstehende Anfragen ({count})",
+  "@pendingRequests": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "monitoredChats": "Überwachte Chats ({count})",
+  "@monitoredChats": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "archivedChats": "Archiviert ({count})",
+  "@archivedChats": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "noChatsGuardian": "Noch keine Chats.\nStelle eine Anfrage um zu starten.",
+  "noChatsSheltered": "Noch keine Chats.\nDer Admin legt Verbindungen fest.",
+  "createGroup": "Gruppe erstellen",
+  "groupName": "Gruppenname",
+  "addMembers": "Mitglieder hinzufügen",
+  "csvImport": "CSV importieren",
+  "inviteMember": "Mitglied einladen",
+  "suggestMember": "Mitglied vorschlagen",
+  "requestChat": "Chat anfragen",
+  "suggestions": "Vorschläge ({count})",
+  "@suggestions": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "pendingChildInvitations": "Ausstehende Kind-Einladungen ({count})",
+  "@pendingChildInvitations": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "noMembers": "Noch keine Mitglieder",
+  "inviteMemberTitle": "Mitglied einladen",
+  "role": "Rolle",
+  "guardians": "Guardians (Elternteile)",
+  "childGuardianHint": "Das Kind wird erst hinzugefügt, wenn ein Guardian zustimmt.",
+  "noGuardiansAvailable": "Keine Mitglieder als Guardian verfügbar.",
+  "inviteSentChild": "Einladung gesendet. Das Kind wird nach Registrierung und Guardian-Zustimmung hinzugefügt.",
+  "inviteSent": "Einladung gesendet.",
+  "requestChatTitle": "Chat anfragen",
+  "requestChatSubtitle": "Mit wem möchtest du chatten?",
+  "requestChatHint": "Deine Anfrage wird von einem Admin oder Moderator geprüft.",
+  "requestChatButton": "Anfragen",
+  "chatRequestSent": "Chat-Anfrage wurde gesendet.",
+  "suggestMemberTitle": "Mitglied vorschlagen",
+  "guardian": "Guardian",
+  "suggest": "Vorschlagen",
+  "suggestionSent": "Vorschlag wurde eingereicht und wartet auf Genehmigung.",
+  "orgNotificationsTitle": "Benachrichtigungen dieser Org",
+  "noMessages": "Noch keine Nachrichten",
+  "hideArchived": "Archivierte ausblenden",
+  "showArchived": "Archivierte anzeigen ({count})",
+  "@showArchived": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "noReports": "Keine Meldungen",
+  "noPendingReports": "Keine ausstehenden Meldungen",
+  "reportPending": "Ausstehend",
+  "reportReviewed": "Geprüft · Archiviert",
+  "markReviewed": "Als geprüft markieren",
+  "deleteMessage": "Nachricht löschen",
+  "deleteMessageTitle": "Nachricht löschen",
+  "deleteMessageContent": "Diese Nachricht wird dauerhaft gelöscht und der Report als geprüft markiert.",
+  "pendingApproval": "Wartet auf Genehmigung",
+  "approveTooltip": "Genehmigen",
+  "rejectTooltip": "Ablehnen",
+  "roleAdmin": "Admin",
+  "roleModerator": "Moderator",
+  "roleMember": "Mitglied",
+  "roleChild": "Kind",
+  "notificationSettings": "Benachrichtigungseinstellungen",
+  "leaveOrganization": "Organisation verlassen",
+  "changeGuardians": "Guardians ändern",
+  "startChat": "Chat starten",
+  "changeRole": "Rolle ändern",
+  "transferAdmin": "Admin-Rolle übertragen",
+  "noActionsAvailable": "Keine Aktionen verfügbar.",
+  "guardiansFor": "Guardians für {name}",
+  "@guardiansFor": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "roleFor": "Rolle für {name}",
+  "@roleFor": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "guardianFor": "Guardian für {name}",
+  "@guardianFor": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "selectGuardianHint": "Wähle mindestens einen Guardian für dieses Kind:",
+  "noGuardiansInOrg": "Keine möglichen Guardians in dieser Organisation.",
+  "removeMemberTitle": "Mitglied entfernen",
+  "removeMemberContent": "{name} wirklich entfernen?",
+  "@removeMemberContent": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "leaveOrgTitle": "Organisation verlassen",
+  "leaveOrgContent": "Möchtest du die Organisation \"{name}\" wirklich verlassen?",
+  "@leaveOrgContent": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "transferAdminTitle": "Admin-Rolle übertragen",
+  "transferAdminContent": "Möchtest du die Admin-Rolle an {name} übertragen?\n\nDu wirst danach ein normales Mitglied dieser Organisation.",
+  "@transferAdminContent": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "childActivityNotifications": "Kind-Aktivität Benachrichtigungen",
+  "pendingChildSubtitle": "Wartet auf deine Zustimmung",
+  "approveChildTooltip": "Zustimmen",
+  "memberAdded": "{name} wurde hinzugefügt.",
+  "@memberAdded": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "withdrawInvitationTitle": "Einladung zurückziehen",
+  "withdrawInvitationContent": "Einladung für {email} wirklich zurückziehen?",
+  "@withdrawInvitationContent": {
+    "placeholders": { "email": { "type": "String" } }
+  },
+  "withdraw": "Zurückziehen",
+
+  "tabPinboard": "Pinnwand",
+  "newAnnouncement": "Ankündigung erstellen",
+  "editAnnouncement": "Ankündigung bearbeiten",
+  "announcementTitleLabel": "Titel",
+  "announcementContentLabel": "Nachricht",
+  "noAnnouncements": "Noch keine Ankündigungen",
+  "deleteAnnouncementTitle": "Ankündigung löschen",
+  "deleteAnnouncementContent": "Diese Ankündigung wirklich löschen?",
+  "announcementEdited": "bearbeitet",
+  "announcementBy": "von {name}",
+  "@announcementBy": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+
+  "scheduleMessage": "Nachricht planen",
+  "scheduledMessages": "Geplante Nachrichten ({count})",
+  "@scheduledMessages": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "scheduleFor": "Senden am",
+  "scheduledAt": "Geplant für {time}",
+  "@scheduledAt": {
+    "placeholders": { "time": { "type": "String" } }
+  },
+  "cancelScheduled": "Abbrechen",
+  "scheduleHint": "Nachrichten werden nur gesendet solange die App geöffnet ist.",
+
+  "searchMessages": "Nachrichten suchen",
+  "searchHint": "Suchen…",
+  "searchNoResults": "Keine Treffer",
+  "searchResults": "{count} Treffer",
+  "@searchResults": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+
+  "reply": "Antworten",
+  "replyingTo": "Antwortet {name}",
+  "@replyingTo": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+
+  "microphoneDenied": "Mikrofon-Zugriff wurde verweigert.",
+  "createPollTitle": "Umfrage erstellen",
+  "pollQuestion": "Frage",
+  "pollOptions": "Antwortmöglichkeiten",
+  "addOption": "Option hinzufügen",
+  "multipleChoice": "Mehrfachauswahl",
+  "addMemberTitle": "Mitglied hinzufügen",
+  "allMembersInChat": "Alle Mitglieder sind bereits im Chat.",
+  "membersTooltip": "Mitglieder anzeigen",
+  "archivedReadOnly": "Archiviert – nur lesen",
+  "sendError": "Fehler beim Senden: {error}",
+  "@sendError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "olderMessages": "Ältere Nachrichten",
+  "copyText": "Text kopieren",
+  "moderate": "Moderieren",
+  "reportMessage": "Nachricht melden",
+  "editedPrefix": "bearbeitet · ",
+  "today": "Heute",
+  "yesterday": "Gestern",
+  "sendImage": "Bild senden",
+  "sendFile": "Datei senden (max. 5 MB)",
+  "voiceRecording": "Sprachaufnahme",
+  "createPoll": "Umfrage erstellen",
+  "messageHint": "Nachricht schreiben...",
+  "attachmentTooltip": "Anhang",
+  "voiceTooltip": "Sprachnachricht",
+  "recordingIndicator": "Aufnahme läuft…",
+  "endPollTitle": "Umfrage beenden",
+  "endPollContent": "Die Umfrage beenden? Danach kann nicht mehr abgestimmt werden.",
+  "endPoll": "Beenden",
+  "pollClosed": "Abgeschlossen",
+  "poll": "Umfrage",
+  "votes": "{count} Stimmen",
+  "@votes": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "oneVote": "1 Stimme",
+  "removeMembersTitle": "Mitglieder entfernen",
+  "removeMemberFromChat": "{name} aus dem Chat entfernen?",
+  "@removeMemberFromChat": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "moderatedBy": "von {name} moderiert",
+  "@moderatedBy": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "moderatedByModerator": "von Moderator moderiert",
+
+  "importMembers": "Mitglieder importieren",
+  "selectCsvFile": "CSV-Datei auswählen",
+  "importCount": "{count} importieren",
+  "@importCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "csvRowsValid": "{total} Zeilen · {valid} gültig",
+  "@csvRowsValid": {
+    "placeholders": {
+      "total": { "type": "int" },
+      "valid": { "type": "int" }
+    }
+  },
+  "csvRowsErrors": "{total} Zeilen · {valid} gültig · {errors} fehlerhaft",
+  "@csvRowsErrors": {
+    "placeholders": {
+      "total": { "type": "int" },
+      "valid": { "type": "int" },
+      "errors": { "type": "int" }
+    }
+  },
+  "importSuccess": "{count} eingeladen",
+  "@importSuccess": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "importSuccessWithErrors": "{count} eingeladen, {errors} Fehler",
+  "@importSuccessWithErrors": {
+    "placeholders": {
+      "count": { "type": "int" },
+      "errors": { "type": "int" }
+    }
+  },
+  "invalidEmail2": "Ungültige E-Mail",
+  "unknownRole": "Unbekannte Rolle: \"{role}\"",
+  "@unknownRole": {
+    "placeholders": { "role": { "type": "String" } }
+  },
+  "guardianMissing": "Guardian fehlt",
+  "noGuardianInOrg": "Kein Guardian in dieser Org gefunden",
+  "guardianNotInOrg": "Guardian nicht in Org: {emails}",
+  "@guardianNotInOrg": {
+    "placeholders": { "emails": { "type": "String" } }
+  },
+
+  "donationTitle": "Guardian Com unterstützen",
+  "donationContent": "Guardian Com ist kostenlos und werbefrei. Wenn dir die App gefällt, freue ich mich über eine kleine Spende!",
+  "kofiButton": "Ko-fi spenden",
+  "paypalButton": "PayPal spenden",
+  "maybeLater": "Vielleicht später",
+
+  "createOrganization": "Organisation erstellen",
+  "orgNameLabel": "Name der Organisation",
+  "myOrganizations": "Meine Organisationen",
+  "noOrganizations": "Noch keine Organisationen",
+  "archivedBadge": "Archiviert",
+  "deleteOrgTitle": "Organisation löschen?",
+  "deleteOrgContent": "\"{name}\" und alle Mitgliedschaften werden unwiderruflich gelöscht.",
+  "@deleteOrgContent": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "open": "Öffnen",
+  "unarchive": "Wiederherstellen"
+}

@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dir /b \"C:\\\\Users\\\\pbiro\\\\AppData\\\\Local\\\\Pub\\\\Cache\\\\hosted\\\\pub.dev\\\\\" | findstr file_picker)"
+      "Bash(dir /b \"C:\\\\Users\\\\pbiro\\\\AppData\\\\Local\\\\Pub\\\\Cache\\\\hosted\\\\pub.dev\\\\\" | findstr file_picker)",
+      "Bash(flutter gen-l10n:*)",
+      "Bash(flutter clean:*)"
     ]
   }
 }

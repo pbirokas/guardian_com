@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/models/announcement.dart';
 import '../../../core/models/app_user.dart';
 import '../../../core/models/member_suggestion.dart';
 import '../../../core/models/notification_settings.dart';
@@ -112,4 +113,10 @@ final orgMessageIntervalProvider =
             .firstOrNull ??
         MessageAlertInterval.always;
   });
+});
+
+final announcementsProvider =
+    StreamProvider.family<List<Announcement>, String>((ref, orgId) {
+  ref.watch(authStateProvider);
+  return ref.watch(organizationServiceProvider).watchAnnouncements(orgId);
 });

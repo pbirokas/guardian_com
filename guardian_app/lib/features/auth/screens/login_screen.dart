@@ -1,13 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:guardian_app/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
 
 bool get _isDesktop =>
-    !kIsWeb &&
-    (defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.linux ||
-        defaultTargetPlatform == TargetPlatform.macOS);
+    defaultTargetPlatform == TargetPlatform.windows ||
+    defaultTargetPlatform == TargetPlatform.linux ||
+    defaultTargetPlatform == TargetPlatform.macOS;
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -38,8 +38,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await ref.read(authServiceProvider).signInWithGoogle();
     } catch (e) {
       if (mounted) {
+        final l = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Anmeldung fehlgeschlagen: $e')),
+          SnackBar(content: Text(l.signInFailed(e.toString()))),
         );
       }
     } finally {
@@ -57,8 +58,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (mounted) setState(() => _emailLinkSent = true);
     } catch (e) {
       if (mounted) {
+        final l = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler: $e')),
+          SnackBar(content: Text(l.errorMessage(e.toString()))),
         );
       }
     } finally {
@@ -76,15 +78,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           .read(authServiceProvider)
           .handleEmailLink(Uri.parse(url));
       if (result == null && mounted) {
+        final l = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Ungültiger Link. Bitte prüfe die URL.')),
+          SnackBar(content: Text(l.invalidLink)),
         );
       }
     } catch (e) {
       if (mounted) {
+        final l = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler: $e')),
+          SnackBar(content: Text(l.errorMessage(e.toString()))),
         );
       }
     } finally {
@@ -94,6 +97,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
@@ -106,16 +111,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const Icon(Icons.shield_outlined,
                     size: 80, color: Colors.blue),
                 const SizedBox(height: 24),
-                const Text(
-                  'Guardian Com',
-                  style: TextStyle(
+                Text(
+                  l.appTitle,
+                  style: const TextStyle(
                       fontSize: 32, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Sichere Kommunikation für Organisationen',
+                Text(
+                  l.appSubtitle,
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey),
+                  style: const TextStyle(color: Colors.grey),
                 ),
                 const SizedBox(height: 48),
 
@@ -141,7 +146,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       child: FilledButton.icon(
                         onPressed: _signInWithGoogle,
                         icon: const Icon(Icons.login),
-                        label: const Text('Mit Google anmelden'),
+                        label: Text(l.signInWithGoogle),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -151,7 +156,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         Padding(
                           padding:
                               const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text('oder',
+                          child: Text(l.or,
                               style: TextStyle(
                                   color: Colors.grey[600], fontSize: 13)),
                         ),
@@ -172,13 +177,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       _emailValid = _emailRegex.hasMatch(v.trim());
                     }),
                     decoration: InputDecoration(
-                      labelText: 'E-Mail-Adresse',
-                      hintText: 'name@beispiel.de',
+                      labelText: l.emailAddress,
+                      hintText: l.emailHint,
                       border: const OutlineInputBorder(),
                       prefixIcon: const Icon(Icons.email_outlined),
                       errorText:
                           _emailController.text.isNotEmpty && !_emailValid
-                              ? 'Ungültige E-Mail-Adresse'
+                              ? l.invalidEmailAddress
                               : null,
                     ),
                   ),
@@ -188,12 +193,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: OutlinedButton.icon(
                       onPressed: _emailValid ? _sendEmailLink : null,
                       icon: const Icon(Icons.link),
-                      label: const Text('Anmeldelink senden'),
+                      label: Text(l.sendSignInLink),
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Wir senden dir einen Link per E-Mail.\nKein Passwort nötig.',
+                    l.emailLinkHint,
                     textAlign: TextAlign.center,
                     style:
                         TextStyle(fontSize: 12, color: Colors.grey[500]),
@@ -227,39 +232,39 @@ class _EmailLinkSentWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+
     return Column(
       children: [
         const Icon(Icons.mark_email_read_outlined,
             size: 56, color: Colors.green),
         const SizedBox(height: 16),
-        const Text(
-          'Link gesendet!',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        Text(
+          l.linkSent,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         Text(
-          'Wir haben einen Anmeldelink an\n$email gesendet.',
+          l.linkSentDescription(email),
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 14),
         ),
         const SizedBox(height: 8),
 
         if (isDesktop) ...[
-          // ── Desktop: URL manuell einfügen ──
           Text(
-            'Öffne die E-Mail in deinem Browser, klicke auf den Link\n'
-            'und kopiere die vollständige URL aus der Adressleiste.',
+            l.desktopLinkInstructions,
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13, color: Colors.grey[600]),
           ),
           const SizedBox(height: 20),
           TextField(
             controller: linkController,
-            decoration: const InputDecoration(
-              labelText: 'Link aus Browser einfügen',
+            decoration: InputDecoration(
+              labelText: l.pasteLinkLabel,
               hintText: 'https://guardian-app-b0f6c.firebaseapp.com/...',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.open_in_browser),
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.open_in_browser),
             ),
             onSubmitted: (_) => onSignInWithLink(),
           ),
@@ -269,13 +274,12 @@ class _EmailLinkSentWidget extends StatelessWidget {
             child: FilledButton.icon(
               onPressed: onSignInWithLink,
               icon: const Icon(Icons.login),
-              label: const Text('Anmelden'),
+              label: Text(l.signIn),
             ),
           ),
         ] else ...[
-          // ── Mobil: Deep Link ──
           Text(
-            'Öffne die E-Mail und tippe auf den Link um dich anzumelden.',
+            l.mobileLinkInstructions,
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13, color: Colors.grey[600]),
           ),
@@ -285,11 +289,11 @@ class _EmailLinkSentWidget extends StatelessWidget {
         TextButton.icon(
           onPressed: onResend,
           icon: const Icon(Icons.refresh),
-          label: const Text('Erneut senden'),
+          label: Text(l.resend),
         ),
         TextButton(
           onPressed: onBack,
-          child: const Text('Andere E-Mail verwenden'),
+          child: Text(l.useOtherEmail),
         ),
       ],
     );

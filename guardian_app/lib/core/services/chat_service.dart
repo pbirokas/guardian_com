@@ -8,6 +8,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../models/conversation.dart';
 import '../models/message.dart';
 import '../models/poll.dart';
+import '../models/scheduled_message.dart';
 
 class ChatService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -200,7 +201,13 @@ class ChatService {
     await _db.collection('conversations').doc(convId).delete();
   }
 
-  Future<void> sendMessage(String convId, String text) async {
+  Future<void> sendMessage(
+    String convId,
+    String text, {
+    String? replyToId,
+    String? replyToSenderName,
+    String? replyToText,
+  }) async {
     final msgRef =
         _db.collection('conversations').doc(convId).collection('messages').doc();
     final batch = _db.batch();
@@ -212,6 +219,9 @@ class ChatService {
       senderName: user.displayName ?? user.email ?? 'Unbekannt',
       text: text,
       sentAt: DateTime.now(),
+      replyToId: replyToId,
+      replyToSenderName: replyToSenderName,
+      replyToText: replyToText,
     ).toFirestore());
 
     batch.update(_db.collection('conversations').doc(convId), {
@@ -773,5 +783,53 @@ class ChatService {
         .doc(pollId)
         .snapshots()
         .map((s) => s.exists ? Poll.fromFirestore(s) : null);
+  }
+
+  // ── Geplante Nachrichten ───────────────────────────────────────────────────
+
+  Stream<List<ScheduledMessage>> watchScheduledMessages(String convId) {
+    return _db
+        .collection('conversations')
+        .doc(convId)
+        .collection('scheduledMessages')
+        .where('senderUid', isEqualTo: _uid)
+        .orderBy('scheduledFor')
+        .snapshots()
+        .map((s) => s.docs.map(ScheduledMessage.fromFirestore).toList());
+  }
+
+  Future<void> scheduleMessage(
+      String convId, String text, DateTime scheduledFor) async {
+    final user = _auth.currentUser!;
+    final ref = _db
+        .collection('conversations')
+        .doc(convId)
+        .collection('scheduledMessages')
+        .doc();
+    await ref.set(ScheduledMessage(
+      id: ref.id,
+      convId: convId,
+      text: text,
+      senderUid: user.uid,
+      senderName: user.displayName ?? user.email ?? '',
+      scheduledFor: scheduledFor,
+      createdAt: DateTime.now(),
+    ).toFirestore());
+  }
+
+  Future<void> deleteScheduledMessage(
+      String convId, String scheduledMessageId) async {
+    await _db
+        .collection('conversations')
+        .doc(convId)
+        .collection('scheduledMessages')
+        .doc(scheduledMessageId)
+        .delete();
+  }
+
+  /// Sendet eine geplante Nachricht und löscht den Eintrag danach.
+  Future<void> sendScheduledMessage(ScheduledMessage sm) async {
+    await sendMessage(sm.convId, sm.text);
+    await deleteScheduledMessage(sm.convId, sm.id);
   }
 }

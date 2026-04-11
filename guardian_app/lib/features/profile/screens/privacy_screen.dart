@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:guardian_app/l10n/app_localizations.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class PrivacyScreen extends StatefulWidget {
@@ -15,35 +16,37 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Datenschutz')),
+      appBar: AppBar(title: Text(l.privacyTitle)),
       body: ListView(
         children: [
-          const _SectionHeader('Sichtbarkeit'),
+          _SectionHeader(l.visibility),
           SwitchListTile(
-            title: const Text('Online-Status anzeigen'),
-            subtitle: const Text('Andere Mitglieder sehen wann du online bist'),
+            title: Text(l.showOnlineStatus),
+            subtitle: Text(l.showOnlineStatusSubtitle),
             value: _showOnlineStatus,
             onChanged: (v) => setState(() => _showOnlineStatus = v),
           ),
           SwitchListTile(
-            title: const Text('Zuletzt gesehen'),
-            subtitle: const Text('Andere Mitglieder sehen wann du zuletzt aktiv warst'),
+            title: Text(l.showLastSeen),
+            subtitle: Text(l.showLastSeenSubtitle),
             value: _showLastSeen,
             onChanged: (v) => setState(() => _showLastSeen = v),
           ),
           SwitchListTile(
-            title: const Text('Profilbild sichtbar'),
-            subtitle: const Text('Mitglieder können dein Profilbild sehen'),
+            title: Text(l.showProfilePhoto),
+            subtitle: Text(l.showProfilePhotoSubtitle),
             value: _showProfilePhoto,
             onChanged: (v) => setState(() => _showProfilePhoto = v),
           ),
           const Divider(),
-          const _SectionHeader('Rechtliches'),
+          _SectionHeader(l.legal),
           ListTile(
             leading: const Icon(Icons.privacy_tip_outlined),
-            title: const Text('Datenschutzerklärung'),
-            subtitle: const Text('Im Browser öffnen'),
+            title: Text(l.privacyPolicy),
+            subtitle: Text(l.openInBrowser),
             trailing: const Icon(Icons.open_in_new, size: 16),
             onTap: () => launchUrl(
               Uri.parse('https://pbirokas.github.io/guardian_com/privacy_policy.html'),
@@ -51,35 +54,34 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
             ),
           ),
           const Divider(),
-          const _SectionHeader('Daten'),
+          _SectionHeader(l.data),
           ListTile(
             leading: const Icon(Icons.delete_outline, color: Colors.red),
-            title: const Text('Konto löschen',
-                style: TextStyle(color: Colors.red)),
-            subtitle: const Text('Alle Daten werden unwiderruflich gelöscht'),
-            onTap: () => _confirmDelete(context),
+            title: Text(l.deleteAccount,
+                style: const TextStyle(color: Colors.red)),
+            subtitle: Text(l.deleteAccountSubtitle),
+            onTap: () => _confirmDelete(context, l),
           ),
         ],
       ),
     );
   }
 
-  void _confirmDelete(BuildContext context) {
+  void _confirmDelete(BuildContext context, AppLocalizations l) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Konto löschen'),
-        content: const Text(
-            'Möchtest du dein Konto wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.'),
+        title: Text(l.deleteAccount),
+        content: Text(l.deleteAccountConfirmContent),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Abbrechen'),
+            child: Text(l.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Löschen'),
+            child: Text(l.delete),
           ),
         ],
       ),

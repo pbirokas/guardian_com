@@ -1,7 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:guardian_app/l10n/app_localizations.dart';
 import '../../../core/models/notification_settings.dart';
+
+String _intervalLabel(MessageAlertInterval interval, AppLocalizations l) =>
+    switch (interval) {
+      MessageAlertInterval.always => l.intervalAlways,
+      MessageAlertInterval.hourly => l.intervalHourly,
+      MessageAlertInterval.daily => l.intervalDaily,
+      MessageAlertInterval.never => l.intervalNever,
+    };
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -44,30 +53,30 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+
     if (_loading) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Benachrichtigungen')),
+        appBar: AppBar(title: Text(l.notificationsTitle)),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Benachrichtigungen')),
+      appBar: AppBar(title: Text(l.notificationsTitle)),
       body: ListView(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: Text(
-              'Diese Einstellungen gelten als Standard für alle Organisationen. '
-              'Du kannst sie pro Organisation über das Glocken-Symbol anpassen.',
+              l.notificationsHint,
               style: TextStyle(fontSize: 12, color: Colors.grey[600]),
             ),
           ),
-          const _SectionHeader('Nachrichten'),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 4, 16, 4),
-            child: Text('Neue Nachrichten',
-                style: TextStyle(fontSize: 15)),
+          _SectionHeader(l.messages),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+            child: Text(l.newMessages, style: const TextStyle(fontSize: 15)),
           ),
           RadioGroup<MessageAlertInterval>(
             groupValue: _settings.newMessagesInterval,
@@ -77,7 +86,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             child: Column(
               children: MessageAlertInterval.values
                   .map((interval) => RadioListTile<MessageAlertInterval>(
-                        title: Text(interval.label),
+                        title: Text(_intervalLabel(interval, l)),
                         value: interval,
                         contentPadding:
                             const EdgeInsets.symmetric(horizontal: 16),
@@ -86,22 +95,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
           ),
           SwitchListTile(
-            title: const Text('Chat-Anfragen'),
-            subtitle: const Text('Wenn jemand einen Chat anfragt'),
+            title: Text(l.chatRequests),
+            subtitle: Text(l.chatRequestsSubtitle),
             value: _settings.chatRequests,
             onChanged: (v) => _save(_settings.copyWith(chatRequests: v)),
           ),
           const Divider(),
-          const _SectionHeader('Organisationen'),
+          _SectionHeader(l.organizations),
           SwitchListTile(
-            title: const Text('Einladungen'),
-            subtitle: const Text('Bei Einladungen in Organisationen'),
+            title: Text(l.invitations),
+            subtitle: Text(l.invitationsSubtitle),
             value: _settings.memberInvites,
             onChanged: (v) => _save(_settings.copyWith(memberInvites: v)),
           ),
           SwitchListTile(
-            title: const Text('Org-Änderungen'),
-            subtitle: const Text('Bei Änderungen in meinen Organisationen'),
+            title: Text(l.orgChanges),
+            subtitle: Text(l.orgChangesSubtitle),
             value: _settings.orgUpdates,
             onChanged: (v) => _save(_settings.copyWith(orgUpdates: v)),
           ),

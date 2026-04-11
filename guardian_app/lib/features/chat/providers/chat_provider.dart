@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/models/message.dart';
 import '../../../core/models/poll.dart';
+import '../../../core/models/scheduled_message.dart';
 import '../../../core/services/chat_service.dart';
 import '../../auth/providers/auth_provider.dart';
 
@@ -95,4 +96,10 @@ final pollProvider = StreamProvider.family<Poll?,
   return ref
       .watch(chatServiceProvider)
       .watchPoll(params.convId, params.pollId);
+});
+
+final scheduledMessagesProvider =
+    StreamProvider.family<List<ScheduledMessage>, String>((ref, convId) {
+  ref.watch(authStateProvider);
+  return ref.watch(chatServiceProvider).watchScheduledMessages(convId);
 });

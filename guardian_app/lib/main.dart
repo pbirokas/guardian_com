@@ -7,7 +7,11 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/providers/connectivity_provider.dart';
+import 'core/providers/locale_provider.dart' show localeProvider;
+import 'core/providers/scale_provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/router/app_router.dart';
 import 'core/services/auth_service.dart';
@@ -17,6 +21,7 @@ import 'core/services/notification_service.dart';
 import 'core/services/tray_service_stub.dart'
     if (dart.library.io) 'core/services/tray_service.dart';
 import 'firebase_options.dart';
+import 'package:guardian_app/l10n/app_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -55,10 +60,12 @@ void main() async {
   }
 
   final savedTheme = await loadSavedThemeMode();
+  final savedScale = await loadSavedScaleFactor();
 
   final app = ProviderScope(
     overrides: [
       themeModeProvider.overrideWith(() => ThemeModeNotifier(savedTheme)),
+      scaleFactorProvider.overrideWith(() => ScaleFactorNotifier(savedScale)),
     ],
     child: const GuardianApp(),
   );
@@ -115,6 +122,7 @@ class _GuardianAppState extends ConsumerState<GuardianApp> {
   Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeModeProvider);
+    final locale = ref.watch(localeProvider).value ?? const Locale('de');
     NotificationService.setRouter(router);
     if (defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.linux) {
@@ -122,11 +130,15 @@ class _GuardianAppState extends ConsumerState<GuardianApp> {
     }
 
     const seedColor = Colors.blue;
+    final isOnline = ref.watch(connectivityProvider).value ?? true;
 
     return MaterialApp.router(
       title: 'Guardian Com',
       debugShowCheckedModeBanner: false,
       themeMode: themeMode,
+      locale: locale,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: seedColor,
@@ -142,6 +154,59 @@ class _GuardianAppState extends ConsumerState<GuardianApp> {
         useMaterial3: true,
       ),
       routerConfig: router,
+      builder: (context, child) {
+        final l = AppLocalizations.of(context);
+        final isDesktopPlatform =
+            defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.linux;
+        final scale = isDesktopPlatform
+            ? ref.watch(scaleFactorProvider)
+            : 1.0;
+        final mq = MediaQuery.of(context);
+
+        Widget content = Column(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              height: isOnline ? 0 : 28,
+              color: Colors.red.shade700,
+              child: isOnline
+                  ? const SizedBox.shrink()
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.wifi_off,
+                            size: 14, color: Colors.white),
+                        const SizedBox(width: 6),
+                        Text(
+                          l.noConnection,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+            Expanded(child: child!),
+          ],
+        );
+
+        if (scale == 1.0) return content;
+
+        // Apply UI scaling: shrink the logical canvas by 1/scale so that
+        // Transform.scale zooms it back up to fill the actual window.
+        return Transform.scale(
+          scale: scale,
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: mq.size.width / scale,
+            height: mq.size.height / scale,
+            child: content,
+          ),
+        );
+      },
     );
   }
 }

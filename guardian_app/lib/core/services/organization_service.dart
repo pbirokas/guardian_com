@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../models/announcement.dart';
 import '../models/organization.dart';
 import '../models/app_user.dart';
 import '../models/org_member.dart';
@@ -603,5 +604,59 @@ class OrganizationService {
       {'invitationIds': FieldValue.arrayUnion([invitationId])},
       SetOptions(merge: true),
     );
+  }
+
+  // ── Ankündigungen (Pinnwand) ───────────────────────────────────────────────
+
+  Stream<List<Announcement>> watchAnnouncements(String orgId) {
+    return _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('announcements')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((s) => s.docs.map(Announcement.fromFirestore).toList());
+  }
+
+  Future<void> createAnnouncement(
+      String orgId, String title, String content) async {
+    final user = _auth.currentUser!;
+    final ref = _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('announcements')
+        .doc();
+    await ref.set(Announcement(
+      id: ref.id,
+      title: title,
+      content: content,
+      authorUid: user.uid,
+      authorName: user.displayName ?? user.email ?? '',
+      createdAt: DateTime.now(),
+    ).toFirestore());
+  }
+
+  Future<void> editAnnouncement(
+      String orgId, String announcementId, String title, String content) async {
+    await _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('announcements')
+        .doc(announcementId)
+        .update({
+      'title': title,
+      'content': content,
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    });
+  }
+
+  Future<void> deleteAnnouncement(
+      String orgId, String announcementId) async {
+    await _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('announcements')
+        .doc(announcementId)
+        .delete();
   }
 }

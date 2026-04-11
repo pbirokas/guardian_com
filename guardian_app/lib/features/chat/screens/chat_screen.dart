@@ -7,6 +7,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:guardian_app/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -17,6 +18,7 @@ import '../../../core/models/conversation.dart';
 import '../../../core/models/message.dart';
 import '../../../core/models/org_member.dart';
 import '../../../core/models/organization.dart';
+import '../../../core/models/scheduled_message.dart';
 import '../../../features/organizations/providers/organizations_provider.dart';
 import '../providers/chat_provider.dart';
 
@@ -42,6 +44,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   // Scroll-Position vor dem Batch-Laden gespeichert (in _onScroll)
   double? _batchSavedPixels;
   double? _batchSavedMax;
+  Message? _replyingTo;
+
+  // ── Geplante Nachrichten ───────────────────────────────────────────────────
+  Timer? _scheduleTimer;
+
+  // ── Suche ──────────────────────────────────────────────────────────────────
+  bool _isSearching = false;
+  String _searchQuery = '';
+  final _searchController = TextEditingController();
 
   // ── Voice recording ────────────────────────────────────────────────────────
   final _recorder = AudioRecorder();
@@ -54,6 +65,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     super.initState();
     _markRead();
     _scrollController.addListener(_onScroll);
+    // Jede Minute prüfen ob eine geplante Nachricht fällig ist
+    _scheduleTimer = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => _checkScheduledMessages(),
+    );
   }
 
   void _onScroll() {
@@ -91,20 +107,128 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void dispose() {
     _controller.dispose();
     _scrollController.dispose();
+    _searchController.dispose();
+    _scheduleTimer?.cancel();
     _recordingTimer?.cancel();
     _recorder.dispose();
     super.dispose();
   }
 
+  Future<void> _checkScheduledMessages() async {
+    final now = DateTime.now();
+    final service = ref.read(chatServiceProvider);
+    try {
+      final snapshot = await service.watchScheduledMessages(widget.chatId).first;
+      for (final sm in snapshot) {
+        if (sm.scheduledFor.isBefore(now) || sm.scheduledFor.isAtSameMomentAs(now)) {
+          await service.sendScheduledMessage(sm);
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _showScheduleDialog() async {
+    final l = AppLocalizations.of(context);
+    final text = _controller.text.trim();
+
+    // Datum wählen
+    final date = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().add(const Duration(hours: 1)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (date == null || !mounted) return;
+
+    // Uhrzeit wählen
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(
+          DateTime.now().add(const Duration(hours: 1))),
+    );
+    if (time == null || !mounted) return;
+
+    final scheduledFor = DateTime(
+        date.year, date.month, date.day, time.hour, time.minute);
+
+    if (scheduledFor.isBefore(DateTime.now())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l.scheduleFor)),
+      );
+      return;
+    }
+
+    // Text aus Eingabefeld oder eigenen eingeben
+    final textToSchedule = text.isNotEmpty ? text : await _askScheduleText();
+    if (textToSchedule == null || textToSchedule.isEmpty || !mounted) return;
+
+    try {
+      await ref.read(chatServiceProvider)
+          .scheduleMessage(widget.chatId, textToSchedule, scheduledFor);
+      if (text.isNotEmpty) _controller.clear();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(l.scheduledAt(_formatScheduledTime(scheduledFor))),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l.errorMessage(e.toString()))),
+        );
+      }
+    }
+  }
+
+  Future<String?> _askScheduleText() async {
+    final ctrl = TextEditingController();
+    final l = AppLocalizations.of(context);
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final ld = AppLocalizations.of(ctx);
+        return AlertDialog(
+          title: Text(ld.scheduleMessage),
+          content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            maxLines: null,
+            maxLength: 2000,
+            decoration: InputDecoration(
+              hintText: l.messageHint,
+              border: const OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(ld.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+              child: Text(ld.create),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _formatScheduledTime(DateTime dt) {
+    final d = '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
+    final t = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    return '$d $t';
+  }
+
   // ── Voice recording methods ────────────────────────────────────────────────
 
   Future<void> _startRecording() async {
+    final l = AppLocalizations.of(context);
     final hasPermission = await _recorder.hasPermission();
     if (!hasPermission) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Mikrofon-Zugriff wurde verweigert.')),
+          SnackBar(content: Text(l.microphoneDenied)),
         );
       }
       return;
@@ -142,6 +266,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _stopAndSend() async {
     _recordingTimer?.cancel();
     final messenger = ScaffoldMessenger.of(context); // capture before await
+    final l = AppLocalizations.of(context);
     final path = await _recorder.stop();
     final durationMs = _recordingDuration.inMilliseconds;
     setState(() {
@@ -161,7 +286,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _scrollToBottom();
     } catch (e) {
       if (mounted) {
-        messenger.showSnackBar(SnackBar(content: Text('Fehler: $e')));
+        messenger.showSnackBar(SnackBar(content: Text(l.errorMessage(e.toString()))));
       }
     }
   }
@@ -177,79 +302,82 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('Umfrage erstellen'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: questionCtrl,
-                  autofocus: true,
-                  maxLength: 200,
-                  decoration: const InputDecoration(
-                    labelText: 'Frage',
-                    border: OutlineInputBorder(),
+        builder: (ctx, setState) {
+          final ld = AppLocalizations.of(ctx);
+          return AlertDialog(
+            title: Text(ld.createPollTitle),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: questionCtrl,
+                    autofocus: true,
+                    maxLength: 200,
+                    decoration: InputDecoration(
+                      labelText: ld.pollQuestion,
+                      border: const OutlineInputBorder(),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                const Text('Antwortmöglichkeiten',
-                    style: TextStyle(fontSize: 12, color: Colors.grey)),
-                const SizedBox(height: 6),
-                ...optionCtrls.asMap().entries.map((e) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: e.value,
-                              maxLength: 100,
-                              decoration: InputDecoration(
-                                labelText: 'Option ${e.key + 1}',
-                                border: const OutlineInputBorder(),
-                                counterText: '',
+                  const SizedBox(height: 12),
+                  Text(ld.pollOptions,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  const SizedBox(height: 6),
+                  ...optionCtrls.asMap().entries.map((e) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: e.value,
+                                maxLength: 100,
+                                decoration: InputDecoration(
+                                  labelText: 'Option ${e.key + 1}',
+                                  border: const OutlineInputBorder(),
+                                  counterText: '',
+                                ),
                               ),
                             ),
-                          ),
-                          if (optionCtrls.length > 2)
-                            IconButton(
-                              icon: const Icon(Icons.remove_circle_outline,
-                                  color: Colors.red),
-                              onPressed: () => setState(() =>
-                                  optionCtrls.removeAt(e.key)),
-                            ),
-                        ],
-                      ),
-                    )),
-                if (optionCtrls.length < 8)
-                  TextButton.icon(
-                    onPressed: () => setState(() =>
-                        optionCtrls.add(TextEditingController())),
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('Option hinzufügen'),
+                            if (optionCtrls.length > 2)
+                              IconButton(
+                                icon: const Icon(Icons.remove_circle_outline,
+                                    color: Colors.red),
+                                onPressed: () => setState(() =>
+                                    optionCtrls.removeAt(e.key)),
+                              ),
+                          ],
+                        ),
+                      )),
+                  if (optionCtrls.length < 8)
+                    TextButton.icon(
+                      onPressed: () => setState(() =>
+                          optionCtrls.add(TextEditingController())),
+                      icon: const Icon(Icons.add, size: 16),
+                      label: Text(ld.addOption),
+                    ),
+                  SwitchListTile(
+                    value: multipleChoice,
+                    onChanged: (v) => setState(() => multipleChoice = v),
+                    title: Text(ld.multipleChoice,
+                        style: const TextStyle(fontSize: 14)),
+                    contentPadding: EdgeInsets.zero,
                   ),
-                SwitchListTile(
-                  value: multipleChoice,
-                  onChanged: (v) => setState(() => multipleChoice = v),
-                  title: const Text('Mehrfachauswahl',
-                      style: TextStyle(fontSize: 14)),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Abbrechen'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Erstellen'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(ld.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(ld.create),
+              ),
+            ],
+          );
+        },
       ),
     );
 
@@ -261,6 +389,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         .toList();
     if (question.isEmpty || options.length < 2) return;
 
+    final l = AppLocalizations.of(context);
     try {
       await ref.read(chatServiceProvider).createPoll(
             widget.chatId,
@@ -273,7 +402,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+            .showSnackBar(SnackBar(content: Text(l.errorMessage(e.toString()))));
       }
     }
   }
@@ -303,14 +432,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
     _controller.clear();
+    final reply = _replyingTo;
+    setState(() => _replyingTo = null);
+    final l = AppLocalizations.of(context);
     try {
-      await ref.read(chatServiceProvider).sendMessage(widget.chatId, text);
+      await ref.read(chatServiceProvider).sendMessage(
+            widget.chatId,
+            text,
+            replyToId: reply?.id,
+            replyToSenderName: reply?.senderName,
+            replyToText: reply != null
+                ? (reply.imageUrl != null
+                    ? '🖼'
+                    : reply.audioUrl != null
+                        ? '🎤'
+                        : reply.fileUrl != null
+                            ? reply.fileName ?? '📎'
+                            : reply.text)
+                : null,
+          );
       _markRead();
       _scrollToBottom();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler: $e')),
+          SnackBar(content: Text(l.sendError(e.toString()))),
         );
       }
     }
@@ -319,6 +465,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _sendImage() async {
     if (_pickingImage) return;
     setState(() => _pickingImage = true);
+    final l = AppLocalizations.of(context);
     try {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
@@ -337,7 +484,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler beim Senden: $e')),
+          SnackBar(content: Text(l.sendError(e.toString()))),
         );
       }
     } finally {
@@ -348,6 +495,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _sendFile() async {
     if (_pickingImage) return;
     setState(() => _pickingImage = true);
+    final l = AppLocalizations.of(context);
     try {
       final result = await FilePicker.pickFiles(
         allowMultiple: false,
@@ -365,7 +513,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler beim Senden: $e')),
+          SnackBar(content: Text(l.sendError(e.toString()))),
         );
       }
     } finally {
@@ -375,6 +523,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _showAddMemberDialog(BuildContext context, Conversation conv,
       List<OrgMember> allMembers) async {
+    final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     // Nur Mitglieder anzeigen die noch nicht im Chat sind
     final available = allMembers
@@ -383,7 +532,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     if (available.isEmpty) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('Alle Mitglieder sind bereits im Chat.')),
+        SnackBar(content: Text(l.allMembersInChat)),
       );
       return;
     }
@@ -392,53 +541,56 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('Mitglied hinzufügen'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView(
-              shrinkWrap: true,
-              children: available
-                  .map((m) => CheckboxListTile(
-                        value: selected.contains(m.uid),
-                        onChanged: (v) => setState(() =>
-                            v == true
-                                ? selected.add(m.uid)
-                                : selected.remove(m.uid)),
-                        title: Text(m.displayName),
-                        subtitle: Text(m.email,
-                            style: const TextStyle(fontSize: 12)),
-                        secondary: CircleAvatar(
-                          radius: 16,
-                          backgroundImage: m.photoUrl != null
-                              ? NetworkImage(m.photoUrl!)
-                              : null,
-                          child: m.photoUrl == null
-                              ? Text((m.displayName.isNotEmpty
-                                      ? m.displayName[0]
-                                      : '?')
-                                  .toUpperCase())
-                              : null,
-                        ),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ))
-                  .toList(),
+        builder: (ctx, setState) {
+          final ld = AppLocalizations.of(ctx);
+          return AlertDialog(
+            title: Text(ld.addMemberTitle),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView(
+                shrinkWrap: true,
+                children: available
+                    .map((m) => CheckboxListTile(
+                          value: selected.contains(m.uid),
+                          onChanged: (v) => setState(() =>
+                              v == true
+                                  ? selected.add(m.uid)
+                                  : selected.remove(m.uid)),
+                          title: Text(m.displayName),
+                          subtitle: Text(m.email,
+                              style: const TextStyle(fontSize: 12)),
+                          secondary: CircleAvatar(
+                            radius: 16,
+                            backgroundImage: m.photoUrl != null
+                                ? NetworkImage(m.photoUrl!)
+                                : null,
+                            child: m.photoUrl == null
+                                ? Text((m.displayName.isNotEmpty
+                                        ? m.displayName[0]
+                                        : '?')
+                                    .toUpperCase())
+                                : null,
+                          ),
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ))
+                    .toList(),
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Abbrechen'),
-            ),
-            FilledButton(
-              onPressed: selected.isEmpty
-                  ? null
-                  : () => Navigator.pop(ctx, true),
-              child: const Text('Hinzufügen'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(ld.cancel),
+              ),
+              FilledButton(
+                onPressed: selected.isEmpty
+                    ? null
+                    : () => Navigator.pop(ctx, true),
+                child: Text(ld.add),
+              ),
+            ],
+          );
+        },
       ),
     );
 
@@ -455,7 +607,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         }
       } catch (e) {
         if (mounted) {
-          messenger.showSnackBar(SnackBar(content: Text('Fehler: $e')));
+          messenger.showSnackBar(SnackBar(content: Text(l.errorMessage(e.toString()))));
         }
       }
     }
@@ -473,105 +625,110 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     await showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Text('Mitglieder (${participants.length})'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: participants.isEmpty
-                ? const Text('Keine Mitglieder gefunden.')
-                : ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: participants.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (_, i) {
-                      final m = participants[i];
-                      final isSelf =
-                          m.uid == FirebaseAuth.instance.currentUser?.uid;
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: CircleAvatar(
-                          radius: 18,
-                          backgroundImage: m.photoUrl != null
-                              ? NetworkImage(m.photoUrl!)
-                              : null,
-                          child: m.photoUrl == null
-                              ? Text((m.displayName.isNotEmpty
-                                      ? m.displayName[0]
-                                      : '?')
-                                  .toUpperCase(),
-                                  style: const TextStyle(fontSize: 14))
-                              : null,
-                        ),
-                        title: Text(m.displayName),
-                        subtitle: Text(m.email,
-                            style: const TextStyle(fontSize: 12)),
-                        trailing: canManage && !isSelf
-                            ? IconButton(
-                                icon: const Icon(Icons.remove_circle_outline,
-                                    color: Colors.red),
-                                tooltip: 'Entfernen',
-                                onPressed: () async {
-                                  final confirmed =
-                                      await showDialog<bool>(
-                                    context: ctx,
-                                    builder: (c) => AlertDialog(
-                                      title:
-                                          const Text('Mitglied entfernen'),
-                                      content: Text(
-                                          '${m.displayName} aus dem Chat entfernen?'),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(c, false),
-                                          child: const Text('Abbrechen'),
-                                        ),
-                                        FilledButton(
-                                          style: FilledButton.styleFrom(
-                                              backgroundColor: Colors.red),
-                                          onPressed: () =>
-                                              Navigator.pop(c, true),
-                                          child: const Text('Entfernen'),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                  if (confirmed == true && mounted) {
-                                    final messenger =
-                                        ScaffoldMessenger.of(context);
-                                    try {
-                                      await ref
-                                          .read(chatServiceProvider)
-                                          .removeMemberFromConversation(
-                                              conv.id, m.uid);
-                                      setDialogState(() =>
-                                          participants.remove(m));
-                                    } catch (e) {
-                                      if (mounted) {
-                                        messenger.showSnackBar(SnackBar(
-                                            content: Text('Fehler: $e')));
+        builder: (ctx, setDialogState) {
+          final ld = AppLocalizations.of(ctx);
+          return AlertDialog(
+            title: Text('${ld.membersTooltip} (${participants.length})'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: participants.isEmpty
+                  ? const Text('Keine Mitglieder gefunden.')
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: participants.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (_, i) {
+                        final m = participants[i];
+                        final isSelf =
+                            m.uid == FirebaseAuth.instance.currentUser?.uid;
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: CircleAvatar(
+                            radius: 18,
+                            backgroundImage: m.photoUrl != null
+                                ? NetworkImage(m.photoUrl!)
+                                : null,
+                            child: m.photoUrl == null
+                                ? Text((m.displayName.isNotEmpty
+                                        ? m.displayName[0]
+                                        : '?')
+                                    .toUpperCase(),
+                                    style: const TextStyle(fontSize: 14))
+                                : null,
+                          ),
+                          title: Text(m.displayName),
+                          subtitle: Text(m.email,
+                              style: const TextStyle(fontSize: 12)),
+                          trailing: canManage && !isSelf
+                              ? IconButton(
+                                  icon: const Icon(Icons.remove_circle_outline,
+                                      color: Colors.red),
+                                  tooltip: ld.remove,
+                                  onPressed: () async {
+                                    final confirmed =
+                                        await showDialog<bool>(
+                                      context: ctx,
+                                      builder: (c) {
+                                        final lc = AppLocalizations.of(c);
+                                        return AlertDialog(
+                                          title: Text(lc.removeMembersTitle),
+                                          content: Text(lc.removeMemberFromChat(m.displayName)),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(c, false),
+                                              child: Text(lc.cancel),
+                                            ),
+                                            FilledButton(
+                                              style: FilledButton.styleFrom(
+                                                  backgroundColor: Colors.red),
+                                              onPressed: () =>
+                                                  Navigator.pop(c, true),
+                                              child: Text(lc.remove),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    );
+                                    if (confirmed == true && mounted) {
+                                      final messenger =
+                                          ScaffoldMessenger.of(context);
+                                      try {
+                                        await ref
+                                            .read(chatServiceProvider)
+                                            .removeMemberFromConversation(
+                                                conv.id, m.uid);
+                                        setDialogState(() =>
+                                            participants.remove(m));
+                                      } catch (e) {
+                                        if (mounted) {
+                                          messenger.showSnackBar(SnackBar(
+                                              content: Text(ld.errorMessage(e.toString()))));
+                                        }
                                       }
                                     }
-                                  }
-                                },
-                              )
-                            : null,
-                      );
-                    },
-                  ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Schließen'),
+                                  },
+                                )
+                              : null,
+                        );
+                      },
+                    ),
             ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(ld.close),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final messagesAsync = ref.watch(
         messagesProvider((convId: widget.chatId, limit: _limit)));
     final conv = ref.watch(conversationProvider(widget.chatId)).value;
@@ -603,40 +760,78 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         conv.isGroup &&
         conv.canApproveUids.contains(currentUid);
 
+    final scheduledMessages =
+        ref.watch(scheduledMessagesProvider(widget.chatId)).value ?? [];
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        actions: [
-          if (conv != null && conv.isGroup)
-            IconButton(
-              icon: const Icon(Icons.group_outlined),
-              tooltip: 'Mitglieder anzeigen',
-              onPressed: () => _showMembersDialog(
-                conv,
-                members ?? [],
-                canManage: isModeratorOrAdmin,
+      appBar: _isSearching
+          ? AppBar(
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => setState(() {
+                  _isSearching = false;
+                  _searchQuery = '';
+                  _searchController.clear();
+                }),
               ),
-            ),
-          if (isModeratorOrAdmin && !isArchived)
-            PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'add_member') {
-                  _showAddMemberDialog(context, conv, members ?? []);
-                }
-              },
-              itemBuilder: (_) => [
-                const PopupMenuItem(
-                  value: 'add_member',
-                  child: ListTile(
-                    leading: Icon(Icons.person_add_outlined),
-                    title: Text('Mitglied hinzufügen'),
-                    contentPadding: EdgeInsets.zero,
-                  ),
+              title: TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: l.searchHint,
+                  border: InputBorder.none,
                 ),
+                onChanged: (v) => setState(() => _searchQuery = v.trim()),
+              ),
+              actions: [
+                if (_searchQuery.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => setState(() {
+                      _searchQuery = '';
+                      _searchController.clear();
+                    }),
+                  ),
+              ],
+            )
+          : AppBar(
+              title: Text(title),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.search),
+                  tooltip: l.searchMessages,
+                  onPressed: () => setState(() => _isSearching = true),
+                ),
+                if (conv != null && conv.isGroup)
+                  IconButton(
+                    icon: const Icon(Icons.group_outlined),
+                    tooltip: l.membersTooltip,
+                    onPressed: () => _showMembersDialog(
+                      conv,
+                      members ?? [],
+                      canManage: isModeratorOrAdmin,
+                    ),
+                  ),
+                if (isModeratorOrAdmin && !isArchived)
+                  PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'add_member') {
+                        _showAddMemberDialog(context, conv, members ?? []);
+                      }
+                    },
+                    itemBuilder: (_) => [
+                      PopupMenuItem(
+                        value: 'add_member',
+                        child: ListTile(
+                          leading: const Icon(Icons.person_add_outlined),
+                          title: Text(l.addMemberTitle),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
-        ],
-      ),
       body: Column(
         children: [
           if (isArchived)
@@ -649,16 +844,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 children: [
                   Icon(Icons.archive_outlined, size: 14, color: Colors.grey[600]),
                   const SizedBox(width: 6),
-                  Text('Archiviert – nur lesen',
+                  Text(l.archivedReadOnly,
                       style: TextStyle(fontSize: 12, color: Colors.grey[600])),
                 ],
               ),
+            ),
+          if (scheduledMessages.isNotEmpty)
+            _ScheduledMessagesBanner(
+              messages: scheduledMessages,
+              convId: widget.chatId,
             ),
           Expanded(
             child: messagesAsync.when(
               loading: () =>
                   const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Fehler: $e')),
+              error: (e, _) => Center(child: Text(l.errorMessage(e.toString()))),
               data: (messages) {
                 final isFirstLoad = _knownMessageCount == 0;
                 final isNewMessage =
@@ -679,22 +879,56 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   });
                 }
                 _knownMessageCount = messages.length;
-                if (messages.isEmpty) {
-                  return const Center(
-                    child: Text('Noch keine Nachrichten',
-                        style: TextStyle(color: Colors.grey)),
+
+                // Suche: Nachrichten filtern
+                final query = _searchQuery.toLowerCase();
+                final filtered = query.isEmpty
+                    ? messages
+                    : messages
+                        .where((m) => m.text.toLowerCase().contains(query))
+                        .toList();
+
+                if (filtered.isEmpty) {
+                  return Center(
+                    child: Text(
+                      query.isNotEmpty ? l.searchNoResults : l.noMessages,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
                   );
                 }
-                final mayHaveMore = messages.length >= _limit;
+                final mayHaveMore =
+                    query.isEmpty && messages.length >= _limit;
                 _mayHaveMore = mayHaveMore;
-                return Scrollbar(
+                return Column(
+                  children: [
+                    if (query.isNotEmpty)
+                      Container(
+                        width: double.infinity,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 6),
+                        child: Text(
+                          filtered.isEmpty
+                              ? l.searchNoResults
+                              : l.searchResults(filtered.length),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    Expanded(
+                      child: Scrollbar(
                   controller: _scrollController,
                   thumbVisibility: true,
                   child: ListView.builder(
                   controller: _scrollController,
                   physics: const ClampingScrollPhysics(),
                   padding: const EdgeInsets.all(16),
-                  itemCount: messages.length + (mayHaveMore ? 1 : 0),
+                  itemCount: filtered.length + (mayHaveMore ? 1 : 0),
                   itemBuilder: (ctx, i) {
                     if (mayHaveMore && i == 0) {
                       return Padding(
@@ -717,16 +951,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                   },
                                   icon: const Icon(Icons.expand_less,
                                       size: 16),
-                                  label: const Text('Ältere Nachrichten',
-                                      style: TextStyle(fontSize: 12)),
+                                  label: Text(l.olderMessages,
+                                      style: const TextStyle(fontSize: 12)),
                                 ),
                         ),
                       );
                     }
-                    final msg = messages[mayHaveMore ? i - 1 : i];
+                    final msg = filtered[mayHaveMore ? i - 1 : i];
                     final isMe = msg.senderUid == currentUid;
-                    final prev = mayHaveMore ? (i > 1 ? messages[i - 2] : null)
-                                             : (i > 0 ? messages[i - 1] : null);
+                    final prev = mayHaveMore ? (i > 1 ? filtered[i - 2] : null)
+                                             : (i > 0 ? filtered[i - 1] : null);
                     final showDate = prev == null ||
                         !_sameDay(prev.sentAt, msg.sentAt);
                     final showSender = !isMe &&
@@ -741,6 +975,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           showSenderName:
                               showSender && msg.senderName.isNotEmpty,
                           isModerating: isModeratorOrAdmin && !isMe,
+                          readStatus: isMe && conv != null
+                              ? _readStatus(conv, msg)
+                              : null,
                           onReport: isMe || conv == null || msg.pollId != null
                               ? null
                               : () => _confirmReport(conv, msg),
@@ -757,12 +994,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           onImageTap: msg.imageUrl != null
                               ? () => _openImageFullscreen(context, msg.imageUrl!)
                               : null,
+                          onReply: isArchived
+                              ? null
+                              : () => setState(() {
+                                    _replyingTo = msg;
+                                    _controller.selection =
+                                        TextSelection.fromPosition(
+                                      TextPosition(
+                                          offset: _controller.text.length),
+                                    );
+                                  }),
                         ),
                       ],
                     );
                   },
                   ),
-                );
+                ),
+              ),
+            ],
+          );
               },
             ),
           ),
@@ -778,6 +1028,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               onStopAndSend: _stopAndSend,
               onCancelRecording: _cancelRecording,
               onCreatePoll: isSheltered ? _showCreatePollDialog : null,
+              onSchedule: _showScheduleDialog,
+              replyMessage: _replyingTo,
+              onCancelReply: () => setState(() => _replyingTo = null),
             ),
         ],
       ),
@@ -786,6 +1039,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
+
+  /// null  = fremde Nachricht (kein Indikator)
+  /// 0     = gesendet (noch kein anderer hat gelesen)
+  /// 1     = mindestens einer hat gelesen
+  /// 2     = alle haben gelesen
+  int _readStatus(Conversation conv, Message msg) {
+    final others = conv.participantUids
+        .where((uid) => uid != FirebaseAuth.instance.currentUser!.uid)
+        .toList();
+    if (others.isEmpty) return 2;
+    final readCount = others
+        .where((uid) =>
+            conv.lastReadAt[uid]?.isAfter(msg.sentAt) == true ||
+            conv.lastReadAt[uid] == msg.sentAt)
+        .length;
+    if (readCount == 0) return 0;
+    if (readCount < others.length) return 1;
+    return 2;
+  }
 
   void _openImageFullscreen(BuildContext context, String imageUrl) {
     showDialog<void>(
@@ -828,30 +1100,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final ctrl = TextEditingController(text: msg.text);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(archive ? 'Nachricht moderieren' : 'Nachricht bearbeiten'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          maxLines: null,
-          maxLength: 2000,
-          decoration: const InputDecoration(border: OutlineInputBorder()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Abbrechen'),
+      builder: (ctx) {
+        final ld = AppLocalizations.of(ctx);
+        return AlertDialog(
+          title: Text(archive ? ld.moderate : 'Nachricht bearbeiten'),
+          content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            maxLines: null,
+            maxLength: 2000,
+            decoration: const InputDecoration(border: OutlineInputBorder()),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Speichern'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(ld.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(ld.save),
+            ),
+          ],
+        );
+      },
     );
     if (confirmed != true || !mounted) return;
     final newText = ctrl.text.trim();
     if (newText.isEmpty || newText == msg.text) return;
+    final l = AppLocalizations.of(context);
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
       await ref.read(chatServiceProvider).editMessage(
@@ -865,7 +1141,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+            .showSnackBar(SnackBar(content: Text(l.errorMessage(e.toString()))));
       }
     }
   }
@@ -873,43 +1149,47 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _confirmReport(Conversation conv, Message msg) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Nachricht melden'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Diese Nachricht dem Admin/Moderator melden?'),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(8),
+      builder: (ctx) {
+        final ld = AppLocalizations.of(ctx);
+        return AlertDialog(
+          title: Text(ld.reportMessage),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Diese Nachricht dem Admin/Moderator melden?'),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  msg.text,
+                  style: const TextStyle(fontSize: 13),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              child: Text(
-                msg.text,
-                style: const TextStyle(fontSize: 13),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(ld.cancel),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Melden'),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Abbrechen'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Melden'),
-          ),
-        ],
-      ),
+        );
+      },
     );
     if (confirmed == true && mounted) {
+      final l = AppLocalizations.of(context);
       try {
         await ref.read(chatServiceProvider).reportMessage(
               convId: widget.chatId,
@@ -924,7 +1204,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       } catch (e) {
         if (!mounted) return;
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Fehler: $e')));
+            .showSnackBar(SnackBar(content: Text(l.errorMessage(e.toString()))));
       }
     }
   }
@@ -938,7 +1218,10 @@ class _MessageBubble extends StatelessWidget {
   final VoidCallback? onReport;
   final VoidCallback? onEdit;
   final VoidCallback? onImageTap;
+  final VoidCallback? onReply;
   final String convId;
+  // null = fremde Nachricht, 0 = gesendet, 1 = teilweise gelesen, 2 = alle gelesen
+  final int? readStatus;
 
   const _MessageBubble({
     required this.message,
@@ -949,10 +1232,13 @@ class _MessageBubble extends StatelessWidget {
     this.onReport,
     this.onEdit,
     this.onImageTap,
+    this.onReply,
+    this.readStatus,
   });
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
 
     final hasText = message.text.isNotEmpty &&
@@ -967,10 +1253,19 @@ class _MessageBubble extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (onReply != null)
+                    ListTile(
+                      leading: const Icon(Icons.reply_outlined),
+                      title: Text(l.reply),
+                      onTap: () {
+                        Navigator.pop(context);
+                        onReply!();
+                      },
+                    ),
                   if (hasText)
                     ListTile(
                       leading: const Icon(Icons.copy_outlined),
-                      title: const Text('Text kopieren'),
+                      title: Text(l.copyText),
                       onTap: () {
                         Navigator.pop(context);
                         Clipboard.setData(ClipboardData(text: message.text));
@@ -987,7 +1282,7 @@ class _MessageBubble extends StatelessWidget {
                       leading: Icon(isModerating
                           ? Icons.shield_outlined
                           : Icons.edit_outlined),
-                      title: Text(isModerating ? 'Moderieren' : 'Bearbeiten'),
+                      title: Text(isModerating ? l.moderate : l.edit),
                       onTap: () {
                         Navigator.pop(context);
                         onEdit!();
@@ -997,8 +1292,8 @@ class _MessageBubble extends StatelessWidget {
                     ListTile(
                       leading: const Icon(Icons.flag_outlined,
                           color: Colors.red),
-                      title: const Text('Nachricht melden',
-                          style: TextStyle(color: Colors.red)),
+                      title: Text(l.reportMessage,
+                          style: const TextStyle(color: Colors.red)),
                       onTap: () {
                         Navigator.pop(context);
                         onReport!();
@@ -1022,7 +1317,7 @@ class _MessageBubble extends StatelessWidget {
         decoration: BoxDecoration(
           color: isMe
               ? colorScheme.primary
-              : colorScheme.surfaceContainerHighest,
+              : colorScheme.secondaryContainer,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
@@ -1042,9 +1337,17 @@ class _MessageBubble extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: Colors.grey[600],
+                    color: isMe
+                        ? colorScheme.onPrimary.withAlpha(200)
+                        : colorScheme.onSecondaryContainer,
                   ),
                 ),
+              ),
+            if (message.replyToId != null)
+              _ReplyQuote(
+                senderName: message.replyToSenderName ?? '',
+                text: message.replyToText ?? '',
+                isMe: isMe,
               ),
             if (message.pollId != null)
               _PollBubble(
@@ -1091,8 +1394,10 @@ class _MessageBubble extends StatelessWidget {
                   color: message.isArchived
                       ? (isMe
                           ? colorScheme.onPrimary.withAlpha(160)
-                          : Colors.grey[600])
-                      : (isMe ? colorScheme.onPrimary : null),
+                          : colorScheme.onSecondaryContainer.withAlpha(160))
+                      : (isMe
+                          ? colorScheme.onPrimary
+                          : colorScheme.onSecondaryContainer),
                   fontStyle: message.isArchived
                       ? FontStyle.italic
                       : FontStyle.normal,
@@ -1112,19 +1417,19 @@ class _MessageBubble extends StatelessWidget {
                       size: 11,
                       color: isMe
                           ? colorScheme.onPrimary.withAlpha(160)
-                          : Colors.grey,
+                          : colorScheme.onSecondaryContainer.withAlpha(160),
                     ),
                     const SizedBox(width: 3),
                     Text(
                       message.archivedByName != null
-                          ? 'von ${message.archivedByName} moderiert'
-                          : 'von Moderator moderiert',
+                          ? l.moderatedBy(message.archivedByName!)
+                          : l.moderatedByModerator,
                       style: TextStyle(
                         fontSize: 10,
                         fontStyle: FontStyle.italic,
                         color: isMe
                             ? colorScheme.onPrimary.withAlpha(160)
-                            : Colors.grey,
+                            : colorScheme.onSecondaryContainer.withAlpha(160),
                       ),
                     ),
                   ],
@@ -1136,13 +1441,13 @@ class _MessageBubble extends StatelessWidget {
               children: [
                 if (message.editedAt != null && !message.isArchived)
                   Text(
-                    'bearbeitet · ',
+                    l.editedPrefix,
                     style: TextStyle(
                       fontSize: 10,
                       fontStyle: FontStyle.italic,
                       color: isMe
                           ? colorScheme.onPrimary.withAlpha(160)
-                          : Colors.grey,
+                          : colorScheme.onSecondaryContainer.withAlpha(160),
                     ),
                   ),
                 Text(
@@ -1151,9 +1456,16 @@ class _MessageBubble extends StatelessWidget {
                     fontSize: 10,
                     color: isMe
                         ? colorScheme.onPrimary.withAlpha(180)
-                        : Colors.grey,
+                        : colorScheme.onSecondaryContainer.withAlpha(180),
                   ),
                 ),
+                if (readStatus != null) ...[
+                  const SizedBox(width: 3),
+                  _ReadTicks(
+                    status: readStatus!,
+                    color: colorScheme.onPrimary,
+                  ),
+                ],
               ],
             ),
           ],
@@ -1167,6 +1479,148 @@ class _MessageBubble extends StatelessWidget {
       '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 }
 
+// ── Geplante Nachrichten Banner ───────────────────────────────────────────────
+
+class _ScheduledMessagesBanner extends ConsumerWidget {
+  final List<ScheduledMessage> messages;
+  final String convId;
+
+  const _ScheduledMessagesBanner(
+      {required this.messages, required this.convId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ExpansionTile(
+      leading: Icon(Icons.schedule_outlined,
+          size: 18, color: colorScheme.primary),
+      title: Text(
+        l.scheduledMessages(messages.length),
+        style: TextStyle(fontSize: 13, color: colorScheme.primary),
+      ),
+      tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+      childrenPadding: EdgeInsets.zero,
+      children: messages.map((sm) {
+        final time =
+            '${sm.scheduledFor.day.toString().padLeft(2, '0')}.${sm.scheduledFor.month.toString().padLeft(2, '0')}.${sm.scheduledFor.year} '
+            '${sm.scheduledFor.hour.toString().padLeft(2, '0')}:${sm.scheduledFor.minute.toString().padLeft(2, '0')}';
+        return ListTile(
+          dense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          leading: const Icon(Icons.access_time, size: 16),
+          title: Text(sm.text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13)),
+          subtitle: Text(l.scheduledAt(time),
+              style: const TextStyle(fontSize: 11)),
+          trailing: IconButton(
+            icon: const Icon(Icons.close, size: 16),
+            tooltip: l.cancelScheduled,
+            onPressed: () => ref
+                .read(chatServiceProvider)
+                .deleteScheduledMessage(convId, sm.id),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+// ── Reply-Zitat in der Bubble ─────────────────────────────────────────────────
+
+class _ReplyQuote extends StatelessWidget {
+  final String senderName;
+  final String text;
+  final bool isMe;
+
+  const _ReplyQuote({
+    required this.senderName,
+    required this.text,
+    required this.isMe,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final bgColor = isMe
+        ? colorScheme.onPrimary.withAlpha(40)
+        : colorScheme.onSecondaryContainer.withAlpha(25);
+    final borderColor = isMe
+        ? colorScheme.onPrimary.withAlpha(120)
+        : colorScheme.onSecondaryContainer.withAlpha(120);
+    final nameColor = isMe
+        ? colorScheme.onPrimary
+        : colorScheme.onSecondaryContainer;
+    final textColor = isMe
+        ? colorScheme.onPrimary.withAlpha(200)
+        : colorScheme.onSecondaryContainer.withAlpha(180);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(6),
+        border: Border(
+          left: BorderSide(color: borderColor, width: 3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            senderName,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: nameColor,
+            ),
+          ),
+          Text(
+            text,
+            style: TextStyle(fontSize: 12, color: textColor),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Lesebestätigung ───────────────────────────────────────────────────────────
+
+class _ReadTicks extends StatelessWidget {
+  final int status; // 0 = gesendet, 1 = teilweise gelesen, 2 = alle gelesen
+  final Color color;
+
+  const _ReadTicks({required this.status, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    if (status == 0) {
+      // Einzelner Haken — gesendet
+      return Icon(Icons.done, size: 12, color: color.withAlpha(160));
+    }
+    // Doppelter Haken — status 1: grau (teilweise), status 2: blau (alle)
+    final tickColor = status == 2 ? Colors.lightBlueAccent : color.withAlpha(160);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(Icons.done, size: 12, color: tickColor),
+        Positioned(
+          left: 5,
+          child: Icon(Icons.done, size: 12, color: tickColor),
+        ),
+        const SizedBox(width: 17, height: 12),
+      ],
+    );
+  }
+}
+
 class _DateDivider extends StatelessWidget {
   final DateTime date;
 
@@ -1174,12 +1628,13 @@ class _DateDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final now = DateTime.now();
     String label;
     if (date.day == now.day && date.month == now.month) {
-      label = 'Heute';
+      label = l.today;
     } else if (date.day == now.day - 1 && date.month == now.month) {
-      label = 'Gestern';
+      label = l.yesterday;
     } else {
       label = '${date.day}.${date.month}.${date.year}';
     }
@@ -1213,6 +1668,9 @@ class _InputBar extends StatelessWidget {
   final VoidCallback onStopAndSend;
   final VoidCallback onCancelRecording;
   final VoidCallback? onCreatePoll;
+  final VoidCallback? onSchedule;
+  final Message? replyMessage;
+  final VoidCallback? onCancelReply;
 
   const _InputBar({
     required this.controller,
@@ -1225,6 +1683,9 @@ class _InputBar extends StatelessWidget {
     required this.onStopAndSend,
     required this.onCancelRecording,
     this.onCreatePoll,
+    this.onSchedule,
+    this.replyMessage,
+    this.onCancelReply,
   });
 
   String _formatDuration(Duration d) {
@@ -1235,20 +1696,81 @@ class _InputBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
-        child: isRecording ? _buildRecordingBar(context) : _buildNormalBar(context),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (replyMessage != null)
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest,
+                border: Border(
+                  top: BorderSide(color: colorScheme.outlineVariant),
+                  left: BorderSide(color: colorScheme.primary, width: 3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l.replyingTo(replyMessage!.senderName),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                        Text(
+                          replyMessage!.imageUrl != null
+                              ? '🖼'
+                              : replyMessage!.audioUrl != null
+                                  ? '🎤'
+                                  : replyMessage!.fileUrl != null
+                                      ? replyMessage!.fileName ?? '📎'
+                                      : replyMessage!.text,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: onCancelReply,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+            child: isRecording
+                ? _buildRecordingBar(context)
+                : _buildNormalBar(context),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildRecordingBar(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return Row(
       children: [
         IconButton(
           icon: const Icon(Icons.delete_outline, color: Colors.red),
-          tooltip: 'Abbrechen',
+          tooltip: l.cancel,
           onPressed: onCancelRecording,
         ),
         Expanded(
@@ -1269,8 +1791,8 @@ class _InputBar extends StatelessWidget {
                       fontFeatures: [FontFeature.tabularFigures()]),
                 ),
                 const SizedBox(width: 8),
-                const Text('Aufnahme läuft…',
-                    style: TextStyle(color: Colors.grey, fontSize: 13)),
+                Text(l.recordingIndicator,
+                    style: const TextStyle(color: Colors.grey, fontSize: 13)),
               ],
             ),
           ),
@@ -1289,6 +1811,7 @@ class _InputBar extends StatelessWidget {
   }
 
   void _showAttachMenu(BuildContext context) {
+    final l = AppLocalizations.of(context);
     showModalBottomSheet(
       context: context,
       builder: (_) => SafeArea(
@@ -1297,7 +1820,7 @@ class _InputBar extends StatelessWidget {
           children: [
             ListTile(
               leading: const Icon(Icons.image_outlined),
-              title: const Text('Bild senden'),
+              title: Text(l.sendImage),
               onTap: onSendImage == null
                   ? null
                   : () {
@@ -1307,7 +1830,7 @@ class _InputBar extends StatelessWidget {
             ),
             ListTile(
               leading: const Icon(Icons.attach_file),
-              title: const Text('Datei senden (max. 5 MB)'),
+              title: Text(l.sendFile),
               onTap: onSendFile == null
                   ? null
                   : () {
@@ -1317,7 +1840,7 @@ class _InputBar extends StatelessWidget {
             ),
             ListTile(
               leading: const Icon(Icons.mic_outlined),
-              title: const Text('Sprachaufnahme'),
+              title: Text(l.voiceRecording),
               onTap: () {
                 Navigator.pop(context);
                 onStartRecording();
@@ -1326,12 +1849,20 @@ class _InputBar extends StatelessWidget {
             if (onCreatePoll != null)
               ListTile(
                 leading: const Icon(Icons.poll_outlined),
-                title: const Text('Umfrage erstellen'),
+                title: Text(l.createPoll),
                 onTap: () {
                   Navigator.pop(context);
                   onCreatePoll!();
                 },
               ),
+            ListTile(
+              leading: const Icon(Icons.schedule_outlined),
+              title: Text(l.scheduleMessage),
+              onTap: () {
+                Navigator.pop(context);
+                onSchedule?.call();
+              },
+            ),
           ],
         ),
       ),
@@ -1339,11 +1870,12 @@ class _InputBar extends StatelessWidget {
   }
 
   Widget _buildNormalBar(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return Row(
       children: [
         IconButton(
           icon: const Icon(Icons.add_circle_outline),
-          tooltip: 'Anhang',
+          tooltip: l.attachmentTooltip,
           onPressed: () => _showAttachMenu(context),
         ),
         Expanded(
@@ -1352,7 +1884,7 @@ class _InputBar extends StatelessWidget {
             textCapitalization: TextCapitalization.sentences,
             maxLines: null,
             decoration: InputDecoration(
-              hintText: 'Nachricht schreiben...',
+              hintText: l.messageHint,
               filled: true,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(24),
@@ -1363,11 +1895,6 @@ class _InputBar extends StatelessWidget {
             ),
             onSubmitted: (_) => onSend(),
           ),
-        ),
-        IconButton(
-          icon: const Icon(Icons.mic_outlined),
-          tooltip: 'Sprachnachricht',
-          onPressed: onStartRecording,
         ),
         FilledButton(
           onPressed: onSend,
@@ -1399,10 +1926,12 @@ class _FileBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final nameColor = isMe ? colorScheme.onPrimary : colorScheme.onSurface;
+    final nameColor = isMe
+        ? colorScheme.onPrimary
+        : colorScheme.onSecondaryContainer;
     final subColor = isMe
         ? colorScheme.onPrimary.withAlpha(180)
-        : colorScheme.onSurfaceVariant;
+        : colorScheme.onSecondaryContainer.withAlpha(180);
 
     return GestureDetector(
       onTap: () async {
@@ -1532,19 +2061,21 @@ class _PollBubbleState extends ConsumerState<_PollBubble> {
   Future<void> _close() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Umfrage beenden'),
-        content: const Text(
-            'Die Umfrage beenden? Danach kann nicht mehr abgestimmt werden.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Abbrechen')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Beenden')),
-        ],
-      ),
+      builder: (ctx) {
+        final ld = AppLocalizations.of(ctx);
+        return AlertDialog(
+          title: Text(ld.endPollTitle),
+          content: Text(ld.endPollContent),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(ld.cancel)),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(ld.endPoll)),
+          ],
+        );
+      },
     );
     if (confirmed == true) {
       await ref
@@ -1555,6 +2086,7 @@ class _PollBubbleState extends ConsumerState<_PollBubble> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final pollAsync = ref.watch(
         pollProvider((convId: widget.convId, pollId: widget.pollId)));
     final currentUid = FirebaseAuth.instance.currentUser!.uid;
@@ -1589,7 +2121,7 @@ class _PollBubbleState extends ConsumerState<_PollBubble> {
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    poll.isClosed ? 'Abgeschlossen' : 'Umfrage',
+                    poll.isClosed ? l.pollClosed : l.poll,
                     style: TextStyle(
                         fontSize: 11,
                         color: (onColor ?? Colors.grey).withAlpha(180)),
@@ -1660,8 +2192,7 @@ class _PollBubbleState extends ConsumerState<_PollBubble> {
                 );
               }),
               Text(
-                '${poll.totalVoters} '
-                '${poll.totalVoters == 1 ? 'Stimme' : 'Stimmen'}',
+                poll.totalVoters == 1 ? l.oneVote : l.votes(poll.totalVoters),
                 style: TextStyle(
                     fontSize: 11,
                     color: (onColor ?? Colors.grey).withAlpha(180)),

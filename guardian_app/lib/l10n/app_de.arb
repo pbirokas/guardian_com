@@ -432,5 +432,80 @@
   "open": "Öffnen",
   "unarchive": "Wiederherstellen",
   "saveImage": "Bild speichern",
-  "imageSaved": "Bild gespeichert"
+  "imageSaved": "Bild gespeichert",
+
+  "myRelationships": "Meine Verknüpfungen",
+  "myParents": "Meine Eltern",
+  "myChildren": "Meine Kinder",
+  "noParents": "Keine verifizierten Eltern",
+  "noChildren": "Keine verifizierten Kinder",
+  "verifiedParent": "Verifiziertes Elternteil",
+  "verifiedChild": "Verifiziertes Kind",
+
+  "connectChild": "Kind verknüpfen",
+  "connectChildHint": "E-Mail-Adresse des Kindes eingeben",
+  "sendClaimRequest": "Verknüpfungsanfrage senden",
+  "claimRequestSent": "Anfrage gesendet.",
+  "claimRequestNotFound": "Kein Benutzer mit dieser E-Mail gefunden.",
+  "claimRequestAlreadyExists": "Eine Anfrage für diesen Benutzer existiert bereits.",
+  "claimRequestCancelTitle": "Anfrage zurückziehen",
+  "claimRequestCancelContent": "Verknüpfungsanfrage an {email} wirklich zurückziehen?",
+  "@claimRequestCancelContent": {
+    "placeholders": { "email": { "type": "String" } }
+  },
+
+  "incomingClaimRequests": "Eingehende Anfragen ({count})",
+  "@incomingClaimRequests": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "wantsToBeYourParent": "{name} möchte dein Elternteil sein",
+  "@wantsToBeYourParent": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "confirmClaim": "Bestätigen",
+  "rejectClaim": "Ablehnen",
+  "claimConfirmed": "Verknüpfung bestätigt.",
+  "claimRejected": "Anfrage abgelehnt.",
+
+  "revokeConnection": "Verknüpfung aufheben",
+  "revokeConnectionTitle": "Verknüpfung aufheben",
+  "revokeConnectionContent": "Verknüpfung mit {name} wirklich aufheben?",
+  "@revokeConnectionContent": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+
+  "roleConflictTitle": "Rollenkonflikt",
+  "roleConflictContent": "Als Kind-Konto sind andere Rollen nicht erlaubt. Folgende Organisationen sind betroffen:\n\n{orgs}\n\nMöchtest du trotzdem fortfahren? Die Rollen in diesen Organisationen werden auf 'Kind' geändert.",
+  "@roleConflictContent": {
+    "placeholders": { "orgs": { "type": "String" } }
+  },
+
+  "childAccountLabel": "Kind-Konto",
+  "childAccountHint": "Dieses Konto ist als Kind markiert. Nur die Rolle 'Kind' ist in Organisationen erlaubt.",
+  "isChildAccount": "Als Kind markiert",
+
+  "parentConsentRequired": "Eltern-Einwilligung erforderlich",
+  "parentConsentRequiredContent": "{name} hat verifizierte Eltern. Die Einladung wird zur Genehmigung weitergeleitet.",
+  "@parentConsentRequiredContent": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "pendingParentConsents": "Ausstehende Eltern-Einwilligungen ({count})",
+  "@pendingParentConsents": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "orgInvitationForChild": "{orgName} möchte {childName} einladen",
+  "@orgInvitationForChild": {
+    "placeholders": {
+      "orgName": { "type": "String" },
+      "childName": { "type": "String" }
+    }
+  },
+  "orgInvitationInvitedBy": "Eingeladen von {name}",
+  "@orgInvitationInvitedBy": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "approveOrgInvitation": "Genehmigen",
+  "vetoOrgInvitation": "Ablehnen",
+  "orgInvitationApproved": "Einladung genehmigt.",
+  "orgInvitationVetoed": "Einladung abgelehnt."
 }

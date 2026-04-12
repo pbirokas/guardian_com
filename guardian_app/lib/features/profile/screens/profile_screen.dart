@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:guardian_app/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -221,6 +222,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               onChanged: (v) => ref.read(scaleFactorProvider.notifier).set(v),
             ),
           ],
+          const SizedBox(height: 8),
+          const Divider(),
+          const SizedBox(height: 8),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.people_outline),
+            title: Text(l.myRelationships),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/relationships'),
+          ),
           const SizedBox(height: 8),
           const Divider(),
           const SizedBox(height: 8),

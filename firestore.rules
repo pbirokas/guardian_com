@@ -37,10 +37,14 @@ service cloud.firestore {
       // Own doc: full update.
       // Other user's doc: only memberships + isChild may be changed
       // (used by approveChildInvite, _processPendingInvitations).
+      // Connection revocation: either party may remove the other from the
+      // verifiedParent/ChildUids arrays on both docs.
       allow update: if isSignedIn() && (
         request.auth.uid == userId ||
         request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['memberships', 'isChild'])
+          .hasOnly(['memberships', 'isChild']) ||
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['verifiedParentUids', 'verifiedChildUids'])
       );
     }
 
@@ -292,6 +296,71 @@ service cloud.firestore {
         resource.data.email == request.auth.token.email.lower() ||
         request.auth.uid in resource.data.guardianUids
       );
+    }
+
+    // ─── Claim Requests ──────────────────────────────────────────────────────
+    // Parent initiates; child confirms/rejects. Cloud Function handles the
+    // user-doc updates on confirmation.
+
+    match /claimRequests/{requestId} {
+      // Sender (parent) and recipient (child) may read their own requests.
+      allow read: if isSignedIn() && (
+        resource.data.fromUid == request.auth.uid ||
+        resource.data.toUid   == request.auth.uid
+      );
+      allow list: if isSignedIn() && (
+        resource.data.fromUid == request.auth.uid ||
+        resource.data.toUid   == request.auth.uid
+      );
+
+      // Only the initiating parent may create a ClaimRequest.
+      allow create: if isSignedIn() &&
+        request.resource.data.fromUid == request.auth.uid &&
+        request.resource.data.status  == 'pending';
+
+      // Parent may cancel their own request.
+      // Child may confirm or reject an incoming request.
+      // No other fields may change.
+      allow update: if isSignedIn() && (
+        (resource.data.fromUid == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+         request.resource.data.status == 'cancelled') ||
+        (resource.data.toUid == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+         request.resource.data.status in ['confirmed', 'rejected'])
+      );
+
+      allow delete: if false;
+    }
+
+    // ─── Org Invite Consents ─────────────────────────────────────────────────
+    // Created by OrganizationService when a child with verified parents is
+    // invited. Parents approve or veto via ParentClaimService.
+
+    match /orgInviteConsents/{consentId} {
+      // The child and each listed parent may read.
+      allow read: if isSignedIn() && (
+        resource.data.childUid  == request.auth.uid ||
+        request.auth.uid in resource.data.parentUids
+      );
+      allow list: if isSignedIn() && (
+        resource.data.childUid  == request.auth.uid ||
+        request.auth.uid in resource.data.parentUids
+      );
+
+      // Any signed-in admin/mod of the org may create a consent doc.
+      allow create: if isSignedIn() &&
+        isAdminOrMod(request.resource.data.orgId);
+
+      // A listed parent may update status to approved or vetoed.
+      allow update: if isSignedIn() &&
+        request.auth.uid in resource.data.parentUids &&
+        resource.data.status == 'pending' &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'approvedBy', 'vetoedBy']) &&
+        request.resource.data.status in ['approved', 'vetoed'];
+
+      allow delete: if false;
     }
 
     // ─── Reports ─────────────────────────────────────────────────────────────

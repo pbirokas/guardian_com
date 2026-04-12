@@ -957,4 +957,139 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get imageSaved => 'Bild gespeichert';
+
+  @override
+  String get myRelationships => 'Meine Verknüpfungen';
+
+  @override
+  String get myParents => 'Meine Eltern';
+
+  @override
+  String get myChildren => 'Meine Kinder';
+
+  @override
+  String get noParents => 'Keine verifizierten Eltern';
+
+  @override
+  String get noChildren => 'Keine verifizierten Kinder';
+
+  @override
+  String get verifiedParent => 'Verifiziertes Elternteil';
+
+  @override
+  String get verifiedChild => 'Verifiziertes Kind';
+
+  @override
+  String get connectChild => 'Kind verknüpfen';
+
+  @override
+  String get connectChildHint => 'E-Mail-Adresse des Kindes eingeben';
+
+  @override
+  String get sendClaimRequest => 'Verknüpfungsanfrage senden';
+
+  @override
+  String get claimRequestSent => 'Anfrage gesendet.';
+
+  @override
+  String get claimRequestNotFound =>
+      'Kein Benutzer mit dieser E-Mail gefunden.';
+
+  @override
+  String get claimRequestAlreadyExists =>
+      'Eine Anfrage für diesen Benutzer existiert bereits.';
+
+  @override
+  String get claimRequestCancelTitle => 'Anfrage zurückziehen';
+
+  @override
+  String claimRequestCancelContent(String email) {
+    return 'Verknüpfungsanfrage an $email wirklich zurückziehen?';
+  }
+
+  @override
+  String incomingClaimRequests(int count) {
+    return 'Eingehende Anfragen ($count)';
+  }
+
+  @override
+  String wantsToBeYourParent(String name) {
+    return '$name möchte dein Elternteil sein';
+  }
+
+  @override
+  String get confirmClaim => 'Bestätigen';
+
+  @override
+  String get rejectClaim => 'Ablehnen';
+
+  @override
+  String get claimConfirmed => 'Verknüpfung bestätigt.';
+
+  @override
+  String get claimRejected => 'Anfrage abgelehnt.';
+
+  @override
+  String get revokeConnection => 'Verknüpfung aufheben';
+
+  @override
+  String get revokeConnectionTitle => 'Verknüpfung aufheben';
+
+  @override
+  String revokeConnectionContent(String name) {
+    return 'Verknüpfung mit $name wirklich aufheben?';
+  }
+
+  @override
+  String get roleConflictTitle => 'Rollenkonflikt';
+
+  @override
+  String roleConflictContent(String orgs) {
+    return 'Als Kind-Konto sind andere Rollen nicht erlaubt. Folgende Organisationen sind betroffen:\n\n$orgs\n\nMöchtest du trotzdem fortfahren? Die Rollen in diesen Organisationen werden auf \'Kind\' geändert.';
+  }
+
+  @override
+  String get childAccountLabel => 'Kind-Konto';
+
+  @override
+  String get childAccountHint =>
+      'Dieses Konto ist als Kind markiert. Nur die Rolle \'Kind\' ist in Organisationen erlaubt.';
+
+  @override
+  String get isChildAccount => 'Als Kind markiert';
+
+  @override
+  String get parentConsentRequired => 'Eltern-Einwilligung erforderlich';
+
+  @override
+  String parentConsentRequiredContent(String name) {
+    return '$name hat verifizierte Eltern. Die Einladung wird zur Genehmigung weitergeleitet.';
+  }
+
+  @override
+  String pendingParentConsents(int count) {
+    return 'Ausstehende Eltern-Einwilligungen ($count)';
+  }
+
+  @override
+  String orgInvitationForChild(String orgName, String childName) {
+    return '$orgName möchte $childName einladen';
+  }
+
+  @override
+  String orgInvitationInvitedBy(String name) {
+    return 'Eingeladen von $name';
+  }
+
+  @override
+  String get approveOrgInvitation => 'Genehmigen';
+
+  @override
+  String get vetoOrgInvitation => 'Ablehnen';
+
+  @override
+  String get orgInvitationApproved => 'Einladung genehmigt.';
+
+  @override
+  String get orgInvitationVetoed => 'Einladung abgelehnt.';
 }

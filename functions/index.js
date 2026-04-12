@@ -710,3 +710,180 @@ exports.getCustomToken = onRequest(async (req, res) => {
     res.status(401).json({ error: `Token-Fehler: ${err.message}` });
   }
 });
+
+// ─── Parent-Child Claim Functions ─────────────────────────────────────────────
+
+/**
+ * Triggered when a new ClaimRequest is created.
+ * Notifies the target child (toUid) that a parent wants to connect.
+ */
+exports.onClaimRequest = onDocumentCreated(
+  'claimRequests/{requestId}',
+  async (event) => {
+    const data = event.data.data();
+    const { fromName, toUid } = data;
+    if (!toUid) return;
+
+    const tokens = await getTokensForUids([toUid]);
+    if (tokens.length === 0) return;
+
+    await sendToTokens(
+      tokens,
+      'Neue Verknüpfungsanfrage',
+      `${fromName} möchte dein Elternteil sein. Tippe um zu antworten.`,
+      { type: 'claim_request', requestId: event.params.requestId },
+    );
+  },
+);
+
+/**
+ * Triggered when a ClaimRequest is updated to status=confirmed.
+ * Updates verifiedParentUids on the child doc and verifiedChildUids on the
+ * parent doc, then notifies the parent.
+ */
+exports.onClaimConfirmed = onDocumentUpdated(
+  'claimRequests/{requestId}',
+  async (event) => {
+    const before = event.data.before.data();
+    const after  = event.data.after.data();
+
+    if (before.status === after.status) return;
+    if (after.status !== 'confirmed') return;
+
+    const parentUid = after.fromUid;
+    const childUid  = after.toUid;
+    const childName = after.toEmail; // fallback if no display name
+
+    // Mutual link
+    const batch = db.batch();
+    batch.update(db.collection('users').doc(childUid), {
+      verifiedParentUids: FieldValue.arrayUnion(parentUid),
+    });
+    batch.update(db.collection('users').doc(parentUid), {
+      verifiedChildUids: FieldValue.arrayUnion(childUid),
+    });
+    await batch.commit();
+
+    // Try to get the child's display name for the notification
+    const childSnap = await db.collection('users').doc(childUid).get();
+    const displayName = childSnap.exists
+      ? (childSnap.data().displayName || childName)
+      : childName;
+
+    // Notify parent
+    const tokens = await getTokensForUids([parentUid]);
+    if (tokens.length > 0) {
+      await sendToTokens(
+        tokens,
+        'Verknüpfung bestätigt',
+        `${displayName} hat deine Verknüpfungsanfrage bestätigt.`,
+        { type: 'claim_confirmed', childUid },
+      );
+    }
+  },
+);
+
+/**
+ * Triggered when an OrgInviteConsent is created (child with verified parents
+ * was invited to an org). Notifies all listed parent UIDs.
+ */
+exports.onChildOrgInvite = onDocumentCreated(
+  'orgInviteConsents/{consentId}',
+  async (event) => {
+    const data = event.data.data();
+    const { parentUids, childName, orgName } = data;
+    if (!parentUids || parentUids.length === 0) return;
+
+    const tokens = await getTokensForUids(parentUids);
+    if (tokens.length === 0) return;
+
+    await sendToTokens(
+      tokens,
+      'Einwilligung erforderlich',
+      `${orgName} möchte ${childName} einladen. Tippe um zu entscheiden.`,
+      { type: 'org_invite_consent', consentId: event.params.consentId },
+    );
+  },
+);
+
+/**
+ * Triggered when an OrgInviteConsent is updated to approved or vetoed.
+ *
+ * approved → adds the child as a member (role=child, status=pending,
+ *             guardianUids=proposedGuardianUids) and notifies the inviting admin.
+ * vetoed   → notifies the inviting admin that the consent was denied.
+ */
+exports.onParentConsent = onDocumentUpdated(
+  'orgInviteConsents/{consentId}',
+  async (event) => {
+    const before = event.data.before.data();
+    const after  = event.data.after.data();
+
+    if (before.status === after.status) return;
+    if (!['approved', 'vetoed'].includes(after.status)) return;
+
+    const {
+      childUid,
+      childName,
+      orgId,
+      orgName,
+      invitedByUid,
+      proposedGuardianUids,
+    } = after;
+
+    if (after.status === 'approved') {
+      // Fetch child user data
+      const childSnap = await db.collection('users').doc(childUid).get();
+      if (!childSnap.exists) return;
+      const childData = childSnap.data();
+
+      const memberRef = db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('members')
+        .doc(childUid);
+
+      const existing = await memberRef.get();
+      if (existing.exists) return; // already a member
+
+      const now = Timestamp.now();
+      const membership = { orgId, role: 'child' };
+
+      await db.runTransaction(async (tx) => {
+        tx.set(memberRef, {
+          uid: childUid,
+          displayName: childData.displayName || '',
+          email: childData.email || '',
+          photoUrl: childData.photoUrl || null,
+          role: 'child',
+          joinedAt: now,
+          guardianUids: proposedGuardianUids || [],
+          status: 'pending',
+        });
+        // Do NOT add to memberUids yet — guardian must still approve (pending→active).
+      });
+
+      // Notify inviting admin
+      const tokens = await getTokensForUids([invitedByUid]);
+      if (tokens.length > 0) {
+        await sendToTokens(
+          tokens,
+          'Einladung genehmigt',
+          `Die Eltern von ${childName} haben der Einladung in ${orgName} zugestimmt.`,
+          { type: 'consent_approved', orgId },
+        );
+      }
+    } else {
+      // vetoed
+      const tokens = await getTokensForUids([invitedByUid]);
+      if (tokens.length > 0) {
+        await sendToTokens(
+          tokens,
+          'Einladung abgelehnt',
+          `Die Eltern von ${childName} haben die Einladung in ${orgName} abgelehnt.`,
+          { type: 'consent_vetoed', orgId },
+        );
+      }
+    }
+  },
+);

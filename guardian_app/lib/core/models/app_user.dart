@@ -37,6 +37,13 @@ class AppUser {
   final DateTime createdAt;
   final bool isChild;
 
+  /// UIDs der verifizierten Elternteile (global, orgs-übergreifend).
+  /// Wird durch gegenseitig bestätigte ClaimRequests befüllt.
+  final List<String> verifiedParentUids;
+
+  /// UIDs der verifizierten Kinder (Gegenstück zu verifiedParentUids).
+  final List<String> verifiedChildUids;
+
   const AppUser({
     required this.uid,
     required this.email,
@@ -45,7 +52,12 @@ class AppUser {
     required this.memberships,
     required this.createdAt,
     this.isChild = false,
+    this.verifiedParentUids = const [],
+    this.verifiedChildUids = const [],
   });
+
+  bool get hasVerifiedParents => verifiedParentUids.isNotEmpty;
+  bool get hasVerifiedChildren => verifiedChildUids.isNotEmpty;
 
   factory AppUser.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -59,6 +71,10 @@ class AppUser {
           .toList(),
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       isChild: data['isChild'] as bool? ?? false,
+      verifiedParentUids: List<String>.from(
+          data['verifiedParentUids'] as List? ?? []),
+      verifiedChildUids: List<String>.from(
+          data['verifiedChildUids'] as List? ?? []),
     );
   }
 
@@ -69,6 +85,8 @@ class AppUser {
         'memberships': memberships.map((m) => m.toMap()).toList(),
         'createdAt': Timestamp.fromDate(createdAt),
         'isChild': isChild,
+        'verifiedParentUids': verifiedParentUids,
+        'verifiedChildUids': verifiedChildUids,
       };
 
   OrgRole? roleInOrg(String orgId) {

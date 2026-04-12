@@ -2517,6 +2517,29 @@ class _MemberTile extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Verified relationship indicator
+          Builder(builder: (context) {
+            final appUser = ref.watch(currentAppUserProvider).value;
+            if (appUser == null) return const SizedBox.shrink();
+            final isVerifiedChild =
+                appUser.verifiedChildUids.contains(member.uid);
+            final isVerifiedParent =
+                appUser.verifiedParentUids.contains(member.uid);
+            if (!isVerifiedChild && !isVerifiedParent) {
+              return const SizedBox.shrink();
+            }
+            return Tooltip(
+              message: isVerifiedChild ? l.verifiedChild : l.verifiedParent,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Icon(
+                  Icons.family_restroom,
+                  size: 18,
+                  color: isVerifiedChild ? Colors.green : Colors.blue,
+                ),
+              ),
+            );
+          }),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(

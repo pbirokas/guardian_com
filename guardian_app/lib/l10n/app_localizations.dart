@@ -1789,6 +1789,234 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Bild gespeichert'**
   String get imageSaved;
+
+  /// No description provided for @myRelationships.
+  ///
+  /// In de, this message translates to:
+  /// **'Meine Verknüpfungen'**
+  String get myRelationships;
+
+  /// No description provided for @myParents.
+  ///
+  /// In de, this message translates to:
+  /// **'Meine Eltern'**
+  String get myParents;
+
+  /// No description provided for @myChildren.
+  ///
+  /// In de, this message translates to:
+  /// **'Meine Kinder'**
+  String get myChildren;
+
+  /// No description provided for @noParents.
+  ///
+  /// In de, this message translates to:
+  /// **'Keine verifizierten Eltern'**
+  String get noParents;
+
+  /// No description provided for @noChildren.
+  ///
+  /// In de, this message translates to:
+  /// **'Keine verifizierten Kinder'**
+  String get noChildren;
+
+  /// No description provided for @verifiedParent.
+  ///
+  /// In de, this message translates to:
+  /// **'Verifiziertes Elternteil'**
+  String get verifiedParent;
+
+  /// No description provided for @verifiedChild.
+  ///
+  /// In de, this message translates to:
+  /// **'Verifiziertes Kind'**
+  String get verifiedChild;
+
+  /// No description provided for @connectChild.
+  ///
+  /// In de, this message translates to:
+  /// **'Kind verknüpfen'**
+  String get connectChild;
+
+  /// No description provided for @connectChildHint.
+  ///
+  /// In de, this message translates to:
+  /// **'E-Mail-Adresse des Kindes eingeben'**
+  String get connectChildHint;
+
+  /// No description provided for @sendClaimRequest.
+  ///
+  /// In de, this message translates to:
+  /// **'Verknüpfungsanfrage senden'**
+  String get sendClaimRequest;
+
+  /// No description provided for @claimRequestSent.
+  ///
+  /// In de, this message translates to:
+  /// **'Anfrage gesendet.'**
+  String get claimRequestSent;
+
+  /// No description provided for @claimRequestNotFound.
+  ///
+  /// In de, this message translates to:
+  /// **'Kein Benutzer mit dieser E-Mail gefunden.'**
+  String get claimRequestNotFound;
+
+  /// No description provided for @claimRequestAlreadyExists.
+  ///
+  /// In de, this message translates to:
+  /// **'Eine Anfrage für diesen Benutzer existiert bereits.'**
+  String get claimRequestAlreadyExists;
+
+  /// No description provided for @claimRequestCancelTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Anfrage zurückziehen'**
+  String get claimRequestCancelTitle;
+
+  /// No description provided for @claimRequestCancelContent.
+  ///
+  /// In de, this message translates to:
+  /// **'Verknüpfungsanfrage an {email} wirklich zurückziehen?'**
+  String claimRequestCancelContent(String email);
+
+  /// No description provided for @incomingClaimRequests.
+  ///
+  /// In de, this message translates to:
+  /// **'Eingehende Anfragen ({count})'**
+  String incomingClaimRequests(int count);
+
+  /// No description provided for @wantsToBeYourParent.
+  ///
+  /// In de, this message translates to:
+  /// **'{name} möchte dein Elternteil sein'**
+  String wantsToBeYourParent(String name);
+
+  /// No description provided for @confirmClaim.
+  ///
+  /// In de, this message translates to:
+  /// **'Bestätigen'**
+  String get confirmClaim;
+
+  /// No description provided for @rejectClaim.
+  ///
+  /// In de, this message translates to:
+  /// **'Ablehnen'**
+  String get rejectClaim;
+
+  /// No description provided for @claimConfirmed.
+  ///
+  /// In de, this message translates to:
+  /// **'Verknüpfung bestätigt.'**
+  String get claimConfirmed;
+
+  /// No description provided for @claimRejected.
+  ///
+  /// In de, this message translates to:
+  /// **'Anfrage abgelehnt.'**
+  String get claimRejected;
+
+  /// No description provided for @revokeConnection.
+  ///
+  /// In de, this message translates to:
+  /// **'Verknüpfung aufheben'**
+  String get revokeConnection;
+
+  /// No description provided for @revokeConnectionTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Verknüpfung aufheben'**
+  String get revokeConnectionTitle;
+
+  /// No description provided for @revokeConnectionContent.
+  ///
+  /// In de, this message translates to:
+  /// **'Verknüpfung mit {name} wirklich aufheben?'**
+  String revokeConnectionContent(String name);
+
+  /// No description provided for @roleConflictTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Rollenkonflikt'**
+  String get roleConflictTitle;
+
+  /// No description provided for @roleConflictContent.
+  ///
+  /// In de, this message translates to:
+  /// **'Als Kind-Konto sind andere Rollen nicht erlaubt. Folgende Organisationen sind betroffen:\n\n{orgs}\n\nMöchtest du trotzdem fortfahren? Die Rollen in diesen Organisationen werden auf \'Kind\' geändert.'**
+  String roleConflictContent(String orgs);
+
+  /// No description provided for @childAccountLabel.
+  ///
+  /// In de, this message translates to:
+  /// **'Kind-Konto'**
+  String get childAccountLabel;
+
+  /// No description provided for @childAccountHint.
+  ///
+  /// In de, this message translates to:
+  /// **'Dieses Konto ist als Kind markiert. Nur die Rolle \'Kind\' ist in Organisationen erlaubt.'**
+  String get childAccountHint;
+
+  /// No description provided for @isChildAccount.
+  ///
+  /// In de, this message translates to:
+  /// **'Als Kind markiert'**
+  String get isChildAccount;
+
+  /// No description provided for @parentConsentRequired.
+  ///
+  /// In de, this message translates to:
+  /// **'Eltern-Einwilligung erforderlich'**
+  String get parentConsentRequired;
+
+  /// No description provided for @parentConsentRequiredContent.
+  ///
+  /// In de, this message translates to:
+  /// **'{name} hat verifizierte Eltern. Die Einladung wird zur Genehmigung weitergeleitet.'**
+  String parentConsentRequiredContent(String name);
+
+  /// No description provided for @pendingParentConsents.
+  ///
+  /// In de, this message translates to:
+  /// **'Ausstehende Eltern-Einwilligungen ({count})'**
+  String pendingParentConsents(int count);
+
+  /// No description provided for @orgInvitationForChild.
+  ///
+  /// In de, this message translates to:
+  /// **'{orgName} möchte {childName} einladen'**
+  String orgInvitationForChild(String orgName, String childName);
+
+  /// No description provided for @orgInvitationInvitedBy.
+  ///
+  /// In de, this message translates to:
+  /// **'Eingeladen von {name}'**
+  String orgInvitationInvitedBy(String name);
+
+  /// No description provided for @approveOrgInvitation.
+  ///
+  /// In de, this message translates to:
+  /// **'Genehmigen'**
+  String get approveOrgInvitation;
+
+  /// No description provided for @vetoOrgInvitation.
+  ///
+  /// In de, this message translates to:
+  /// **'Ablehnen'**
+  String get vetoOrgInvitation;
+
+  /// No description provided for @orgInvitationApproved.
+  ///
+  /// In de, this message translates to:
+  /// **'Einladung genehmigt.'**
+  String get orgInvitationApproved;
+
+  /// No description provided for @orgInvitationVetoed.
+  ///
+  /// In de, this message translates to:
+  /// **'Einladung abgelehnt.'**
+  String get orgInvitationVetoed;
 }
 
 class _AppLocalizationsDelegate

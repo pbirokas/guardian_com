@@ -950,4 +950,138 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get imageSaved => 'Image saved';
+
+  @override
+  String get myRelationships => 'My connections';
+
+  @override
+  String get myParents => 'My parents';
+
+  @override
+  String get myChildren => 'My children';
+
+  @override
+  String get noParents => 'No verified parents';
+
+  @override
+  String get noChildren => 'No verified children';
+
+  @override
+  String get verifiedParent => 'Verified parent';
+
+  @override
+  String get verifiedChild => 'Verified child';
+
+  @override
+  String get connectChild => 'Connect child';
+
+  @override
+  String get connectChildHint => 'Enter the child\'s email address';
+
+  @override
+  String get sendClaimRequest => 'Send connection request';
+
+  @override
+  String get claimRequestSent => 'Request sent.';
+
+  @override
+  String get claimRequestNotFound => 'No user found with this email.';
+
+  @override
+  String get claimRequestAlreadyExists =>
+      'A request for this user already exists.';
+
+  @override
+  String get claimRequestCancelTitle => 'Cancel request';
+
+  @override
+  String claimRequestCancelContent(String email) {
+    return 'Really cancel the connection request to $email?';
+  }
+
+  @override
+  String incomingClaimRequests(int count) {
+    return 'Incoming requests ($count)';
+  }
+
+  @override
+  String wantsToBeYourParent(String name) {
+    return '$name wants to be your parent';
+  }
+
+  @override
+  String get confirmClaim => 'Confirm';
+
+  @override
+  String get rejectClaim => 'Reject';
+
+  @override
+  String get claimConfirmed => 'Connection confirmed.';
+
+  @override
+  String get claimRejected => 'Request rejected.';
+
+  @override
+  String get revokeConnection => 'Revoke connection';
+
+  @override
+  String get revokeConnectionTitle => 'Revoke connection';
+
+  @override
+  String revokeConnectionContent(String name) {
+    return 'Really revoke connection with $name?';
+  }
+
+  @override
+  String get roleConflictTitle => 'Role conflict';
+
+  @override
+  String roleConflictContent(String orgs) {
+    return 'As a child account, other roles are not permitted. The following organizations are affected:\n\n$orgs\n\nDo you want to proceed? The roles in these organizations will be changed to \'Child\'.';
+  }
+
+  @override
+  String get childAccountLabel => 'Child account';
+
+  @override
+  String get childAccountHint =>
+      'This account is marked as a child. Only the \'Child\' role is allowed in organizations.';
+
+  @override
+  String get isChildAccount => 'Marked as child';
+
+  @override
+  String get parentConsentRequired => 'Parental consent required';
+
+  @override
+  String parentConsentRequiredContent(String name) {
+    return '$name has verified parents. The invitation will be forwarded for their approval.';
+  }
+
+  @override
+  String pendingParentConsents(int count) {
+    return 'Pending parent consents ($count)';
+  }
+
+  @override
+  String orgInvitationForChild(String orgName, String childName) {
+    return '$orgName wants to invite $childName';
+  }
+
+  @override
+  String orgInvitationInvitedBy(String name) {
+    return 'Invited by $name';
+  }
+
+  @override
+  String get approveOrgInvitation => 'Approve';
+
+  @override
+  String get vetoOrgInvitation => 'Reject';
+
+  @override
+  String get orgInvitationApproved => 'Invitation approved.';
+
+  @override
+  String get orgInvitationVetoed => 'Invitation rejected.';
 }

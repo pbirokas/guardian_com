@@ -432,5 +432,80 @@
   "open": "Open",
   "unarchive": "Restore",
   "saveImage": "Save image",
-  "imageSaved": "Image saved"
+  "imageSaved": "Image saved",
+
+  "myRelationships": "My connections",
+  "myParents": "My parents",
+  "myChildren": "My children",
+  "noParents": "No verified parents",
+  "noChildren": "No verified children",
+  "verifiedParent": "Verified parent",
+  "verifiedChild": "Verified child",
+
+  "connectChild": "Connect child",
+  "connectChildHint": "Enter the child's email address",
+  "sendClaimRequest": "Send connection request",
+  "claimRequestSent": "Request sent.",
+  "claimRequestNotFound": "No user found with this email.",
+  "claimRequestAlreadyExists": "A request for this user already exists.",
+  "claimRequestCancelTitle": "Cancel request",
+  "claimRequestCancelContent": "Really cancel the connection request to {email}?",
+  "@claimRequestCancelContent": {
+    "placeholders": { "email": { "type": "String" } }
+  },
+
+  "incomingClaimRequests": "Incoming requests ({count})",
+  "@incomingClaimRequests": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "wantsToBeYourParent": "{name} wants to be your parent",
+  "@wantsToBeYourParent": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "confirmClaim": "Confirm",
+  "rejectClaim": "Reject",
+  "claimConfirmed": "Connection confirmed.",
+  "claimRejected": "Request rejected.",
+
+  "revokeConnection": "Revoke connection",
+  "revokeConnectionTitle": "Revoke connection",
+  "revokeConnectionContent": "Really revoke connection with {name}?",
+  "@revokeConnectionContent": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+
+  "roleConflictTitle": "Role conflict",
+  "roleConflictContent": "As a child account, other roles are not permitted. The following organizations are affected:\n\n{orgs}\n\nDo you want to proceed? The roles in these organizations will be changed to 'Child'.",
+  "@roleConflictContent": {
+    "placeholders": { "orgs": { "type": "String" } }
+  },
+
+  "childAccountLabel": "Child account",
+  "childAccountHint": "This account is marked as a child. Only the 'Child' role is allowed in organizations.",
+  "isChildAccount": "Marked as child",
+
+  "parentConsentRequired": "Parental consent required",
+  "parentConsentRequiredContent": "{name} has verified parents. The invitation will be forwarded for their approval.",
+  "@parentConsentRequiredContent": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "pendingParentConsents": "Pending parent consents ({count})",
+  "@pendingParentConsents": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "orgInvitationForChild": "{orgName} wants to invite {childName}",
+  "@orgInvitationForChild": {
+    "placeholders": {
+      "orgName": { "type": "String" },
+      "childName": { "type": "String" }
+    }
+  },
+  "orgInvitationInvitedBy": "Invited by {name}",
+  "@orgInvitationInvitedBy": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "approveOrgInvitation": "Approve",
+  "vetoOrgInvitation": "Reject",
+  "orgInvitationApproved": "Invitation approved.",
+  "orgInvitationVetoed": "Invitation rejected."
 }

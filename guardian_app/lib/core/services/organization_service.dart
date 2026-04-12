@@ -6,6 +6,7 @@ import '../models/app_user.dart';
 import '../models/org_member.dart';
 import '../models/member_suggestion.dart';
 import '../models/notification_settings.dart';
+import '../models/org_invite_consent.dart';
 
 class OrganizationService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -146,6 +147,32 @@ class OrganizationService {
     final existing = await memberDoc.get();
     if (existing.exists) {
       throw Exception('Dieser Benutzer ist bereits Mitglied.');
+    }
+
+    // Wenn der Nutzer verifizierte Eltern hat → Einwilligung einholen
+    final parentUids = List<String>.from(
+        userData['verifiedParentUids'] as List? ?? []);
+    if (parentUids.isNotEmpty) {
+      final currentUser = _auth.currentUser!;
+      final now = DateTime.now();
+      await _db.collection('orgInviteConsents').add(
+        OrgInviteConsent(
+          id: '',
+          childUid: targetUid,
+          childName: userData['displayName'] as String? ?? '',
+          orgId: orgId,
+          orgName: orgName,
+          invitedByUid: _uid,
+          invitedByName:
+              currentUser.displayName ?? currentUser.email ?? '',
+          proposedGuardianUids: guardianUids,
+          parentUids: parentUids,
+          status: OrgInviteConsentStatus.pending,
+          createdAt: now,
+          expiresAt: now.add(const Duration(days: 7)),
+        ).toFirestore(),
+      );
+      return;
     }
 
     final memberStatus = isChild ? MemberStatus.pending : MemberStatus.active;
@@ -392,6 +419,15 @@ class OrganizationService {
   }
 
   Future<void> updateMemberRole(String orgId, String targetUid, OrgRole newRole) async {
+    // Block non-child roles for child accounts.
+    if (newRole != OrgRole.child) {
+      final userSnap = await _db.collection('users').doc(targetUid).get();
+      final isChildAccount = userSnap.data()?['isChild'] as bool? ?? false;
+      if (isChildAccount) {
+        throw Exception('child_account_role_locked');
+      }
+    }
+
     final memberDoc = _db
         .collection('organizations')
         .doc(orgId)

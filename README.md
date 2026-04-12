@@ -72,11 +72,53 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 - Gruppen-Chats möglich
 - **Abstimmungen/Umfragen** können von Teilnehmern gestartet werden (Einzel- oder Mehrfachauswahl)
 
-### Guardian-Kind-Beziehung
-- Kind-Mitglieder werden einem oder mehreren Guardians zugewiesen
+### Guardian-Kind-Beziehung (Org-lokal)
+- Kind-Mitglieder werden einem oder mehreren Guardians innerhalb der Organisation zugewiesen
 - Guardian muss die Einladung seines Kindes bestätigen
 - Guardian-Kind-Beziehung wird in der Mitgliederliste mit Symbol angezeigt
 - Guardian hat Lesezugriff auf die Chats seines Kindes
+
+### Verifizierte Eltern-Kind-Verknüpfung (konto-übergreifend)
+
+Eltern und Kinder können eine **globale, organisationsunabhängige** Verknüpfung aufbauen, die sicherheitskritische Funktionen für alle Organisationen aktiviert.
+
+#### Prozess
+
+| Schritt | Wer | Was passiert |
+|---|---|---|
+| **1. Anfrage senden** | Elternteil | Öffnet *Profil → Meine Verknüpfungen*, gibt E-Mail des Kindes ein → `ClaimRequest` wird erstellt (7 Tage gültig), Kind erhält Push-Benachrichtigung |
+| **2. Anfrage bestätigen** | Kind | Sieht eingehende Anfrage in *Meine Verknüpfungen*, bestätigt oder lehnt ab |
+| **3. Verknüpfung aktiv** | System | Cloud Function aktualisiert beide Konten (`verifiedParentUids` / `verifiedChildUids`), Elternteil erhält Bestätigungs-Push |
+| **4. Verknüpfung aufheben** | Beide | Jede Seite kann die Verbindung jederzeit trennen |
+
+#### Org-Einladung eines verknüpften Kindes
+
+Sobald ein Kind verifizierte Eltern hat, wird eine direkte Org-Einladung **blockiert** und ein Einwilligungsprozess gestartet:
+
+1. Admin lädt Kind in eine Organisation ein
+2. Statt direktem Beitritt: `OrgInviteConsent`-Dokument wird angelegt
+3. **Alle** verifizierten Eltern erhalten eine Push-Benachrichtigung
+4. Eltern sehen die ausstehende Einwilligung unter *Meine Verknüpfungen*
+
+**Genehmigung:** Ein einziges Elternteil genügt → Kind wird mit Status `pending` hinzugefügt (Guardian muss danach noch separat bestätigen)  
+**Veto:** Jedes Elternteil kann alleine ablehnen → Einladung wird verworfen, Admin erhält Benachrichtigung
+
+#### Rollenschutz für Kind-Konten
+
+- Konten mit `isChild: true` können ausschließlich die Rolle **Kind** in Organisationen innehaben
+- Rollenänderungen auf Admin/Moderator/Mitglied werden blockiert (`child_account_role_locked`)
+- Kind-Konten können keine neuen Organisationen erstellen
+
+### Meine Verknüpfungen (Profil-Bereich)
+
+Erreichbar über **Profil → Meine Verknüpfungen**. Der Screen vereint alle Aspekte der konto-übergreifenden Eltern-Kind-Verwaltung:
+
+- **Eingehende Anfragen** (Kind-Ansicht): Anfragen von Elternteilen bestätigen oder ablehnen
+- **Ausgehende Anfragen** (Eltern-Ansicht): aktive Anfragen einsehen und zurückziehen
+- **Kind verknüpfen**: E-Mail des Kindes eingeben und Anfrage senden
+- **Meine Kinder / Meine Eltern**: Liste der verifizierten Verbindungen mit Möglichkeit zur Aufhebung
+- **Ausstehende Einwilligungen**: Org-Einladungen für eigene Kinder genehmigen oder ablehnen
+- Verifizierte Verbindungen werden in der Mitgliederliste der Organisation mit `🏡`-Symbol angezeigt
 
 ### Chat-Funktionen
 - Textnachrichten senden
@@ -85,7 +127,8 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 - **Text in Zwischenablage kopieren** (per Langer Druck → Kopieren)
 - Bearbeitete Nachrichten von Admin/Moderator werden automatisch archiviert (Moderations-Log)
 - Bilder senden (JPEG, max. 2 MB, automatisch komprimiert)
-- **Bild antippen** öffnet Vollbild-Ansicht mit Pinch-to-Zoom
+- **Bild antippen** öffnet Vollbild-Ansicht mit Pinch-to-Zoom und Speicher-Button (lokale Ordnerauswahl)
+- Bilder im Chat werden zwischengespeichert (keine Laderuckler beim Scrollen)
 - Sprachnachrichten aufnehmen und abspielen (AAC/Opus, max. 10 MB)
 - **Dateien senden** (max. 5 MB, beliebige Dateitypen) — per „+"-Menü im Chat
 - **Abstimmungen** in Sheltered-Chats erstellen und abstimmen
@@ -94,6 +137,9 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 - **Antworten auf Nachrichten** (Reply-Zitat in der Blase)
 - Scrollbar an der rechten Seite
 - Ältere Nachrichten automatisch nachladen beim Hochscrollen
+- **Nachrichten anpinnen** — Admin/Moderator kann eine Nachricht anpinnen; wird als Banner oben im Chat angezeigt
+- **Geplante Nachrichten** — Nachricht für einen späteren Zeitpunkt planen
+- **Abstimmungen (Polls)** — Frage mit Optionen erstellen (Einzel- oder Mehrfachauswahl), optionale Anonymisierung; Abstimmungsergebnisse mit Wähler-Namen (bei nicht-anonymen Umfragen)
 
 ### Chat-Verwaltung (Admin & Moderator)
 - Chats archivieren (werden read-only)
@@ -203,15 +249,19 @@ flutter build appbundle --release
 guardian_app/
 ├── lib/
 │   ├── core/
-│   │   ├── models/          # Datenmodelle (AppUser, Organization, Conversation, Message, Poll, …)
+│   │   ├── models/          # Datenmodelle:
+│   │   │                    #   AppUser, Organization, Conversation, Message,
+│   │   │                    #   OrgMember, Poll, ClaimRequest, OrgInviteConsent, …
 │   │   ├── router/          # GoRouter-Konfiguration
-│   │   └── services/        # Firebase-Dienste (Auth, Chat, Organization, Notification,
-│   │                        #   DesktopNotification, TrayService, TrayService-Stub)
+│   │   └── services/        # Firebase-Dienste:
+│   │                        #   Auth, Chat, Organization, ParentClaim,
+│   │                        #   Notification, DesktopNotification, TrayService
 │   └── features/
 │       ├── auth/            # Login-Screen, Provider
 │       ├── chat/            # Chat-Screen, Provider
 │       ├── organizations/   # Org-Liste, Org-Detail, Bulk-Import, Provider
-│       └── profile/         # Profil-Screen
+│       ├── profile/         # Profil-Screen
+│       └── relationships/   # Verknüpfungs-Screen (Eltern-Kind-Flow), Provider
 ├── android/                 # Android-spezifische Konfiguration
 ├── windows/                 # Windows-spezifische Konfiguration
 └── assets/
@@ -225,6 +275,8 @@ functions/
 └── index.js                 # Cloud Functions:
                              #   onNewMessage, onNewConversationRequest,
                              #   onNewInvitation (inkl. E-Mail), onNewReport,
+                             #   onPollVote, onClaimRequest, onClaimConfirmed,
+                             #   onChildOrgInvite, onParentConsent,
                              #   processMyInvitations, getCustomToken
 ```
 
@@ -235,8 +287,10 @@ functions/
 ```
 users/{uid}
   memberships[]
-  isChild
+  isChild                       ← Kind-Konto (sperrt nicht-Kind-Rollen)
   fcmToken
+  verifiedParentUids[]          ← Verifizierte Eltern (konto-übergreifend)
+  verifiedChildUids[]           ← Verifizierte Kinder (konto-übergreifend)
 
 organizations/{orgId}
   members/{uid}
@@ -246,14 +300,33 @@ organizations/{orgId}
     lastChildAlertAt
 
 conversations/{convId}
-  typingUsers/{uid}        ← Timestamp (Tipp-Indikator)
+  pinnedMessageId               ← Angepinnte Nachricht
+  pinnedMessageText
+  typingUsers/{uid}             ← Timestamp (Tipp-Indikator)
   messages/{msgId}
-    reactions/{uid}        ← Emoji-String (Nachrichten-Reaktionen)
+    reactions/{uid}             ← Emoji-String (Nachrichten-Reaktionen)
   polls/{pollId}
+    isAnonymous
+    votes{}
+  scheduledMessages/{smId}      ← Geplante Nachrichten
 
 invitations/{inviteId}
 invitationLookup/{email}
 reports/{reportId}
+
+claimRequests/{requestId}       ← Verknüpfungsanfragen Elternteil→Kind
+  fromUid, fromName, fromEmail
+  toUid, toEmail
+  status                        ← pending | confirmed | rejected | cancelled
+  createdAt, expiresAt
+
+orgInviteConsents/{consentId}   ← Einwilligung der Eltern für Org-Einladungen
+  childUid, childName
+  orgId, orgName
+  parentUids[]                  ← Alle verifizierten Eltern
+  proposedGuardianUids[]
+  status                        ← pending | approved | vetoed
+  approvedBy, vetoedBy
 ```
 
 ---
@@ -266,6 +339,11 @@ reports/{reportId}
 | `onNewConversationRequest` | Firestore Create | Push an Approver, Guardian und Angefragten bei Chat-Anfrage |
 | `onNewInvitation` | Firestore Create | Push an Guardians (Kind-Einladung) + E-Mail an nicht registrierte Nutzer |
 | `onNewReport` | Firestore Create | Push an Admin + Moderatoren bei gemeldeter Nachricht |
+| `onPollVote` | Firestore Update | Push an Ersteller bei neuer Abstimmung (nicht-anonym, nicht geschlossen) |
+| `onClaimRequest` | Firestore Create | Push an Kind: „X möchte dein Elternteil sein" |
+| `onClaimConfirmed` | Firestore Update | Aktualisiert `verifiedParentUids` / `verifiedChildUids` beidseitig; Push an Elternteil |
+| `onChildOrgInvite` | Firestore Create | Push an alle verifizierten Eltern bei Org-Einladung des Kindes |
+| `onParentConsent` | Firestore Update | Bei Genehmigung: Kind als `pending`-Mitglied hinzufügen; Push an einladenden Admin |
 | `processMyInvitations` | Callable | Verarbeitet ausstehende Einladungen beim Login |
 | `getCustomToken` | HTTP | Tauscht Firebase-idToken gegen Custom Token (Windows E-Mail-Link-Login) |
 

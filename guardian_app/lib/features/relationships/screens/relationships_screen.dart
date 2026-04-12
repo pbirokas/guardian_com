@@ -264,30 +264,27 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
             Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _emailController,
-                      decoration: InputDecoration(
-                        labelText: l.emailAddress,
-                        hintText: l.connectChildHint,
-                        border: const OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      keyboardType: TextInputType.emailAddress,
-                      onSubmitted: (_) => _sendClaimRequest(),
+                  TextField(
+                    controller: _emailController,
+                    decoration: InputDecoration(
+                      labelText: l.emailAddress,
+                      hintText: l.connectChildHint,
+                      border: const OutlineInputBorder(),
                     ),
+                    keyboardType: TextInputType.emailAddress,
+                    onSubmitted: (_) => _sendClaimRequest(),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(height: 10),
                   FilledButton(
                     onPressed: _sending ? null : _sendClaimRequest,
                     child: _sending
                         ? const SizedBox(
                             width: 18,
                             height: 18,
-                            child:
-                                CircularProgressIndicator(strokeWidth: 2),
+                            child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : Text(l.sendClaimRequest),
                   ),
@@ -373,9 +370,7 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
                         email: u['email'] as String? ?? '',
                         photoUrl: u['photoUrl'] as String?,
                         label: l.verifiedParent,
-                        onRevoke: () => _revokeConnection(
-                            u['uid'] as String,
-                            u['displayName'] as String? ?? ''),
+                        onRevoke: null, // Kinder können Eltern nicht trennen
                       ))
                   .toList();
             },
@@ -485,7 +480,7 @@ class _RelationTile extends StatelessWidget {
   final String email;
   final String? photoUrl;
   final String label;
-  final VoidCallback onRevoke;
+  final VoidCallback? onRevoke;
 
   const _RelationTile({
     required this.uid,
@@ -493,7 +488,7 @@ class _RelationTile extends StatelessWidget {
     required this.email,
     required this.photoUrl,
     required this.label,
-    required this.onRevoke,
+    this.onRevoke,
   });
 
   @override
@@ -511,11 +506,13 @@ class _RelationTile extends StatelessWidget {
       title: Text(name.isNotEmpty ? name : email),
       subtitle: Text(label,
           style: const TextStyle(fontSize: 12)),
-      trailing: IconButton(
-        icon: const Icon(Icons.link_off, color: Colors.red),
-        tooltip: l.revokeConnection,
-        onPressed: onRevoke,
-      ),
+      trailing: onRevoke != null
+          ? IconButton(
+              icon: const Icon(Icons.link_off, color: Colors.red),
+              tooltip: l.revokeConnection,
+              onPressed: onRevoke,
+            )
+          : null,
     );
   }
 }

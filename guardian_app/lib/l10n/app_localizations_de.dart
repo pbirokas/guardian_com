@@ -1092,4 +1092,19 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get orgInvitationVetoed => 'Einladung abgelehnt.';
+
+  @override
+  String get myFamily => 'Meine Familie';
+
+  @override
+  String get familyTreeTooltip => 'Familienübersicht';
+
+  @override
+  String get coParentsLabel => 'Weitere Eltern';
+
+  @override
+  String get onlyParent => 'Einziges Elternteil';
+
+  @override
+  String get pendingFamilyItems => 'Ausstehende Eltern-Kind-Aktionen';
 }

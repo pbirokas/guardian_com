@@ -507,5 +507,11 @@
   "approveOrgInvitation": "Approve",
   "vetoOrgInvitation": "Reject",
   "orgInvitationApproved": "Invitation approved.",
-  "orgInvitationVetoed": "Invitation rejected."
+  "orgInvitationVetoed": "Invitation rejected.",
+
+  "myFamily": "My family",
+  "familyTreeTooltip": "Family overview",
+  "coParentsLabel": "Co-parents",
+  "onlyParent": "Only parent",
+  "pendingFamilyItems": "Pending parent-child actions"
 }

@@ -507,5 +507,11 @@
   "approveOrgInvitation": "Genehmigen",
   "vetoOrgInvitation": "Ablehnen",
   "orgInvitationApproved": "Einladung genehmigt.",
-  "orgInvitationVetoed": "Einladung abgelehnt."
+  "orgInvitationVetoed": "Einladung abgelehnt.",
+
+  "myFamily": "Meine Familie",
+  "familyTreeTooltip": "Familienübersicht",
+  "coParentsLabel": "Weitere Eltern",
+  "onlyParent": "Einziges Elternteil",
+  "pendingFamilyItems": "Ausstehende Eltern-Kind-Aktionen"
 }

@@ -9,6 +9,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/models/organization.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/chat/providers/chat_provider.dart';
+import '../../../features/relationships/providers/relationships_provider.dart';
+import '../../../features/relationships/widgets/family_tree_sheet.dart';
 import '../providers/organizations_provider.dart';
 
 const _kGithubUrl = 'https://github.com/pbirokas/guardian_com';
@@ -320,10 +322,40 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
       });
     }
 
+    // Badge-Zähler für ausstehende Eltern-Kind-Aktionen
+    final incomingClaims = ref.watch(incomingClaimRequestsProvider)
+        .whenData((list) => list.where((r) => r.isPending).length)
+        .value ?? 0;
+    final pendingConsents = ref.watch(pendingOrgConsentsProvider)
+        .whenData((list) => list.length)
+        .value ?? 0;
+    final familyBadgeCount = incomingClaims + pendingConsents;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(l.myOrganizations),
         actions: [
+          // Baum-Icon: Familienübersicht
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: IconButton(
+              tooltip: l.familyTreeTooltip,
+              onPressed: () => showModalBottomSheet<void>(
+                context: context,
+                isScrollControlled: true,
+                shape: const RoundedRectangleBorder(
+                  borderRadius:
+                      BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                builder: (_) => const FamilyTreeSheet(),
+              ),
+              icon: Badge(
+                isLabelVisible: familyBadgeCount > 0,
+                label: Text('$familyBadgeCount'),
+                child: const Icon(Icons.account_tree_outlined),
+              ),
+            ),
+          ),
           if (user != null)
             Padding(
               padding: const EdgeInsets.only(right: 8),

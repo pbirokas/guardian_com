@@ -2017,6 +2017,36 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Einladung abgelehnt.'**
   String get orgInvitationVetoed;
+
+  /// No description provided for @myFamily.
+  ///
+  /// In de, this message translates to:
+  /// **'Meine Familie'**
+  String get myFamily;
+
+  /// No description provided for @familyTreeTooltip.
+  ///
+  /// In de, this message translates to:
+  /// **'Familienübersicht'**
+  String get familyTreeTooltip;
+
+  /// No description provided for @coParentsLabel.
+  ///
+  /// In de, this message translates to:
+  /// **'Weitere Eltern'**
+  String get coParentsLabel;
+
+  /// No description provided for @onlyParent.
+  ///
+  /// In de, this message translates to:
+  /// **'Einziges Elternteil'**
+  String get onlyParent;
+
+  /// No description provided for @pendingFamilyItems.
+  ///
+  /// In de, this message translates to:
+  /// **'Ausstehende Eltern-Kind-Aktionen'**
+  String get pendingFamilyItems;
 }
 
 class _AppLocalizationsDelegate

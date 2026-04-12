@@ -89,7 +89,7 @@ Eltern und Kinder können eine **globale, organisationsunabhängige** Verknüpfu
 | **1. Anfrage senden** | Elternteil | Öffnet *Profil → Meine Verknüpfungen*, gibt E-Mail des Kindes ein → `ClaimRequest` wird erstellt (7 Tage gültig), Kind erhält Push-Benachrichtigung |
 | **2. Anfrage bestätigen** | Kind | Sieht eingehende Anfrage in *Meine Verknüpfungen*, bestätigt oder lehnt ab |
 | **3. Verknüpfung aktiv** | System | Cloud Function aktualisiert beide Konten (`verifiedParentUids` / `verifiedChildUids`), Elternteil erhält Bestätigungs-Push |
-| **4. Verknüpfung aufheben** | Beide | Jede Seite kann die Verbindung jederzeit trennen |
+| **4. Verknüpfung aufheben** | Elternteil | Nur Elternteile können die Verbindung trennen — Kinder haben kein Recht zur Aufhebung |
 
 #### Org-Einladung eines verknüpften Kindes
 

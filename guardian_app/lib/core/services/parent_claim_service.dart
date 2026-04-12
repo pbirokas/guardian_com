@@ -47,15 +47,17 @@ class ParentClaimService {
       throw const _ClaimException('cannot_claim_self');
     }
 
-    // Duplicate check
+    // Duplicate check — query only by fromUid to stay rule-compatible
+    // (Firestore can't evaluate an OR-rule against a compound AND-query).
+    // toUid filtering is done client-side.
     final existing = await _db
         .collection('claimRequests')
         .where('fromUid', isEqualTo: _uid)
-        .where('toUid', isEqualTo: childUid)
         .where('status', isEqualTo: 'pending')
-        .limit(1)
         .get();
-    if (existing.docs.isNotEmpty) {
+    final alreadyExists =
+        existing.docs.any((d) => d.data()['toUid'] == childUid);
+    if (alreadyExists) {
       throw const _ClaimException('already_exists');
     }
 

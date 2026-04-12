@@ -619,7 +619,8 @@ class OrganizationService {
   }
 
   Future<void> createAnnouncement(
-      String orgId, String title, String content) async {
+      String orgId, String title, String content,
+      {DateTime? expiresAt}) async {
     final user = _auth.currentUser!;
     final ref = _db
         .collection('organizations')
@@ -633,11 +634,13 @@ class OrganizationService {
       authorUid: user.uid,
       authorName: user.displayName ?? user.email ?? '',
       createdAt: DateTime.now(),
+      expiresAt: expiresAt,
     ).toFirestore());
   }
 
   Future<void> editAnnouncement(
-      String orgId, String announcementId, String title, String content) async {
+      String orgId, String announcementId, String title, String content,
+      {DateTime? expiresAt, bool clearExpiry = false}) async {
     await _db
         .collection('organizations')
         .doc(orgId)
@@ -647,6 +650,8 @@ class OrganizationService {
       'title': title,
       'content': content,
       'updatedAt': Timestamp.fromDate(DateTime.now()),
+      if (expiresAt != null) 'expiresAt': Timestamp.fromDate(expiresAt),
+      if (clearExpiry) 'expiresAt': FieldValue.delete(),
     });
   }
 

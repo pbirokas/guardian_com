@@ -1160,6 +1160,78 @@ abstract class AppLocalizations {
   /// **'Pinnwand'**
   String get tabPinboard;
 
+  /// No description provided for @announcementExpiresOn.
+  ///
+  /// In de, this message translates to:
+  /// **'Läuft ab: {date}'**
+  String announcementExpiresOn(String date);
+
+  /// No description provided for @announcementExpired.
+  ///
+  /// In de, this message translates to:
+  /// **'Abgelaufen'**
+  String get announcementExpired;
+
+  /// No description provided for @announcementSetExpiry.
+  ///
+  /// In de, this message translates to:
+  /// **'Ablaufdatum setzen'**
+  String get announcementSetExpiry;
+
+  /// No description provided for @announcementNoExpiry.
+  ///
+  /// In de, this message translates to:
+  /// **'Kein Ablaufdatum'**
+  String get announcementNoExpiry;
+
+  /// No description provided for @announcementRemoveExpiry.
+  ///
+  /// In de, this message translates to:
+  /// **'Ablaufdatum entfernen'**
+  String get announcementRemoveExpiry;
+
+  /// No description provided for @pinnedMessage.
+  ///
+  /// In de, this message translates to:
+  /// **'Angepinnte Nachricht'**
+  String get pinnedMessage;
+
+  /// No description provided for @pinMessage.
+  ///
+  /// In de, this message translates to:
+  /// **'Anpinnen'**
+  String get pinMessage;
+
+  /// No description provided for @unpinMessage.
+  ///
+  /// In de, this message translates to:
+  /// **'Loslösen'**
+  String get unpinMessage;
+
+  /// No description provided for @anonymousPoll.
+  ///
+  /// In de, this message translates to:
+  /// **'Anonym'**
+  String get anonymousPoll;
+
+  /// No description provided for @pollVotersTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Abstimmungsdetails'**
+  String get pollVotersTitle;
+
+  /// No description provided for @pollVoteNotifTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Neue Stimme'**
+  String get pollVoteNotifTitle;
+
+  /// No description provided for @pollVoteNotifBody.
+  ///
+  /// In de, this message translates to:
+  /// **'{name} hat an deiner Abstimmung \"{question}\" teilgenommen.'**
+  String pollVoteNotifBody(String name, String question);
+
   /// No description provided for @newAnnouncement.
   ///
   /// In de, this message translates to:
@@ -1705,6 +1777,18 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Wiederherstellen'**
   String get unarchive;
+
+  /// No description provided for @saveImage.
+  ///
+  /// In de, this message translates to:
+  /// **'Bild speichern'**
+  String get saveImage;
+
+  /// No description provided for @imageSaved.
+  ///
+  /// In de, this message translates to:
+  /// **'Bild gespeichert'**
+  String get imageSaved;
 }
 
 class _AppLocalizationsDelegate

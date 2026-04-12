@@ -99,11 +99,12 @@ android.applicationVariants.configureEach {
 tasks.whenTaskAdded {
     if (name == "bundleRelease" || name == "bundleDebug") {
         doLast {
-            val bundleDir = layout.buildDirectory.dir("outputs/bundle/${name.removePrefix("bundle").lowercase()}").get().asFile
-            bundleDir.listFiles { f -> f.extension == "aab" }?.forEach { aab ->
+            val bundleType = name.removePrefix("bundle").lowercase()
+            val bundleDir = layout.buildDirectory.dir("outputs/bundle/$bundleType").get().asFile
+            val canonical = File(bundleDir, "app-$bundleType.aab")
+            if (canonical.exists()) {
                 val versionCode = android.defaultConfig.versionCode ?: 1
-                val newName = aab.nameWithoutExtension + "-$versionCode.aab"
-                aab.renameTo(File(aab.parent, newName))
+                canonical.renameTo(File(bundleDir, "app-$bundleType-$versionCode.aab"))
             }
         }
     }

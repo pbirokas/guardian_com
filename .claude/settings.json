@@ -3,7 +3,12 @@
     "allow": [
       "Bash(dir /b \"C:\\\\Users\\\\pbiro\\\\AppData\\\\Local\\\\Pub\\\\Cache\\\\hosted\\\\pub.dev\\\\\" | findstr file_picker)",
       "Bash(flutter gen-l10n:*)",
-      "Bash(flutter clean:*)"
+      "Bash(flutter clean:*)",
+      "Bash(xargs grep:*)",
+      "Bash(python3 -c \"from PIL import Image, ImageDraw; print\\('Pillow OK'\\)\")",
+      "Bash(python -c \"from PIL import Image, ImageDraw; print\\('Pillow OK'\\)\")",
+      "Bash(python -c \"import cairosvg; print\\('cairosvg OK'\\)\")",
+      "Bash(python -c \"import aggdraw; print\\('aggdraw OK'\\)\")"
     ]
   }
 }

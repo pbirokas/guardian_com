@@ -98,7 +98,7 @@ class OrganizationDetailScreen extends ConsumerWidget {
                         isAdminOrMod: isAdmin || isModerator,
                         currentUid: currentUid),
                   ),
-                  Tab(icon: const Icon(Icons.campaign_outlined), text: l.tabPinboard),
+                  Tab(child: _PinnwandTabLabel(orgId: orgId)),
                   if (isAdmin || isModerator)
                     Tab(
                       child: _ReportsTabLabel(orgId: orgId),
@@ -2660,6 +2660,52 @@ class _PendingChildTile extends StatelessWidget {
 
 // ── Reports Tab Label ─────────────────────────────────────────────────────────
 
+// ── Pinnwand-Tab-Label mit Aktiv-Indikator ────────────────────────────────────
+
+class _PinnwandTabLabel extends ConsumerWidget {
+  final String orgId;
+  const _PinnwandTabLabel({required this.orgId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final announcementsAsync = ref.watch(announcementsProvider(orgId));
+    final hasActive = announcementsAsync.value?.any(
+          (a) => !a.isExpired,
+        ) ??
+        false;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Padding(
+          padding: EdgeInsets.only(right: hasActive ? 8 : 0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.campaign_outlined, size: 24),
+              Text(l.tabPinboard, style: const TextStyle(fontSize: 10)),
+            ],
+          ),
+        ),
+        if (hasActive)
+          Positioned(
+            right: 0,
+            top: -2,
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                color: Colors.green,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _ReportsTabLabel extends ConsumerWidget {
   final String orgId;
   const _ReportsTabLabel({required this.orgId});
@@ -3044,52 +3090,99 @@ class _PinnwandTab extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final titleCtrl = TextEditingController(text: existing?.title ?? '');
     final contentCtrl = TextEditingController(text: existing?.content ?? '');
+    DateTime? expiresAt = existing?.expiresAt;
+    bool clearExpiry = false;
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) {
-        final ld = AppLocalizations.of(ctx);
-        return AlertDialog(
-          title: Text(existing == null ? ld.newAnnouncement : ld.editAnnouncement),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleCtrl,
-                  autofocus: true,
-                  maxLength: 120,
-                  decoration: InputDecoration(
-                    labelText: ld.announcementTitleLabel,
-                    border: const OutlineInputBorder(),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) {
+          final ld = AppLocalizations.of(ctx);
+          final expLabel = expiresAt == null
+              ? ld.announcementNoExpiry
+              : '${ld.announcementSetExpiry}: '
+                  '${expiresAt!.day.toString().padLeft(2, '0')}.'
+                  '${expiresAt!.month.toString().padLeft(2, '0')}.'
+                  '${expiresAt!.year}';
+          return AlertDialog(
+            title: Text(existing == null ? ld.newAnnouncement : ld.editAnnouncement),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: titleCtrl,
+                    autofocus: true,
+                    maxLength: 120,
+                    decoration: InputDecoration(
+                      labelText: ld.announcementTitleLabel,
+                      border: const OutlineInputBorder(),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: contentCtrl,
-                  maxLines: 5,
-                  maxLength: 2000,
-                  decoration: InputDecoration(
-                    labelText: ld.announcementContentLabel,
-                    border: const OutlineInputBorder(),
-                    alignLabelWithHint: true,
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: contentCtrl,
+                    maxLines: 5,
+                    maxLength: 2000,
+                    decoration: InputDecoration(
+                      labelText: ld.announcementContentLabel,
+                      border: const OutlineInputBorder(),
+                      alignLabelWithHint: true,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.event_outlined, size: 16),
+                          label: Text(expLabel,
+                              style: const TextStyle(fontSize: 13)),
+                          onPressed: () async {
+                            final picked = await showDatePicker(
+                              context: ctx,
+                              initialDate: expiresAt ??
+                                  DateTime.now().add(const Duration(days: 7)),
+                              firstDate: DateTime.now(),
+                              lastDate: DateTime.now()
+                                  .add(const Duration(days: 365)),
+                            );
+                            if (picked != null) {
+                              setS(() {
+                                expiresAt = picked;
+                                clearExpiry = false;
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                      if (expiresAt != null)
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          tooltip: ld.announcementRemoveExpiry,
+                          onPressed: () => setS(() {
+                            expiresAt = null;
+                            clearExpiry = true;
+                          }),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(ld.cancel),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(existing == null ? ld.create : ld.save),
-            ),
-          ],
-        );
-      },
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(ld.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(existing == null ? ld.create : ld.save),
+              ),
+            ],
+          );
+        },
+      ),
     );
 
     if (confirmed != true || !context.mounted) return;
@@ -3100,9 +3193,11 @@ class _PinnwandTab extends ConsumerWidget {
     try {
       final service = ref.read(organizationServiceProvider);
       if (existing == null) {
-        await service.createAnnouncement(orgId, title, content);
+        await service.createAnnouncement(orgId, title, content,
+            expiresAt: expiresAt);
       } else {
-        await service.editAnnouncement(orgId, existing.id, title, content);
+        await service.editAnnouncement(orgId, existing.id, title, content,
+            expiresAt: expiresAt, clearExpiry: clearExpiry);
       }
     } catch (e) {
       if (context.mounted) {
@@ -3130,8 +3225,13 @@ class _AnnouncementCard extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
 
+    final isExpired = announcement.isExpired;
+
     return Card(
       margin: EdgeInsets.zero,
+      color: isExpired
+          ? colorScheme.surfaceContainerHighest.withAlpha(180)
+          : null,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
         child: Column(
@@ -3141,13 +3241,20 @@ class _AnnouncementCard extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(Icons.campaign_outlined,
-                    size: 18, color: colorScheme.primary),
+                    size: 18,
+                    color: isExpired
+                        ? colorScheme.onSurfaceVariant
+                        : colorScheme.primary),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     announcement.title,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 15),
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: isExpired
+                            ? colorScheme.onSurfaceVariant
+                            : null),
                   ),
                 ),
                 if (canManage)
@@ -3190,7 +3297,39 @@ class _AnnouncementCard extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Text(announcement.content),
+            Text(
+              announcement.content,
+              style: TextStyle(
+                  color: isExpired ? colorScheme.onSurfaceVariant : null),
+            ),
+            if (announcement.expiresAt != null) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Icon(
+                    isExpired
+                        ? Icons.event_busy_outlined
+                        : Icons.event_available_outlined,
+                    size: 12,
+                    color: isExpired ? Colors.red[400] : Colors.green[600],
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    isExpired
+                        ? l.announcementExpired
+                        : l.announcementExpiresOn(
+                            '${announcement.expiresAt!.day.toString().padLeft(2, '0')}.'
+                            '${announcement.expiresAt!.month.toString().padLeft(2, '0')}.'
+                            '${announcement.expiresAt!.year}'),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isExpired ? Colors.red[400] : Colors.green[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 10),
             Row(
               children: [

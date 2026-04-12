@@ -21,6 +21,8 @@ class Conversation {
   final List<String> guardianUids;
   final Map<String, DateTime> lastReadAt;
   final Map<String, DateTime> typingUsers;
+  final String? pinnedMessageId;
+  final String? pinnedMessageText;
 
   const Conversation({
     required this.id,
@@ -41,6 +43,8 @@ class Conversation {
     this.guardianUids = const [],
     this.lastReadAt = const {},
     this.typingUsers = const {},
+    this.pinnedMessageId,
+    this.pinnedMessageText,
   });
 
   bool hasUnread(String uid) {
@@ -90,6 +94,8 @@ class Conversation {
       guardianUids: List<String>.from(data['guardianUids'] as List? ?? []),
       lastReadAt: lastReadAt,
       typingUsers: typingUsers,
+      pinnedMessageId: data['pinnedMessageId'] as String?,
+      pinnedMessageText: data['pinnedMessageText'] as String?,
     );
   }
 
@@ -112,6 +118,8 @@ class Conversation {
         if (lastMessage != null) 'lastMessage': lastMessage,
         if (lastMessageAt != null)
           'lastMessageAt': Timestamp.fromDate(lastMessageAt!),
+        if (pinnedMessageId != null) 'pinnedMessageId': pinnedMessageId,
+        if (pinnedMessageText != null) 'pinnedMessageText': pinnedMessageText,
       };
 
   String otherUid(String myUid) =>

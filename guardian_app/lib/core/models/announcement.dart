@@ -8,6 +8,7 @@ class Announcement {
   final String authorName;
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final DateTime? expiresAt;
 
   const Announcement({
     required this.id,
@@ -17,7 +18,11 @@ class Announcement {
     required this.authorName,
     required this.createdAt,
     this.updatedAt,
+    this.expiresAt,
   });
+
+  bool get isExpired =>
+      expiresAt != null && DateTime.now().isAfter(expiresAt!);
 
   factory Announcement.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -31,6 +36,9 @@ class Announcement {
       updatedAt: data['updatedAt'] != null
           ? (data['updatedAt'] as Timestamp).toDate()
           : null,
+      expiresAt: data['expiresAt'] != null
+          ? (data['expiresAt'] as Timestamp).toDate()
+          : null,
     );
   }
 
@@ -41,5 +49,6 @@ class Announcement {
         'authorName': authorName,
         'createdAt': Timestamp.fromDate(createdAt),
         if (updatedAt != null) 'updatedAt': Timestamp.fromDate(updatedAt!),
+        if (expiresAt != null) 'expiresAt': Timestamp.fromDate(expiresAt!),
       };
 }

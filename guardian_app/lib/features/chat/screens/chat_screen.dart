@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/gestures.dart';
@@ -9,6 +10,7 @@ import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:guardian_app/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
@@ -103,12 +105,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _onScroll() {
     final pos = _scrollController.position;
-    _atBottom = pos.pixels >= pos.maxScrollExtent - 150;
+    // Mit reverse:true ist pixels=0 unten (neueste Nachrichten).
+    _atBottom = pos.pixels <= 150;
 
-    // Nur laden wenn der User aktiv nach oben scrollt oder ruhig oben sitzt —
-    // nicht beim Rückprall (ScrollDirection.forward) nach einem Overscroll.
-    if (pos.pixels <= 80 &&
-        pos.userScrollDirection != ScrollDirection.forward &&
+    // Nur laden wenn der User aktiv nach oben scrollt (hohe Pixel-Werte) —
+    // nicht beim Rückprall (ScrollDirection.reverse) nach einem Overscroll.
+    if (pos.pixels >= pos.maxScrollExtent - 80 &&
+        pos.maxScrollExtent > 0 &&
+        pos.userScrollDirection != ScrollDirection.reverse &&
         !_loadingMore &&
         _knownMessageCount > 0 &&
         _mayHaveMore) {
@@ -332,6 +336,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       TextEditingController(text: ''),
     ];
     var multipleChoice = false;
+    var isAnonymous = false;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -397,6 +402,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         style: const TextStyle(fontSize: 14)),
                     contentPadding: EdgeInsets.zero,
                   ),
+                  SwitchListTile(
+                    value: isAnonymous,
+                    onChanged: (v) => setState(() => isAnonymous = v),
+                    title: Row(
+                      children: [
+                        Text(ld.anonymousPoll,
+                            style: const TextStyle(fontSize: 14)),
+                        const SizedBox(width: 6),
+                        const Icon(Icons.lock_outline, size: 14,
+                            color: Colors.grey),
+                      ],
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                  ),
                 ],
               ),
             ),
@@ -430,6 +449,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             question: question,
             optionTexts: options,
             multipleChoice: multipleChoice,
+            isAnonymous: isAnonymous,
           );
       _markRead();
       _scrollToBottom();
@@ -450,15 +470,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
-  void _scrollToBottom({int attempt = 0}) {
+  void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) return;
-      final max = _scrollController.position.maxScrollExtent;
-      if (max > 0) {
-        _scrollController.jumpTo(max);
-      } else if (attempt < 4) {
-        _scrollToBottom(attempt: attempt + 1);
-      }
+      // Mit reverse:true ist 0.0 immer die unterste Position – kein
+      // Layout-Shift durch nachladende Bilder möglich.
+      _scrollController.jumpTo(0);
     });
   }
 
@@ -888,6 +905,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 ],
               ),
             ),
+          if (conv != null && conv.pinnedMessageId != null)
+            _PinnedMessageBanner(
+              text: conv.pinnedMessageText ?? '',
+              canManage: isModeratorOrAdmin,
+              onUnpin: () => ref
+                  .read(chatServiceProvider)
+                  .unpinMessage(widget.chatId),
+            ),
           if (scheduledMessages.isNotEmpty)
             _ScheduledMessagesBanner(
               messages: scheduledMessages,
@@ -966,12 +991,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   child: ListView.builder(
                   controller: _scrollController,
                   physics: const ClampingScrollPhysics(),
+                  reverse: true,
                   padding: const EdgeInsets.all(16),
                   itemCount: filtered.length + (mayHaveMore ? 1 : 0),
                   itemBuilder: (ctx, i) {
-                    if (mayHaveMore && i == 0) {
+                    // Mit reverse:true ist i=0 die unterste (neueste) Nachricht.
+                    // Der „Ältere laden"-Button erscheint am Ende der Liste (oben).
+                    if (mayHaveMore && i == filtered.length) {
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.only(top: 8),
                         child: Center(
                           child: _loadingMore
                               ? const SizedBox(
@@ -996,14 +1024,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         ),
                       );
                     }
-                    final msg = filtered[mayHaveMore ? i - 1 : i];
+                    // Neueste Nachricht zuerst (i=0 → letzter Eintrag in filtered)
+                    final msg = filtered[filtered.length - 1 - i];
                     final isMe = msg.senderUid == currentUid;
-                    final prev = mayHaveMore ? (i > 1 ? filtered[i - 2] : null)
-                                             : (i > 0 ? filtered[i - 1] : null);
-                    final showDate = prev == null ||
-                        !_sameDay(prev.sentAt, msg.sentAt);
+                    // „older" ist die Nachricht, die im reversed ListView darüber
+                    // erscheint (also die chronologisch ältere).
+                    final older = (i + 1 < filtered.length)
+                        ? filtered[filtered.length - 2 - i]
+                        : null;
+                    final showDate = older == null ||
+                        !_sameDay(older.sentAt, msg.sentAt);
                     final showSender = !isMe &&
-                        (prev == null || prev.senderUid != msg.senderUid);
+                        (older == null || older.senderUid != msg.senderUid);
                     return Column(
                       children: [
                         if (showDate) _DateDivider(date: msg.sentAt),
@@ -1047,6 +1079,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           onReact: isArchived
                               ? null
                               : (emoji) => _setReaction(msg, emoji),
+                          onPin: isModeratorOrAdmin && !isArchived
+                              ? () {
+                                  final isPinned =
+                                      conv.pinnedMessageId == msg.id;
+                                  if (isPinned) {
+                                    ref
+                                        .read(chatServiceProvider)
+                                        .unpinMessage(widget.chatId);
+                                  } else {
+                                    ref
+                                        .read(chatServiceProvider)
+                                        .pinMessage(widget.chatId, msg.id,
+                                            msg.text);
+                                  }
+                                }
+                              : null,
+                          isPinned: conv?.pinnedMessageId == msg.id,
+                          members: members,
                         ),
                       ],
                     );
@@ -1112,39 +1162,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _openImageFullscreen(BuildContext context, String imageUrl) {
     showDialog<void>(
       context: context,
-      builder: (_) => Dialog.fullscreen(
-        backgroundColor: Colors.black,
-        child: Stack(
-          children: [
-            Center(
-              child: InteractiveViewer(
-                minScale: 0.5,
-                maxScale: 5.0,
-                child: Image.network(
-                  imageUrl,
-                  fit: BoxFit.contain,
-                  loadingBuilder: (_, child, progress) => progress == null
-                      ? child
-                      : const Center(
-                          child: CircularProgressIndicator(color: Colors.white)),
-                  errorBuilder: (_, _, _) =>
-                      const Icon(Icons.broken_image, color: Colors.white, size: 64),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 16,
-              right: 16,
-              child: IconButton(
-                icon: const Icon(Icons.close, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ),
-          ],
-        ),
-      ),
+      builder: (_) => _FullscreenImageDialog(imageUrl: imageUrl),
     );
   }
+
 
   Future<void> _editMessage(Message msg, {bool archive = false}) async {
     final ctrl = TextEditingController(text: msg.text);
@@ -1270,10 +1291,13 @@ class _MessageBubble extends StatelessWidget {
   final VoidCallback? onImageTap;
   final VoidCallback? onReply;
   final void Function(String? emoji)? onReact;
+  final VoidCallback? onPin;
+  final bool isPinned;
   final String convId;
   final String currentUid;
   // null = fremde Nachricht, 0 = gesendet, 1 = teilweise gelesen, 2 = alle gelesen
   final int? readStatus;
+  final List<OrgMember>? members;
 
   const _MessageBubble({
     required this.message,
@@ -1287,7 +1311,10 @@ class _MessageBubble extends StatelessWidget {
     this.onImageTap,
     this.onReply,
     this.onReact,
+    this.onPin,
+    this.isPinned = false,
     this.readStatus,
+    this.members,
   });
 
   @override
@@ -1347,6 +1374,17 @@ class _MessageBubble extends StatelessWidget {
                       onTap: () {
                         Navigator.pop(context);
                         onReply!();
+                      },
+                    ),
+                  if (onPin != null)
+                    ListTile(
+                      leading: Icon(isPinned
+                          ? Icons.push_pin
+                          : Icons.push_pin_outlined),
+                      title: Text(isPinned ? l.unpinMessage : l.pinMessage),
+                      onTap: () {
+                        Navigator.pop(context);
+                        onPin!();
                       },
                     ),
                   if (hasText)
@@ -1445,6 +1483,7 @@ class _MessageBubble extends StatelessWidget {
                 convId: convId,
                 pollId: message.pollId!,
                 isMe: isMe,
+                members: members,
               )
             else if (message.audioUrl != null)
               _VoicePlayer(
@@ -1453,25 +1492,24 @@ class _MessageBubble extends StatelessWidget {
                 isMe: isMe,
               )
             else if (message.imageUrl != null)
-              // Feste Höhe verhindert, dass nachgeladene Bilder die
-              // Listenhöhe ändern und so die Scroll-Position verschieben.
               GestureDetector(
                 onTap: onImageTap,
-                child: SizedBox(
-                  width: 220,
-                  height: 160,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      message.imageUrl!,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: CachedNetworkImage(
+                    imageUrl: message.imageUrl!,
+                    width: 220,
+                    height: 160,
+                    fit: BoxFit.cover,
+                    placeholder: (_, _) => const SizedBox(
                       width: 220,
                       height: 160,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (_, child, progress) => progress == null
-                          ? child
-                          : const Center(child: CircularProgressIndicator()),
-                      errorBuilder: (_, _, _) =>
-                          const Icon(Icons.broken_image),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                    errorWidget: (_, _, _) => const SizedBox(
+                      width: 220,
+                      height: 160,
+                      child: Icon(Icons.broken_image),
                     ),
                   ),
                 ),
@@ -1751,6 +1789,66 @@ class _DateDivider extends StatelessWidget {
                     const TextStyle(fontSize: 12, color: Colors.grey)),
           ),
           const Expanded(child: Divider()),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Angepinnte Nachricht ──────────────────────────────────────────────────────
+
+class _PinnedMessageBanner extends StatelessWidget {
+  final String text;
+  final bool canManage;
+  final VoidCallback onUnpin;
+
+  const _PinnedMessageBanner({
+    required this.text,
+    required this.canManage,
+    required this.onUnpin,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      color: colorScheme.primaryContainer.withAlpha(180),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(
+        children: [
+          Icon(Icons.push_pin, size: 14, color: colorScheme.primary),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l.pinnedMessage,
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.primary),
+                ),
+                Text(
+                  text,
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: colorScheme.onPrimaryContainer),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          if (canManage)
+            IconButton(
+              icon: const Icon(Icons.close, size: 16),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              tooltip: l.unpinMessage,
+              onPressed: onUnpin,
+            ),
         ],
       ),
     );
@@ -2312,11 +2410,13 @@ class _PollBubble extends ConsumerStatefulWidget {
   final String convId;
   final String pollId;
   final bool isMe;
+  final List<OrgMember>? members;
 
   const _PollBubble({
     required this.convId,
     required this.pollId,
     required this.isMe,
+    this.members,
   });
 
   @override
@@ -2389,6 +2489,47 @@ class _PollBubbleState extends ConsumerState<_PollBubble> {
         final hasVoted = poll.hasVoted(currentUid);
         final showResults = hasVoted || poll.isClosed;
         final canClose = !poll.isClosed && poll.createdBy == currentUid;
+        final dimColor = (onColor ?? Colors.grey).withAlpha(180);
+
+        void showVoters(String optionText, List<String> voterUids) {
+          final names = voterUids.map((uid) {
+            final m = widget.members?.where((m) => m.uid == uid).firstOrNull;
+            return m?.displayName ?? uid;
+          }).toList()..sort();
+          showDialog<void>(
+            context: context,
+            builder: (ctx) {
+              final ld = AppLocalizations.of(ctx);
+              return AlertDialog(
+                title: Text(ld.pollVotersTitle),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(optionText,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 13)),
+                    const SizedBox(height: 8),
+                    if (names.isEmpty)
+                      Text('—',
+                          style: TextStyle(color: Colors.grey[600]))
+                    else
+                      ...names.map((n) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Text(n, style: const TextStyle(fontSize: 14)),
+                          )),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text(ld.close),
+                  ),
+                ],
+              );
+            },
+          );
+        }
 
         return SizedBox(
           width: 260,
@@ -2396,17 +2537,18 @@ class _PollBubbleState extends ConsumerState<_PollBubble> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(children: [
-                Icon(Icons.poll_outlined,
-                    size: 14, color: (onColor ?? Colors.grey).withAlpha(180)),
+                Icon(Icons.poll_outlined, size: 14, color: dimColor),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
                     poll.isClosed ? l.pollClosed : l.poll,
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: (onColor ?? Colors.grey).withAlpha(180)),
+                    style: TextStyle(fontSize: 11, color: dimColor),
                   ),
                 ),
+                if (poll.isAnonymous) ...[
+                  Icon(Icons.lock_outline, size: 13, color: dimColor),
+                  const SizedBox(width: 4),
+                ],
                 if (canClose)
                   GestureDetector(
                     onTap: _close,
@@ -2422,10 +2564,13 @@ class _PollBubbleState extends ConsumerState<_PollBubble> {
                       color: labelColor)),
               const SizedBox(height: 8),
               ...poll.options.map((opt) {
-                final count = poll.votesFor(opt.id).length;
+                final voterUids = poll.votesFor(opt.id);
+                final count = voterUids.length;
                 final total = poll.totalVoters;
                 final pct = total > 0 ? count / total : 0.0;
                 final myVote = poll.hasVotedFor(currentUid, opt.id);
+                final canShowVoters =
+                    showResults && !poll.isAnonymous && count > 0;
 
                 return GestureDetector(
                   onTap: (!poll.isClosed && !_voting) ? () => _vote(opt.id) : null,
@@ -2448,11 +2593,21 @@ class _PollBubbleState extends ConsumerState<_PollBubble> {
                                   style: TextStyle(
                                       fontSize: 13, color: labelColor))),
                           if (showResults)
-                            Text('$count',
+                            GestureDetector(
+                              onTap: canShowVoters
+                                  ? () => showVoters(opt.text, voterUids)
+                                  : null,
+                              child: Text(
+                                '$count',
                                 style: TextStyle(
-                                    fontSize: 11,
-                                    color: (onColor ?? Colors.grey)
-                                        .withAlpha(180))),
+                                  fontSize: 11,
+                                  color: dimColor,
+                                  decoration: canShowVoters
+                                      ? TextDecoration.underline
+                                      : null,
+                                ),
+                              ),
+                            ),
                         ]),
                         if (showResults) ...[
                           const SizedBox(height: 3),
@@ -2462,7 +2617,8 @@ class _PollBubbleState extends ConsumerState<_PollBubble> {
                               value: pct,
                               minHeight: 4,
                               backgroundColor: barBg,
-                              valueColor: AlwaysStoppedAnimation<Color>(barColor),
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(barColor),
                             ),
                           ),
                         ],
@@ -2473,9 +2629,7 @@ class _PollBubbleState extends ConsumerState<_PollBubble> {
               }),
               Text(
                 poll.totalVoters == 1 ? l.oneVote : l.votes(poll.totalVoters),
-                style: TextStyle(
-                    fontSize: 11,
-                    color: (onColor ?? Colors.grey).withAlpha(180)),
+                style: TextStyle(fontSize: 11, color: dimColor),
               ),
             ],
           ),
@@ -2584,6 +2738,112 @@ class _VoicePlayerState extends State<_VoicePlayer> {
                 Text(
                   '${_fmt(_position)} / ${_fmt(_total)}',
                   style: TextStyle(fontSize: 10, color: onColor ?? Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Fullscreen-Bildbetrachter mit Speichern-Option ────────────────────────────
+
+class _FullscreenImageDialog extends StatefulWidget {
+  final String imageUrl;
+  const _FullscreenImageDialog({required this.imageUrl});
+
+  @override
+  State<_FullscreenImageDialog> createState() => _FullscreenImageDialogState();
+}
+
+class _FullscreenImageDialogState extends State<_FullscreenImageDialog> {
+  bool _saving = false;
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    final l = AppLocalizations.of(context);
+    try {
+      final uri = Uri.parse(widget.imageUrl);
+      var fileName = uri.pathSegments.last.split('?').first;
+      if (!RegExp(r'\.(jpe?g|png|webp|gif)$', caseSensitive: false)
+          .hasMatch(fileName)) {
+        fileName = 'image_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      }
+
+      final response = await http.get(uri);
+      if (response.statusCode != 200) {
+        throw Exception('HTTP ${response.statusCode}');
+      }
+
+      final savedPath = await FilePicker.saveFile(
+        fileName: fileName,
+        bytes: response.bodyBytes,
+      );
+
+      if (savedPath != null && mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(l.imageSaved)));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(l.errorMessage(e.toString()))));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return Dialog.fullscreen(
+      backgroundColor: Colors.black,
+      child: Stack(
+        children: [
+          Center(
+            child: InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 5.0,
+              child: CachedNetworkImage(
+                imageUrl: widget.imageUrl,
+                fit: BoxFit.contain,
+                placeholder: (_, _) => const Center(
+                    child: CircularProgressIndicator(color: Colors.white)),
+                errorWidget: (_, _, _) => const Icon(
+                    Icons.broken_image, color: Colors.white, size: 64),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 16,
+            right: 16,
+            child: Row(
+              children: [
+                Tooltip(
+                  message: l.saveImage,
+                  child: _saving
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2),
+                          ),
+                        )
+                      : IconButton(
+                          icon: const Icon(Icons.download,
+                              color: Colors.white),
+                          onPressed: _save,
+                        ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => Navigator.pop(context),
                 ),
               ],
             ),

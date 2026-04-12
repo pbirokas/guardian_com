@@ -598,6 +598,46 @@ class AppLocalizationsDe extends AppLocalizations {
   String get tabPinboard => 'Pinnwand';
 
   @override
+  String announcementExpiresOn(String date) {
+    return 'Läuft ab: $date';
+  }
+
+  @override
+  String get announcementExpired => 'Abgelaufen';
+
+  @override
+  String get announcementSetExpiry => 'Ablaufdatum setzen';
+
+  @override
+  String get announcementNoExpiry => 'Kein Ablaufdatum';
+
+  @override
+  String get announcementRemoveExpiry => 'Ablaufdatum entfernen';
+
+  @override
+  String get pinnedMessage => 'Angepinnte Nachricht';
+
+  @override
+  String get pinMessage => 'Anpinnen';
+
+  @override
+  String get unpinMessage => 'Loslösen';
+
+  @override
+  String get anonymousPoll => 'Anonym';
+
+  @override
+  String get pollVotersTitle => 'Abstimmungsdetails';
+
+  @override
+  String get pollVoteNotifTitle => 'Neue Stimme';
+
+  @override
+  String pollVoteNotifBody(String name, String question) {
+    return '$name hat an deiner Abstimmung \"$question\" teilgenommen.';
+  }
+
+  @override
   String get newAnnouncement => 'Ankündigung erstellen';
 
   @override
@@ -911,4 +951,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get unarchive => 'Wiederherstellen';
+
+  @override
+  String get saveImage => 'Bild speichern';
+
+  @override
+  String get imageSaved => 'Bild gespeichert';
 }

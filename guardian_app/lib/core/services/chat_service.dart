@@ -667,11 +667,30 @@ class ChatService {
 
   // ── Polls ──────────────────────────────────────────────────────────────────
 
+  // ── Angepinnte Nachricht ──────────────────────────────────────────────────
+
+  Future<void> pinMessage(
+      String convId, String msgId, String text) async {
+    await _db.collection('conversations').doc(convId).update({
+      'pinnedMessageId': msgId,
+      'pinnedMessageText':
+          text.length > 120 ? '${text.substring(0, 120)}…' : text,
+    });
+  }
+
+  Future<void> unpinMessage(String convId) async {
+    await _db.collection('conversations').doc(convId).update({
+      'pinnedMessageId': FieldValue.delete(),
+      'pinnedMessageText': FieldValue.delete(),
+    });
+  }
+
   Future<void> createPoll(
     String convId, {
     required String question,
     required List<String> optionTexts,
     required bool multipleChoice,
+    bool isAnonymous = false,
   }) async {
     final user = _auth.currentUser!;
     final pollRef = _db
@@ -698,6 +717,7 @@ class ChatService {
       createdByName: user.displayName ?? user.email ?? 'Unbekannt',
       createdAt: DateTime.now(),
       multipleChoice: multipleChoice,
+      isAnonymous: isAnonymous,
     );
 
     final preview = question.length > 60

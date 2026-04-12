@@ -157,10 +157,18 @@ service cloud.firestore {
       allow create: if isSignedIn();
 
       allow update: if isSignedIn() && (
-        request.auth.uid in resource.data.participantUids ||
-        resource.data.orgAdminUid == request.auth.uid ||
-        request.auth.uid in resource.data.canApproveUids ||
-        request.auth.uid in resource.data.guardianUids
+        // Pinning/unpinning: only orgAdmin or canApproveUids (admins/moderators)
+        (request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['pinnedMessageId', 'pinnedMessageText']) &&
+          (resource.data.orgAdminUid == request.auth.uid ||
+           request.auth.uid in resource.data.canApproveUids)) ||
+        // All other fields: any participant, orgAdmin, canApprove member, or guardian
+        (!request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['pinnedMessageId', 'pinnedMessageText']) &&
+          (request.auth.uid in resource.data.participantUids ||
+           resource.data.orgAdminUid == request.auth.uid ||
+           request.auth.uid in resource.data.canApproveUids ||
+           request.auth.uid in resource.data.guardianUids))
       );
 
       allow delete: if isSignedIn() && isAdmin(resource.data.orgId);

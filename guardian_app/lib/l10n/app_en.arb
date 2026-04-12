@@ -243,6 +243,27 @@
   "withdraw": "Withdraw",
 
   "tabPinboard": "Pinboard",
+  "announcementExpiresOn": "Expires: {date}",
+  "@announcementExpiresOn": {
+    "placeholders": { "date": { "type": "String" } }
+  },
+  "announcementExpired": "Expired",
+  "announcementSetExpiry": "Set expiry date",
+  "announcementNoExpiry": "No expiry date",
+  "announcementRemoveExpiry": "Remove expiry date",
+  "pinnedMessage": "Pinned message",
+  "pinMessage": "Pin",
+  "unpinMessage": "Unpin",
+  "anonymousPoll": "Anonymous",
+  "pollVotersTitle": "Poll details",
+  "pollVoteNotifTitle": "New vote",
+  "pollVoteNotifBody": "{name} voted on your poll \"{question}\".",
+  "@pollVoteNotifBody": {
+    "placeholders": {
+      "name": { "type": "String" },
+      "question": { "type": "String" }
+    }
+  },
   "newAnnouncement": "New announcement",
   "editAnnouncement": "Edit announcement",
   "announcementTitleLabel": "Title",
@@ -409,5 +430,7 @@
     "placeholders": { "name": { "type": "String" } }
   },
   "open": "Open",
-  "unarchive": "Restore"
+  "unarchive": "Restore",
+  "saveImage": "Save image",
+  "imageSaved": "Image saved"
 }

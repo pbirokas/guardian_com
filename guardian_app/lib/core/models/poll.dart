@@ -22,6 +22,7 @@ class Poll {
   final DateTime createdAt;
   final bool multipleChoice;
   final bool isClosed;
+  final bool isAnonymous;
 
   /// optionId → list of voter UIDs
   final Map<String, List<String>> votes;
@@ -36,6 +37,7 @@ class Poll {
     required this.createdAt,
     this.multipleChoice = false,
     this.isClosed = false,
+    this.isAnonymous = false,
     this.votes = const {},
   });
 
@@ -70,6 +72,7 @@ class Poll {
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       multipleChoice: data['multipleChoice'] as bool? ?? false,
       isClosed: data['isClosed'] as bool? ?? false,
+      isAnonymous: data['isAnonymous'] as bool? ?? false,
       votes: rawVotes.map(
         (optionId, voterList) =>
             MapEntry(optionId, List<String>.from(voterList as List? ?? [])),
@@ -86,6 +89,7 @@ class Poll {
         'createdAt': Timestamp.fromDate(createdAt),
         'multipleChoice': multipleChoice,
         'isClosed': isClosed,
+        'isAnonymous': isAnonymous,
         // Initialise every option with an empty voter list
         'votes': {for (final o in options) o.id: <String>[]},
       };

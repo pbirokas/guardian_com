@@ -108,7 +108,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.shield_outlined,
+                const Icon(Icons.chat_bubble_outline,
                     size: 80, color: Colors.blue),
                 const SizedBox(height: 24),
                 Text(

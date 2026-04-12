@@ -1,4 +1,4 @@
-const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const { onCall, onRequest } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const { initializeApp } = require('firebase-admin/app');
@@ -600,6 +600,62 @@ exports.processMyInvitations = onCall(async (request) => {
 
   return { processed: invitesSnap.docs.length };
 });
+
+/**
+ * Triggered when a poll document is updated (i.e. someone votes).
+ * Sends a push notification to the poll creator if:
+ *   - the total voter count increased (new vote)
+ *   - the poll is not anonymous
+ *   - the poll is not closed
+ */
+exports.onPollVote = onDocumentUpdated(
+  'conversations/{convId}/polls/{pollId}',
+  async (event) => {
+    try {
+      const before = event.data.before.data();
+      const after = event.data.after.data();
+
+      // Skip anonymous or closed polls
+      if (after.isAnonymous || after.isClosed) return;
+
+      // Count total unique voters before and after
+      function totalVoters(votesMap) {
+        const all = new Set();
+        for (const voters of Object.values(votesMap ?? {})) {
+          for (const uid of voters) all.add(uid);
+        }
+        return all.size;
+      }
+
+      const votersBefore = totalVoters(before.votes);
+      const votersAfter = totalVoters(after.votes);
+      if (votersAfter <= votersBefore) return; // no new vote
+
+      const creatorUid = after.createdBy;
+      if (!creatorUid) return;
+
+      // Load FCM token for poll creator
+      const creatorSnap = await db.collection('users').doc(creatorUid).get();
+      if (!creatorSnap.exists) return;
+      const token = creatorSnap.data().fcmToken;
+      if (!token) return;
+
+      const question = after.question ?? '';
+      const title = '📊 Neue Abstimmungsteilnahme';
+      const body = question.length > 0
+        ? `Jemand hat an deiner Abstimmung abgestimmt: "${question.length > 80 ? question.substring(0, 80) + '…' : question}"`
+        : 'Jemand hat an deiner Abstimmung abgestimmt.';
+
+      await sendToTokens([token], title, body, {
+        convId: event.params.convId,
+        pollId: event.params.pollId,
+      });
+      console.log(`Sent poll-vote notification to creator ${creatorUid} for poll ${event.params.pollId}`);
+    } catch (err) {
+      console.error('onPollVote error:', err);
+    }
+  }
+);
 
 /**
  * HTTP endpoint (kein Auth nötig): tauscht einen Firebase idToken gegen einen

@@ -744,41 +744,95 @@ exports.onClaimRequest = onDocumentCreated(
 exports.onClaimConfirmed = onDocumentUpdated(
   'claimRequests/{requestId}',
   async (event) => {
-    const before = event.data.before.data();
-    const after  = event.data.after.data();
+    try {
+      const before = event.data.before.data();
+      const after  = event.data.after.data();
 
-    if (before.status === after.status) return;
-    if (after.status !== 'confirmed') return;
+      console.log('[onClaimConfirmed] triggered', {
+        requestId: event.params.requestId,
+        statusBefore: before.status,
+        statusAfter: after.status,
+      });
 
-    const parentUid = after.fromUid;
-    const childUid  = after.toUid;
-    const childName = after.toEmail; // fallback if no display name
+      if (before.status === after.status) {
+        console.log('[onClaimConfirmed] status unchanged, skipping');
+        return;
+      }
+      if (after.status !== 'confirmed') {
+        console.log('[onClaimConfirmed] status is not confirmed, skipping');
+        return;
+      }
 
-    // Mutual link
-    const batch = db.batch();
-    batch.update(db.collection('users').doc(childUid), {
-      verifiedParentUids: FieldValue.arrayUnion(parentUid),
-    });
-    batch.update(db.collection('users').doc(parentUid), {
-      verifiedChildUids: FieldValue.arrayUnion(childUid),
-    });
-    await batch.commit();
+      const parentUid = after.fromUid;
+      const childUid  = after.toUid;
+      const childName = after.toEmail; // fallback if no display name
 
-    // Try to get the child's display name for the notification
-    const childSnap = await db.collection('users').doc(childUid).get();
-    const displayName = childSnap.exists
-      ? (childSnap.data().displayName || childName)
-      : childName;
+      console.log('[onClaimConfirmed] processing', { parentUid, childUid });
 
-    // Notify parent
-    const tokens = await getTokensForUids([parentUid]);
-    if (tokens.length > 0) {
-      await sendToTokens(
-        tokens,
-        'Verknüpfung bestätigt',
-        `${displayName} hat deine Verknüpfungsanfrage bestätigt.`,
-        { type: 'claim_confirmed', childUid },
-      );
+      // Fetch child's current user doc to get memberships and display name
+      const childSnap = await db.collection('users').doc(childUid).get();
+      if (!childSnap.exists) {
+        console.error('[onClaimConfirmed] child user doc not found:', childUid);
+        return;
+      }
+      const childData = childSnap.data();
+      const displayName = childData.displayName || childName;
+      const memberships = Array.isArray(childData.memberships) ? childData.memberships : [];
+
+      console.log('[onClaimConfirmed] child memberships count:', memberships.length);
+
+      // Mutual link + set isChild:true on child doc
+      const batch = db.batch();
+      batch.update(db.collection('users').doc(childUid), {
+        verifiedParentUids: FieldValue.arrayUnion(parentUid),
+        isChild: true,
+      });
+      batch.update(db.collection('users').doc(parentUid), {
+        verifiedChildUids: FieldValue.arrayUnion(childUid),
+      });
+
+      // Downgrade all org memberships to role 'child'
+      const affectedOrgs = [];
+      for (const membership of memberships) {
+        const orgId = membership.orgId;
+        if (!orgId) continue;
+        if (membership.role !== 'child') {
+          affectedOrgs.push(orgId);
+          batch.update(
+            db.collection('organizations').doc(orgId).collection('members').doc(childUid),
+            { role: 'child' },
+          );
+        }
+      }
+      console.log('[onClaimConfirmed] downgrading roles in orgs:', affectedOrgs);
+
+      await batch.commit();
+      console.log('[onClaimConfirmed] batch committed');
+
+      // Update the memberships array on the child doc (all roles → 'child')
+      if (memberships.length > 0) {
+        const updatedMemberships = memberships.map((m) => ({ ...m, role: 'child' }));
+        await db.collection('users').doc(childUid).update({
+          memberships: updatedMemberships,
+        });
+        console.log('[onClaimConfirmed] memberships array updated');
+      }
+
+      // Notify parent
+      const tokens = await getTokensForUids([parentUid]);
+      if (tokens.length > 0) {
+        await sendToTokens(
+          tokens,
+          'Verknüpfung bestätigt',
+          `${displayName} hat deine Verknüpfungsanfrage bestätigt.`,
+          { type: 'claim_confirmed', childUid },
+        );
+      }
+
+      console.log('[onClaimConfirmed] done');
+    } catch (err) {
+      console.error('[onClaimConfirmed] ERROR:', err);
+      throw err; // re-throw so Firebase retries
     }
   },
 );

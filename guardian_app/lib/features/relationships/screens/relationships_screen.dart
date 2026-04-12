@@ -1,6 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:guardian_app/l10n/app_localizations.dart';
+import '../../../core/models/app_user.dart';
 import '../../../core/models/claim_request.dart';
 import '../../../core/models/org_invite_consent.dart';
 import '../../../core/services/parent_claim_service.dart';
@@ -61,6 +63,48 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
 
   Future<void> _confirmClaim(ClaimRequest req) async {
     final l = AppLocalizations.of(context);
+
+    // Check if current user has non-child memberships that will be downgraded
+    final currentUser = ref.read(currentAppUserProvider).value;
+    final affectedMemberships = currentUser?.memberships
+            .where((m) => m.role != OrgRole.child)
+            .toList() ??
+        [];
+
+    if (affectedMemberships.isNotEmpty) {
+      // Fetch org names for the warning dialog
+      final db = FirebaseFirestore.instance;
+      final orgDocs = await Future.wait(
+        affectedMemberships.map((m) =>
+            db.collection('organizations').doc(m.orgId).get()),
+      );
+      final orgNames = orgDocs
+          .where((d) => d.exists)
+          .map((d) =>
+              (d.data() as Map<String, dynamic>)['name'] as String? ?? d.id)
+          .toList();
+
+      if (!mounted) return;
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(l.roleConflictTitle),
+          content: Text(l.roleConflictContent(orgNames.map((n) => '• $n').join('\n'))),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(l.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(l.confirmClaim),
+            ),
+          ],
+        ),
+      );
+      if (proceed != true) return;
+    }
+
     try {
       await ref
           .read(parentClaimServiceProvider)
@@ -348,38 +392,23 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
           ),
           const Divider(),
 
-          // ── Verified parents ──
-          _SectionHeader(l.myParents),
+          // ── Verified parents (only shown when at least one exists) ──
           ...parentsAsync.when(
             data: (parents) {
-              if (parents.isEmpty) {
-                return [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
-                    child: Text(l.noParents,
-                        style:
-                            const TextStyle(color: Colors.grey)),
-                  ),
-                ];
-              }
-              return parents
-                  .map((u) => _RelationTile(
-                        uid: u['uid'] as String,
-                        name: u['displayName'] as String? ?? '',
-                        email: u['email'] as String? ?? '',
-                        photoUrl: u['photoUrl'] as String?,
-                        label: l.verifiedParent,
-                        onRevoke: null, // Kinder können Eltern nicht trennen
-                      ))
-                  .toList();
+              if (parents.isEmpty) return const [];
+              return [
+                _SectionHeader(l.myParents),
+                ...parents.map((u) => _RelationTile(
+                      uid: u['uid'] as String,
+                      name: u['displayName'] as String? ?? '',
+                      email: u['email'] as String? ?? '',
+                      photoUrl: u['photoUrl'] as String?,
+                      label: l.verifiedParent,
+                      onRevoke: null, // Kinder können Eltern nicht trennen
+                    )),
+              ];
             },
-            loading: () => [
-              const Center(
-                  child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: CircularProgressIndicator()))
-            ],
+            loading: () => const [],
             error: (_, _) => const [],
           ),
         ],

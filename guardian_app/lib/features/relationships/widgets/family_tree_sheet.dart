@@ -52,7 +52,7 @@ class FamilyTreeSheet extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
-                  Icon(Icons.account_tree,
+                  Icon(Icons.park,
                       color: Theme.of(context).colorScheme.primary),
                   const SizedBox(width: 10),
                   Text(

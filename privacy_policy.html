@@ -98,19 +98,44 @@
 <h3>3.4 Organisationsdaten</h3>
 <ul>
   <li>Mitgliedschaft in Organisationen (Name, Rolle)</li>
-  <li>Guardian-Kind-Beziehungen</li>
+  <li>Guardian-Kind-Beziehungen innerhalb einer Organisation</li>
   <li>Einladungs-E-Mail-Adressen</li>
   <li>Keyword-Listen für das Chat-Monitoring (von Admins gepflegte Wortlisten, bei deren Auftreten Guardians und Moderatoren benachrichtigt werden)</li>
 </ul>
 
-<h3>3.5 Technische Daten</h3>
+<h3>3.5 Verifizierte Eltern-Kind-Verknüpfung</h3>
+<p>
+  Nutzer können eine konto-übergreifende, organisationsunabhängige Eltern-Kind-Verbindung aufbauen.
+  Dabei werden folgende Daten gespeichert:
+</p>
+<ul>
+  <li>
+    <strong>Verknüpfungsanfragen (<code>claimRequests</code>):</strong>
+    UID, Name und E-Mail-Adresse des anfragenden Elternteils; UID und E-Mail-Adresse
+    des Kindes; Status der Anfrage; Erstell- und Ablaufzeitpunkt (7 Tage)
+  </li>
+  <li>
+    <strong>Bestätigte Verbindungen:</strong>
+    Im Nutzerprofil werden die UIDs der verifizierten Elternteile
+    (<code>verifiedParentUids</code>) bzw. Kinder (<code>verifiedChildUids</code>)
+    gespeichert. Das Kind-Konto wird mit dem Flag <code>isChild: true</code> markiert.
+  </li>
+  <li>
+    <strong>Einwilligungen für Org-Einladungen (<code>orgInviteConsents</code>):</strong>
+    Wenn ein Kind mit verifizierten Eltern in eine Organisation eingeladen wird,
+    wird ein Einwilligungsdokument angelegt, das UID und Name des Kindes,
+    Informationen zur Organisation und die UIDs der Eltern enthält.
+  </li>
+</ul>
+
+<h3>3.6 Technische Daten</h3>
 <ul>
   <li>FCM-Token (für Push-Benachrichtigungen)</li>
   <li>Absturzberichte inkl. anonymisierter Gerätedaten (via Firebase Crashlytics)</li>
   <li>Zeitstempel (Nachrichtenversand, Beitritt zu Organisationen)</li>
 </ul>
 
-<h3>3.6 Gerätezugriffe</h3>
+<h3>3.7 Gerätezugriffe</h3>
 <table>
   <tr><th>Berechtigung</th><th>Zweck</th></tr>
   <tr><td>Mikrofon (<code>RECORD_AUDIO</code>)</td><td>Sprachnachrichten aufnehmen</td></tr>
@@ -144,6 +169,12 @@
     <td>Push-Benachrichtigungen</td>
     <td>Art. 6 Abs. 1 lit. a – Einwilligung (Berechtigungsabfrage)</td>
   </tr>
+  <tr>
+    <td>Verifizierte Eltern-Kind-Verknüpfung (gegenseitig bestätigte Verbindung,
+        Einwilligung bei Org-Einladungen)</td>
+    <td>Art. 6 Abs. 1 lit. b – Vertragserfüllung; Art. 8 DSGVO – Schutz von
+        Kindern im Zusammenhang mit Diensten der Informationsgesellschaft</td>
+  </tr>
 </table>
 
 <!-- ─── 5. Kinder ─────────────────────────────────────────────── -->
@@ -154,6 +185,18 @@
   (Guardian) der App beitreten können. Kommunikationsinhalte von Kindern sind
   für ihren Guardian sichtbar.
 </p>
+<p>
+  Darüber hinaus bietet die App eine <strong>verifizierte Eltern-Kind-Verknüpfung</strong>
+  auf Kontoebene. Ein Elternteil sendet dem Kind eine Verknüpfungsanfrage — das
+  Kind muss diese aktiv bestätigen. Nach Bestätigung gilt das Konto des Kindes
+  global als Kind-Konto (<code>isChild: true</code>):
+</p>
+<ul>
+  <li>Kind-Konten können ausschließlich die Rolle „Kind" in Organisationen innehaben.</li>
+  <li>Einladungen von Kind-Konten in Organisationen erfordern die ausdrückliche
+      Genehmigung mindestens eines verifizierten Elternteils.</li>
+  <li>Nur Elternteile können die Verknüpfung aufheben — nicht das Kind selbst.</li>
+</ul>
 <p>
   Eltern oder Erziehungsberechtigte können jederzeit die Löschung des
   Kinderkontos über die App (Profil → Datenschutz → Konto löschen) oder per

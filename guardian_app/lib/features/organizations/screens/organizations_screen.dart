@@ -352,7 +352,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
               icon: Badge(
                 isLabelVisible: familyBadgeCount > 0,
                 label: Text('$familyBadgeCount'),
-                child: const Icon(Icons.account_tree_outlined),
+                child: const Icon(Icons.park_outlined),
               ),
             ),
           ),

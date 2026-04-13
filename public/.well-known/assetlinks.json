@@ -1,12 +1,16 @@
 [
   {
-    "relation": ["delegate_permission/common.handle_all_urls"],
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
     "target": {
       "namespace": "android_app",
       "package_name": "com.guardianapp.guardian_app",
       "sha256_cert_fingerprints": [
         "AE:98:9A:0D:A4:50:C3:B5:3B:66:8D:1A:5C:6B:C2:1D:B4:2A:3B:2B:21:AE:49:F3:88:21:CD:16:F4:AC:69:53",
-        "F4:82:08:8F:B0:9E:FB:45:12:EA:7A:F4:A4:0B:88:01:11:41:C2:3F:76:D3:87:55:B9:6E:6D:F7:00:4B:7F:93"
+        "F4:82:08:8F:B0:9E:FB:45:12:EA:7A:F4:A4:0B:88:01:11:41:C2:3F:76:D3:87:55:B9:6E:6D:F7:00:4B:7F:93",
+        "36:C8:31:5D:70:58:F6:69:71:F7:83:A7:16:88:47:81:10:99:AD:84:88:25:4E:BC:25:9C:15:CA:CC:86:EF:AD"
       ]
     }
   }

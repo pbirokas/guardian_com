@@ -40,7 +40,7 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 - **Bulk-Import:** Mehrere Mitglieder gleichzeitig per CSV-Datei importieren (nur für Admins in Sheltered-Orgs)
 - **Automatische Einladungs-E-Mail** an noch nicht registrierte Nutzer (via Gmail SMTP + Cloud Function)
 - **Pre-Registrierung:** Einladung für noch nicht registrierte Nutzer — beim ersten Login erhalten sie automatisch die richtige Rolle
-- Organisation bearbeiten (Name, Kategorie, Chat-Modus)
+- Organisation bearbeiten (Name und Kategorie — Chat-Modus ist nach Erstellung fest)
 - Organisation archivieren (read-only) oder dauerhaft löschen
 - Admin-Rolle auf ein anderes Mitglied übertragen
 - Aus einer Organisation austreten (nicht für Admins)
@@ -202,6 +202,22 @@ Erreichbar über **Profil → Meine Verknüpfungen**. Der Screen vereint alle As
 - Badge mit Anzahl ausstehender Meldungen auf dem Tab
 - Admin/Moderator kann Meldung prüfen, Nachricht löschen oder direkt in den Chat springen
 
+### In-App-Hilfe & Tutorials
+
+Jeder Screen der App enthält einen kontextsensitiven **`?`-Hilfe-Button**, der ein erklärendes `HelpSheet` (DraggableScrollableSheet) mit thematisch geordneten `ExpansionTile`-Einträgen öffnet. Die Texte sind vollständig zweisprachig (Deutsch / Englisch).
+
+| Screen | Themen | Besonderheiten |
+|---|---|---|
+| **Organisations-Übersicht** | Org erstellen, Rollen, Familien-Symbol, Chat-Modi | + interaktive Schritt-für-Schritt-Tour (showcaseview) |
+| **Org-Detail** (`⋮`-Menü) | Mitglieder, Einladen/Importieren, Benachrichtigungen, Chats, Pinnwand, Meldungen | Pinnwand-Verwaltung und Meldungen nur für Admin/Mod sichtbar |
+| **Chat** | Nachrichten, Medien, Antworten & Reaktionen, Planen & Umfragen, Moderieren, Melden | – |
+| **Meine Verknüpfungen** | Eltern-Kind-Konzept, Kind verbinden, Eingehende Anfragen, Org-Einwilligungen, Trennen | Themen passen sich der Rolle (Kind / Elternteil) an |
+| **Massenimport** | CSV-Format, Rollen, Kinder importieren, Validierung, Import starten | – |
+| **Profil** | Profilbild, Anzeigename, Design & Sprache, Verknüpfungen | – |
+| **Schlüsselwörter-Dialog** | Zweck, Hinzufügen, Löschen, CSV-Import/Export | Inline-Hilfe-Dialog (kein eigener Screen) |
+
+Die Schritt-für-Schritt-Tour auf der Organisations-Übersicht hebt die wichtigsten UI-Elemente mit dem `showcaseview`-Package hervor und passt sich dynamisch an (aktive Orgs und Kind-Konten werden berücksichtigt).
+
 ### Sonstiges
 - Dark / Light Mode
 - **UI-Skalierung (Windows/Linux)** — 100 % bis 200 % in Schritten, einstellbar im Profil — optimiert für 4K-Monitore
@@ -253,6 +269,8 @@ guardian_app/
 │   │   │                    #   AppUser, Organization, Conversation, Message,
 │   │   │                    #   OrgMember, Poll, ClaimRequest, OrgInviteConsent, …
 │   │   ├── router/          # GoRouter-Konfiguration
+│   │   ├── widgets/         # Gemeinsam genutzte Widgets:
+│   │   │                    #   HelpSheet, HelpTopic (In-App-Hilfe)
 │   │   └── services/        # Firebase-Dienste:
 │   │                        #   Auth, Chat, Organization, ParentClaim,
 │   │                        #   Notification, DesktopNotification, TrayService
@@ -415,6 +433,50 @@ Projektnummer findest du unter: Firebase Console → Projekteinstellungen → Al
 
 Eine Vorlage befindet sich unter [`guardian_app/lib/firebase_options.example.dart`](guardian_app/lib/firebase_options.example.dart).  
 Umbenennen und mit eigenen Firebase-Werten befüllen, oder `flutterfire configure` verwenden.
+
+---
+
+## Changelog
+
+### 2026-04-13 — In-App-Hilfe, UI-Fixes & Eltern-Kind-Stabilisierung
+
+#### Neue Funktionen
+
+**In-App-Hilfe-System (`HelpSheet`)**
+- Neues wiederverwendbares Widget `HelpSheet` / `HelpTopic` in `core/widgets/help_sheet.dart`
+- Kontextsensitiver `?`-Hilfe-Button auf allen wichtigen Screens: Organisations-Übersicht, Org-Detail, Chat, Meine Verknüpfungen, Massenimport, Profil
+- Schlüsselwörter-Dialog erhält inline Hilfe-Button im Titelbereich
+- Alle Hilfetexte vollständig zweisprachig (Deutsch / Englisch)
+- Themen passen sich der Nutzerrolle an (z. B. Admin-Tipps nur für Admins)
+
+**Schritt-für-Schritt-Tour (Organisations-Übersicht)**
+- Interaktive Tour mit `showcaseview` hebt Profil-Avatar, Verknüpfungen-Symbol, erste Org-Karte und FAB hervor
+- Startet über den `?`-Button im HelpSheet; dynamisch je nach Kontostand
+
+**Org-Detail AppBar aufgeräumt**
+- Alle Aktionen (Hilfe, Schlüsselwörter, Bearbeiten) in ein `⋮`-Overflow-Menü zusammengefasst
+- Nur noch Glocken-Symbol + `⋮` in der AppBar → mehr Platz für den Org-Namen
+
+**Pinnwand-Hilfe erweitert**
+- Neuer Admin/Mod-only Topic „Ankündigungen erstellen & verwalten" (inkl. Ablaufdatum)
+
+**Mitglieder-Tab-Hilfe erweitert**
+- Neuer Topic „Einladen, vorschlagen & importieren" erklärt rollenspezifische Workflows (Admin, Mitglied, Kind, Elternteil)
+
+#### Fehlerbehebungen & Verbesserungen
+
+| Bereich | Änderung |
+|---|---|
+| **Cloud Function `onClaimConfirmed`** | try/catch mit `console.error` + `throw` hinzugefügt (war bisher lautlos fehlgeschlagen); setzt `isChild: true` und stuft Kind-Rollen in allen Orgs auf `child` herab |
+| **AppBar-Overflow (Org-Detail)** | `Row`-Overflow durch `Flexible` + `TextOverflow.ellipsis` auf Subtitle-Labels behoben |
+| **HelpSheet-Hintergrund** | `DraggableScrollableSheet`-Inhalt in `Material`-Widget eingebettet — Sheet war transparent |
+| **Kategorien-Übersetzung** | `OrgTag.localizedLabel(AppLocalizations l)` ergänzt; Labels sind jetzt vollständig übersetzt (DE/EN) |
+| **Chat-Modus aus Bearbeiten-Dialog entfernt** | Chat-Modus einer Organisation kann nach Erstellung nicht mehr geändert werden |
+| **Konto-Löschung blockiert** | Löschen ist gesperrt, solange verifizierte Eltern- oder Kind-Verbindungen bestehen |
+| **Kind-Konto: „Meine Kinder" ausgeblendet** | Nutzer mit `isChild: true` sehen den Abschnitt nicht mehr |
+| **„Meine Eltern" bedingt angezeigt** | Abschnitt erscheint nur, wenn mindestens ein verifizierter Elternteil vorhanden ist |
+| **Datenschutz & Lösch-Seite** | `privacy_policy.html` und `delete_account.html` um Eltern-Kind-Verknüpfungs-Abschnitt erweitert |
+| **Neuer ARB-Schlüssel `close`** | Für semantisch korrekte Schliessen-Buttons in reinen Info-Dialogen |
 
 ---
 

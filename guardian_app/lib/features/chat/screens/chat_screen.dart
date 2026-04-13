@@ -18,6 +18,7 @@ import 'package:record/record.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/models/message.dart';
+import '../../../core/widgets/help_sheet.dart';
 import '../../../core/models/org_member.dart';
 import '../../../core/models/organization.dart';
 import '../../../core/models/scheduled_message.dart';
@@ -853,6 +854,52 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           : AppBar(
               title: Text(title),
               actions: [
+                IconButton(
+                  icon: const Icon(Icons.help_outline),
+                  tooltip: '?',
+                  onPressed: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (_) => HelpSheet(
+                        screenTitle: l.helpChatTitle,
+                        topics: [
+                          HelpTopic(
+                            icon: Icons.edit_outlined,
+                            title: l.helpChatWriteTitle,
+                            body: l.helpChatWriteBody,
+                          ),
+                          HelpTopic(
+                            icon: Icons.attach_file_outlined,
+                            title: l.helpChatMediaTitle,
+                            body: l.helpChatMediaBody,
+                          ),
+                          HelpTopic(
+                            icon: Icons.reply_outlined,
+                            title: l.helpChatReactTitle,
+                            body: l.helpChatReactBody,
+                          ),
+                          HelpTopic(
+                            icon: Icons.schedule_outlined,
+                            title: l.helpChatScheduleTitle,
+                            body: l.helpChatScheduleBody,
+                          ),
+                          HelpTopic(
+                            icon: Icons.manage_accounts_outlined,
+                            title: l.helpChatModerateTitle,
+                            body: l.helpChatModerateBody,
+                          ),
+                          HelpTopic(
+                            icon: Icons.flag_outlined,
+                            title: l.helpChatReportTitle,
+                            body: l.helpChatReportBody,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
                 IconButton(
                   icon: const Icon(Icons.search),
                   tooltip: l.searchMessages,

@@ -8,6 +8,7 @@ import '../../../core/models/org_invite_consent.dart';
 import '../../../core/services/parent_claim_service.dart';
 import '../providers/relationships_provider.dart';
 import '../../organizations/providers/organizations_provider.dart';
+import '../../../core/widgets/help_sheet.dart';
 
 class RelationshipsScreen extends ConsumerStatefulWidget {
   const RelationshipsScreen({super.key});
@@ -260,7 +261,53 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
     final currentUser = ref.watch(currentAppUserProvider).value;
 
     return Scaffold(
-      appBar: AppBar(title: Text(l.myRelationships)),
+      appBar: AppBar(
+        title: Text(l.myRelationships),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            tooltip: l.helpLabel,
+            onPressed: () => showModalBottomSheet<void>(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => HelpSheet(
+                screenTitle: l.helpRelTitle,
+                topics: [
+                  HelpTopic(
+                    icon: Icons.family_restroom_outlined,
+                    title: l.helpRelOverviewTitle,
+                    body: l.helpRelOverviewBody,
+                  ),
+                  if (currentUser?.isChild != true) ...[
+                    HelpTopic(
+                      icon: Icons.person_add_outlined,
+                      title: l.helpRelConnectTitle,
+                      body: l.helpRelConnectBody,
+                    ),
+                    HelpTopic(
+                      icon: Icons.approval_outlined,
+                      title: l.helpRelConsentsTitle,
+                      body: l.helpRelConsentsBody,
+                    ),
+                    HelpTopic(
+                      icon: Icons.link_off_outlined,
+                      title: l.helpRelRevokeTitle,
+                      body: l.helpRelRevokeBody,
+                    ),
+                  ] else ...[
+                    HelpTopic(
+                      icon: Icons.mark_email_read_outlined,
+                      title: l.helpRelIncomingTitle,
+                      body: l.helpRelIncomingBody,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [

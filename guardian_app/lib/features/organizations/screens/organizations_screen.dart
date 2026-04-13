@@ -5,7 +5,9 @@ import 'package:guardian_app/l10n/app_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:showcaseview/showcaseview.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/widgets/help_sheet.dart';
 import '../../../core/models/organization.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/chat/providers/chat_provider.dart';
@@ -26,6 +28,12 @@ class OrganizationsScreen extends ConsumerStatefulWidget {
 class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
   bool _showArchived = false;
   bool _donationCheckDone = false;
+
+  // ── Tour keys ────────────────────────────────────────────────────────────
+  final _tourProfileKey  = GlobalKey();
+  final _tourFamilyKey   = GlobalKey();
+  final _tourFirstOrgKey = GlobalKey();
+  final _tourFabKey      = GlobalKey();
 
   static const _kLastDonationShown = 'lastDonationShownAt';
   static const _kDonationIntervalDays = 7;
@@ -118,7 +126,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                       avatar: Icon(tag.icon,
                           size: 16,
                           color: selected ? Colors.white : tag.color),
-                      label: Text(tag.label),
+                      label: Text(tag.localizedLabel(l)),
                       selected: selected,
                       selectedColor: tag.color,
                       labelStyle:
@@ -331,51 +339,129 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
         .value ?? 0;
     final familyBadgeCount = incomingClaims + pendingConsents;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l.myOrganizations),
-        actions: [
-          // Baum-Icon: Familienübersicht
-          Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: IconButton(
-              tooltip: l.familyTreeTooltip,
-              onPressed: () => showModalBottomSheet<void>(
-                context: context,
-                isScrollControlled: true,
-                shape: const RoundedRectangleBorder(
-                  borderRadius:
-                      BorderRadius.vertical(top: Radius.circular(16)),
+    return ShowCaseWidget(
+      builder: (innerContext) {
+        // ── Tour helpers ────────────────────────────────────────────────────
+        void startTour(List<GlobalKey> keys) =>
+            ShowCaseWidget.of(innerContext).startShowCase(keys);
+
+        void showHelp() {
+          final orgs = orgsAsync.value ?? [];
+          final hasVisibleOrgs = orgs.any((o) => !o.isArchived);
+          final activeKeys = [
+            _tourProfileKey,
+            _tourFamilyKey,
+            if (hasVisibleOrgs) _tourFirstOrgKey,
+            if (!isChildInAnyOrg) _tourFabKey,
+          ];
+          showModalBottomSheet<void>(
+            context: innerContext,
+            isScrollControlled: true,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+            builder: (_) => HelpSheet(
+              screenTitle: l.myOrganizations,
+              topics: [
+                HelpTopic(
+                  icon: Icons.groups_outlined,
+                  title: l.helpOrgTopicOrgsTitle,
+                  body: l.helpOrgTopicOrgsBody,
                 ),
-                builder: (_) => const FamilyTreeSheet(),
-              ),
-              icon: Badge(
-                isLabelVisible: familyBadgeCount > 0,
-                label: Text('$familyBadgeCount'),
-                child: const Icon(Icons.park_outlined),
+                HelpTopic(
+                  icon: Icons.badge_outlined,
+                  title: l.helpOrgTopicRolesTitle,
+                  body: l.helpOrgTopicRolesBody,
+                ),
+                HelpTopic(
+                  icon: Icons.chat_bubble_outline,
+                  title: l.helpOrgTopicChatModesTitle,
+                  body: l.helpOrgTopicChatModesBody,
+                ),
+                HelpTopic(
+                  icon: Icons.person_add_outlined,
+                  title: l.helpOrgTopicInviteTitle,
+                  body: l.helpOrgTopicInviteBody,
+                ),
+                HelpTopic(
+                  icon: Icons.park_outlined,
+                  title: l.helpOrgTopicFamilyTitle,
+                  body: l.helpOrgTopicFamilyBody,
+                ),
+              ],
+              onStartTour: () {
+                Navigator.pop(innerContext);
+                Future.delayed(
+                  const Duration(milliseconds: 350),
+                  () => startTour(activeKeys),
+                );
+              },
+            ),
+          );
+        }
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(l.myOrganizations),
+            actions: [
+          // Help button
+          IconButton(
+            tooltip: 'Hilfe',
+            icon: const Icon(Icons.help_outline),
+            onPressed: showHelp,
+          ),
+          // Baum-Icon: Familienübersicht (Tour-Schritt 2)
+          Showcase(
+            key: _tourFamilyKey,
+            title: l.tourStepFamilyTitle,
+            description: l.tourStepFamilyDesc,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: IconButton(
+                tooltip: l.familyTreeTooltip,
+                onPressed: () => showModalBottomSheet<void>(
+                  context: context,
+                  isScrollControlled: true,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(16)),
+                  ),
+                  builder: (_) => const FamilyTreeSheet(),
+                ),
+                icon: Badge(
+                  isLabelVisible: familyBadgeCount > 0,
+                  label: Text('$familyBadgeCount'),
+                  child: const Icon(Icons.park_outlined),
+                ),
               ),
             ),
           ),
+          // Profil-Avatar (Tour-Schritt 1)
           if (user != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: GestureDetector(
-                onTap: () => _showProfileMenu(context, user),
-                child: CircleAvatar(
-                  radius: 18,
-                  backgroundImage: user.photoURL != null
-                      ? NetworkImage(user.photoURL!)
-                      : null,
-                  child: user.photoURL == null
-                      ? Text(
-                          ((user.displayName?.isNotEmpty == true
-                                  ? user.displayName!
-                                  : user.email?.isNotEmpty == true
-                                      ? user.email!
-                                      : '?')[0])
-                              .toUpperCase(),
-                        )
-                      : null,
+            Showcase(
+              key: _tourProfileKey,
+              title: l.tourStepProfileTitle,
+              description: l.tourStepProfileDesc,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () => _showProfileMenu(context, user),
+                  child: CircleAvatar(
+                    radius: 18,
+                    backgroundImage: user.photoURL != null
+                        ? NetworkImage(user.photoURL!)
+                        : null,
+                    child: user.photoURL == null
+                        ? Text(
+                            ((user.displayName?.isNotEmpty == true
+                                    ? user.displayName!
+                                    : user.email?.isNotEmpty == true
+                                        ? user.email!
+                                        : '?')[0])
+                                .toUpperCase(),
+                          )
+                        : null,
+                  ),
                 ),
               ),
             ),
@@ -454,7 +540,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
               final currentUid = FirebaseAuth.instance.currentUser!.uid;
               final isOrgAdmin = org.adminUid == currentUid;
               final unreadCount = ref.watch(unreadOrgCountProvider(org.id));
-              return Card(
+              final card = Card(
                 color: org.isArchived ? Colors.grey[100] : null,
                 child: ListTile(
                   leading: Stack(
@@ -508,7 +594,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                             color: org.tag.color.withAlpha(30),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Text(org.tag.label,
+                          child: Text(org.tag.localizedLabel(l),
                               style: TextStyle(
                                   fontSize: 11, color: org.tag.color)),
                         ),
@@ -600,6 +686,16 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                       : () => context.push('/org/${org.id}'),
                 ),
               );
+              // Tour-Schritt 3: erste sichtbare Org-Karte hervorheben
+              if (i == 0) {
+                return Showcase(
+                  key: _tourFirstOrgKey,
+                  title: l.tourStepOrgCardTitle,
+                  description: l.tourStepOrgCardDesc,
+                  child: card,
+                );
+              }
+              return card; // i > 0
             },
           ),            // closes ListView.separated
         ),            // closes SizedBox
@@ -631,18 +727,26 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
               ),
               if (!isChildInAnyOrg) ...[
                 const SizedBox(width: 12),
-                FloatingActionButton.extended(
-                  heroTag: 'create',
-                  onPressed: () => _showCreateDialog(context),
-                  icon: const Icon(Icons.add),
-                  label: Text(l.createOrganization),
+                // Tour-Schritt 4: Org erstellen
+                Showcase(
+                  key: _tourFabKey,
+                  title: l.tourStepFabTitle,
+                  description: l.tourStepFabDesc,
+                  child: FloatingActionButton.extended(
+                    heroTag: 'create',
+                    onPressed: () => _showCreateDialog(context),
+                    icon: const Icon(Icons.add),
+                    label: Text(l.createOrganization),
+                  ),
                 ),
               ],
             ],
           );
         },
       ),
-    );
+        ); // Scaffold
+      },   // ShowCaseWidget.builder
+    );     // ShowCaseWidget
   }
 }
 

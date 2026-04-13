@@ -21,6 +21,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cancel => 'Cancel';
 
   @override
+  String get close => 'Close';
+
+  @override
   String get save => 'Save';
 
   @override
@@ -28,9 +31,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get edit => 'Edit';
-
-  @override
-  String get close => 'Close';
 
   @override
   String get remove => 'Remove';
@@ -133,6 +133,37 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get invalidLink => 'Invalid link. Please check the URL.';
+
+  @override
+  String get helpProfileTitle => 'Profile – Help';
+
+  @override
+  String get helpProfilePhotoTitle => 'Changing your profile picture';
+
+  @override
+  String get helpProfilePhotoBody =>
+      'Tap the circle with your avatar to pick a new image from the gallery. The image is scaled down to 512 × 512 pixels. Then tap \'Save\' in the top right.';
+
+  @override
+  String get helpProfileNameTitle => 'Display name';
+
+  @override
+  String get helpProfileNameBody =>
+      'Your display name is visible to all members in the same organisation. Change it in the text field and save with \'Save\'.';
+
+  @override
+  String get helpProfileAppearanceTitle => 'Appearance & language';
+
+  @override
+  String get helpProfileAppearanceBody =>
+      'Under \'Appearance\' you can choose between Light, Dark, and System default.\n\nUnder \'Language\' you set the app language (German or English). The change takes effect immediately.';
+
+  @override
+  String get helpProfileRelTitle => 'Connections';
+
+  @override
+  String get helpProfileRelBody =>
+      'The \'My connections\' entry takes you to the page where you can manage parent-child links.';
 
   @override
   String get editProfile => 'Edit profile';
@@ -311,7 +342,29 @@ class AppLocalizationsEn extends AppLocalizations {
   String get category => 'Category';
 
   @override
+  String get orgTagFamilie => 'Family';
+
+  @override
+  String get orgTagFreunde => 'Friends';
+
+  @override
+  String get orgTagSchule => 'School';
+
+  @override
+  String get orgTagVereine => 'Clubs';
+
+  @override
+  String get orgTagSonstiges => 'Other';
+
+  @override
   String get chatMode => 'Chat mode';
+
+  @override
+  String get keywordsHelpTitle => 'Keywords – Help';
+
+  @override
+  String get keywordsHelpBody =>
+      'What are keywords for?\nGuardians and moderators are notified whenever one of these words appears in a chat message. This helps detect sensitive topics or risk terms early.\n\nAdding words\nType a word in the text field and tap \'+\' or press Enter. Case is ignored – everything is stored in lowercase.\n\nRemoving words\nTap the \'×\' on a chip.\n\nCSV import / export\n• Import (upload arrow): Load a text file with one word per line or comma-separated.\n• Export (download arrow): Save all words as a CSV file.\n\nChanges only take effect after tapping \'Save\'.';
 
   @override
   String get keywordsTitle => 'Keywords';
@@ -328,6 +381,64 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tabMembers => 'Members';
+
+  @override
+  String get helpDetailTopicMembersTitle => 'Member list & roles';
+
+  @override
+  String get helpDetailTopicMembersBody =>
+      'The \'Members\' tab shows all active members of the organisation with their role (Admin, Moderator, Member, Child).\n\nRoles via the 3-dot menu (Admin):\n• Change role – Admin, Moderator, Member, or Child\n• Assign guardian – links a child to a parent account\n• Remove member\n• Transfer admin role\n\nMembers can leave the org themselves (except admins).';
+
+  @override
+  String get helpDetailTopicMembersInviteTitle =>
+      'Inviting, suggesting & importing';
+
+  @override
+  String get helpDetailTopicMembersInviteBody =>
+      'Admin / Moderator – \'+\' button bottom right:\n• Invite individuals by email (choose role and optional guardian)\n• In \'Sheltered\' mode: bulk import via CSV file\n\nInvited children: appear as pending until the guardian approves the invitation in \'My connections\'.\n\nRegular member – \'Suggest member\':\nSuggest a person. An admin or moderator must confirm the suggestion at the top of the tab.\n\nChild (Guardian mode) – \'Request chat\':\nSend a request for a 1-to-1 chat. An admin or moderator approves or declines.';
+
+  @override
+  String get helpDetailTopicNotificationsTitle => 'Notifications';
+
+  @override
+  String get helpDetailTopicNotificationsBody =>
+      'The bell icon (top right) controls notifications for this organization.\n\nMessage notifications:\n• Every message\n• Max. once per hour (default)\n• Max. once per day\n• Never\n\nChild activity (Guardian):\nGet notified when your child sends or receives a message. Interval is also adjustable.';
+
+  @override
+  String get helpDetailTopicChatsSendTitle => 'Chats – Messages & Media';
+
+  @override
+  String get helpDetailTopicChatsSendBody =>
+      'Text messages: Tap the input field and send with the arrow icon.\n\nImages, audio & files: \'+\' icon next to the text field:\n• Images from gallery (JPEG, max. 2 MB)\n• Record voice message (microphone icon)\n• Send files (max. 5 MB)\n\nReply: Long press a message → \'Reply\'. The original message appears as a quote.\n\nReactions: Long press a message → choose an emoji (👍❤️😂😮😢😡👎). Tap again to remove your reaction.\n\nSchedule message: \'+\' → clock icon → pick date and time.\n\nPolls (Sheltered groups): \'+\' → poll icon → create a question with options.';
+
+  @override
+  String get helpDetailTopicChatsModTitle => 'Moderate & Report Messages';
+
+  @override
+  String get helpDetailTopicChatsModBody =>
+      'Edit your own messages: Long press → \'Edit\'. Edited messages are archived in the moderation log.\n\nAdmin/Moderator – manage messages:\n• Edit or delete others\' messages\n• Pin a message → appears as a banner at the top of the chat\n\nReport: Long press a message → \'Report\'. Admins and moderators are notified and see the report in the Reports tab.';
+
+  @override
+  String get helpDetailTopicPinnwandTitle => 'Reading the noticeboard';
+
+  @override
+  String get helpDetailTopicPinnwandBody =>
+      'The noticeboard shows official announcements from the organisation – targeted information from admins and moderators, not back-and-forth like a chat.\n\nPosts have a title, body text, and an optional expiry date. Expired announcements disappear automatically.';
+
+  @override
+  String get helpDetailTopicPinnwandManageTitle =>
+      'Creating & managing announcements';
+
+  @override
+  String get helpDetailTopicPinnwandManageBody =>
+      'New announcement: Tap the \'+\' button in the bottom right → enter a title and text.\n\nExpiry date: Optionally set a date until which the announcement is visible. After that date it is hidden automatically.\n\nEdit or delete: Tap the three-dot menu on an announcement.';
+
+  @override
+  String get helpDetailTopicReportsTitle => 'Reports';
+
+  @override
+  String get helpDetailTopicReportsBody =>
+      'The \'Reports\' tab is only visible to admins and moderators.\n\nReported messages are listed here. You can:\n• Jump to the reported message in the chat\n• Delete the message\n• Archive the report as reviewed\n\nArchived reports are hidden – the toggle at the top shows them again.';
 
   @override
   String get tabChats => 'Chats';
@@ -694,6 +805,51 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scheduleHint => 'Messages are only sent while the app is open.';
 
   @override
+  String get helpChatTitle => 'Chat – Help';
+
+  @override
+  String get helpChatWriteTitle => 'Writing & sending messages';
+
+  @override
+  String get helpChatWriteBody =>
+      'Type your message in the text field and tap the send arrow. URLs in the text are automatically recognised as clickable links.';
+
+  @override
+  String get helpChatMediaTitle => 'Images, audio & files';
+
+  @override
+  String get helpChatMediaBody =>
+      'Tap the \'+\' symbol to the left of the text field to choose an image from the gallery or camera, start a voice recording, or attach a file.';
+
+  @override
+  String get helpChatReactTitle => 'Replies & reactions';
+
+  @override
+  String get helpChatReactBody =>
+      'Long-press a message to open the context menu. From there you can reply to a message or react with an emoji. A reply appears with a preview of the original message.';
+
+  @override
+  String get helpChatScheduleTitle => 'Scheduling & polls';
+
+  @override
+  String get helpChatScheduleBody =>
+      'In the \'+\' menu you can schedule a message for a later time. In groups with \'Sheltered\' mode, creating polls is also available.';
+
+  @override
+  String get helpChatModerateTitle => 'Moderating & editing messages';
+
+  @override
+  String get helpChatModerateBody =>
+      'You can edit or delete your own messages. Administrators and moderators can additionally delete, edit, or pin any message.';
+
+  @override
+  String get helpChatReportTitle => 'Reporting, copying & searching';
+
+  @override
+  String get helpChatReportBody =>
+      'Long-press a message and choose \'Report\' to flag abuse, or \'Copy\' to copy the text. Use the magnifier icon in the title bar to search all messages.';
+
+  @override
   String get searchMessages => 'Search messages';
 
   @override
@@ -836,6 +992,44 @@ class AppLocalizationsEn extends AppLocalizations {
   String get moderatedByModerator => 'moderated by moderator';
 
   @override
+  String get helpImportTitle => 'Bulk import – Help';
+
+  @override
+  String get helpImportFormatTitle => 'CSV format';
+
+  @override
+  String get helpImportFormatBody =>
+      'The file must contain the columns email, role and guardians (header row optional). Both , and ; are recognised automatically as delimiters.\n\nExample:\nemail;role;guardians\nchild@school.com;child;parent@school.com\nmember@school.com;member;';
+
+  @override
+  String get helpImportRolesTitle => 'Valid roles';
+
+  @override
+  String get helpImportRolesBody =>
+      'member · moderator (or mod) · child\n\nCase is ignored.';
+
+  @override
+  String get helpImportChildrenTitle => 'Importing children';
+
+  @override
+  String get helpImportChildrenBody =>
+      'For rows with the role \'child\', the guardians column must contain at least one email address. The listed guardians must already be members of this organisation.';
+
+  @override
+  String get helpImportPreviewTitle => 'Preview & validation';
+
+  @override
+  String get helpImportPreviewBody =>
+      'After loading the file, each row is checked. A red symbol indicates an error (row will not be imported), a yellow symbol indicates a warning (import still possible).';
+
+  @override
+  String get helpImportRunTitle => 'Start the import';
+
+  @override
+  String get helpImportRunBody =>
+      'Tap \'Import X\' in the top right. The button only appears when at least one valid row is present. After the import, a log shows whether each row succeeded or failed.';
+
+  @override
   String get importMembers => 'Import members';
 
   @override
@@ -937,6 +1131,75 @@ class AppLocalizationsEn extends AppLocalizations {
   String get myOrganizations => 'My Organizations';
 
   @override
+  String get helpLabel => 'Help';
+
+  @override
+  String get helpTourButton => 'Start Tour';
+
+  @override
+  String get helpOrgTopicOrgsTitle => 'What are Organizations?';
+
+  @override
+  String get helpOrgTopicOrgsBody =>
+      'Organizations are groups for secure communication – e.g. family, school, or club. You can create organizations yourself or join via invitation.';
+
+  @override
+  String get helpOrgTopicRolesTitle => 'Roles';
+
+  @override
+  String get helpOrgTopicRolesBody =>
+      'Admin – Full control, manages all members and settings.\nModerator – Can view and approve chats.\nMember – Can request chats and communicate.\nChild – Restricted, requires a Guardian and parental consent for invitations.';
+
+  @override
+  String get helpOrgTopicChatModesTitle => 'Chat Modes';
+
+  @override
+  String get helpOrgTopicChatModesBody =>
+      'Guardian Mode – Members request chats, admins or moderators approve them.\nSheltered Mode – The admin determines in advance who can communicate with whom. Group chats are possible.';
+
+  @override
+  String get helpOrgTopicInviteTitle => 'Invite Members';
+
+  @override
+  String get helpOrgTopicInviteBody =>
+      'Open an organization → tap the people icon → enter email and choose a role. As an admin you can also import multiple members via CSV file in Sheltered orgs.';
+
+  @override
+  String get helpOrgTopicFamilyTitle => 'Parent-Child Connection';
+
+  @override
+  String get helpOrgTopicFamilyBody =>
+      'Child accounts are globally locked to the \'Child\' role. When a child is invited to an org, parents must consent first. The tree button above opens your family overview.';
+
+  @override
+  String get tourStepProfileTitle => 'Profile & Settings';
+
+  @override
+  String get tourStepProfileDesc =>
+      'Tap here to edit your profile, adjust notifications, or sign out.';
+
+  @override
+  String get tourStepFamilyTitle => 'Family Overview';
+
+  @override
+  String get tourStepFamilyDesc =>
+      'Shows your verified parent and child connections. The badge indicates pending actions.';
+
+  @override
+  String get tourStepOrgCardTitle => 'Your Organizations';
+
+  @override
+  String get tourStepOrgCardDesc =>
+      'Tap a card to open the organization. As an admin you see a menu in the top right for more options.';
+
+  @override
+  String get tourStepFabTitle => 'Create Organization';
+
+  @override
+  String get tourStepFabDesc =>
+      'Tap here to create a new organization and set chat mode and category.';
+
+  @override
   String get noOrganizations => 'No organizations yet';
 
   @override
@@ -961,6 +1224,44 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get imageSaved => 'Image saved';
+
+  @override
+  String get helpRelTitle => 'Connections – Help';
+
+  @override
+  String get helpRelOverviewTitle => 'What is a parent-child connection?';
+
+  @override
+  String get helpRelOverviewBody =>
+      'A connection links a parent account to a child account. The child receives the \'Child\' role in all organisations and cannot join a new organisation without the parent\'s approval.';
+
+  @override
+  String get helpRelConnectTitle => 'Connect a child';
+
+  @override
+  String get helpRelConnectBody =>
+      'Enter the email address of the account you want to link as a child and tap \'Send request\'. The child must then confirm the request in this view.';
+
+  @override
+  String get helpRelIncomingTitle => 'Incoming requests';
+
+  @override
+  String get helpRelIncomingBody =>
+      'When someone sends you a connection request, it appears here. You can confirm or decline it. When you confirm, you will be assigned the \'Child\' role in all your organisations.';
+
+  @override
+  String get helpRelConsentsTitle => 'Approve org invitations';
+
+  @override
+  String get helpRelConsentsBody =>
+      'When a child is invited to an organisation, the invitation appears here for approval. As a parent you can approve or decline the invitation.';
+
+  @override
+  String get helpRelRevokeTitle => 'Remove a connection';
+
+  @override
+  String get helpRelRevokeBody =>
+      'Tap the name of a connected person and choose \'Remove connection\'. Children cannot remove the connection themselves – only the parent can do this.';
 
   @override
   String get myRelationships => 'My connections';

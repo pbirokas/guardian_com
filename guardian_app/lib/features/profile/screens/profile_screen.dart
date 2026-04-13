@@ -12,6 +12,7 @@ import '../../../core/providers/scale_provider.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/organizations/providers/organizations_provider.dart';
+import '../../../core/widgets/help_sheet.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -132,6 +133,40 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       appBar: AppBar(
         title: Text(l.editProfile),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            tooltip: l.helpLabel,
+            onPressed: () => showModalBottomSheet<void>(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => HelpSheet(
+                screenTitle: l.helpProfileTitle,
+                topics: [
+                  HelpTopic(
+                    icon: Icons.camera_alt_outlined,
+                    title: l.helpProfilePhotoTitle,
+                    body: l.helpProfilePhotoBody,
+                  ),
+                  HelpTopic(
+                    icon: Icons.badge_outlined,
+                    title: l.helpProfileNameTitle,
+                    body: l.helpProfileNameBody,
+                  ),
+                  HelpTopic(
+                    icon: Icons.palette_outlined,
+                    title: l.helpProfileAppearanceTitle,
+                    body: l.helpProfileAppearanceBody,
+                  ),
+                  HelpTopic(
+                    icon: Icons.family_restroom_outlined,
+                    title: l.helpProfileRelTitle,
+                    body: l.helpProfileRelBody,
+                  ),
+                ],
+              ),
+            ),
+          ),
           TextButton(
             onPressed: _saving ? null : _save,
             child: _saving

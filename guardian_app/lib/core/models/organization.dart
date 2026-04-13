@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 
 enum OrgTag {
   familie,
@@ -14,6 +15,14 @@ enum OrgTag {
         OrgTag.schule => 'Schule',
         OrgTag.vereine => 'Vereine',
         OrgTag.sonstiges => 'Sonstiges',
+      };
+
+  String localizedLabel(AppLocalizations l) => switch (this) {
+        OrgTag.familie => l.orgTagFamilie,
+        OrgTag.freunde => l.orgTagFreunde,
+        OrgTag.schule => l.orgTagSchule,
+        OrgTag.vereine => l.orgTagVereine,
+        OrgTag.sonstiges => l.orgTagSonstiges,
       };
 
   IconData get icon => switch (this) {

@@ -8,7 +8,8 @@
       "Bash(python3 -c \"from PIL import Image, ImageDraw; print\\('Pillow OK'\\)\")",
       "Bash(python -c \"from PIL import Image, ImageDraw; print\\('Pillow OK'\\)\")",
       "Bash(python -c \"import cairosvg; print\\('cairosvg OK'\\)\")",
-      "Bash(python -c \"import aggdraw; print\\('aggdraw OK'\\)\")"
+      "Bash(python -c \"import aggdraw; print\\('aggdraw OK'\\)\")",
+      "Bash(grep -v \"^$\")"
     ]
   }
 }

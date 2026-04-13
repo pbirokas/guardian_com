@@ -8,6 +8,7 @@ import '../../../core/models/app_user.dart';
 import '../../../core/models/org_member.dart';
 import '../../../core/models/organization.dart';
 import '../providers/organizations_provider.dart';
+import '../../../core/widgets/help_sheet.dart';
 
 // ── CSV row model ─────────────────────────────────────────────────────────────
 
@@ -260,6 +261,45 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
                     )
                   : Text(l.importCount(validCount)),
             ),
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            tooltip: l.helpLabel,
+            onPressed: () => showModalBottomSheet<void>(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => HelpSheet(
+                screenTitle: l.helpImportTitle,
+                topics: [
+                  HelpTopic(
+                    icon: Icons.table_rows_outlined,
+                    title: l.helpImportFormatTitle,
+                    body: l.helpImportFormatBody,
+                  ),
+                  HelpTopic(
+                    icon: Icons.badge_outlined,
+                    title: l.helpImportRolesTitle,
+                    body: l.helpImportRolesBody,
+                  ),
+                  HelpTopic(
+                    icon: Icons.child_care_outlined,
+                    title: l.helpImportChildrenTitle,
+                    body: l.helpImportChildrenBody,
+                  ),
+                  HelpTopic(
+                    icon: Icons.rule_outlined,
+                    title: l.helpImportPreviewTitle,
+                    body: l.helpImportPreviewBody,
+                  ),
+                  HelpTopic(
+                    icon: Icons.upload_outlined,
+                    title: l.helpImportRunTitle,
+                    body: l.helpImportRunBody,
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
       body: Column(

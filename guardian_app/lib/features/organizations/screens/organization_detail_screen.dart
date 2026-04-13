@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/models/announcement.dart';
 import '../../../core/models/app_user.dart';
+import '../../../core/widgets/help_sheet.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/models/member_suggestion.dart';
 import '../../../core/models/notification_settings.dart';
@@ -60,33 +61,128 @@ class OrganizationDetailScreen extends ConsumerWidget {
                     children: [
                       Icon(org.tag.icon, size: 12, color: org.tag.color),
                       const SizedBox(width: 4),
-                      Text(org.tag.label,
-                          style:
-                              TextStyle(fontSize: 12, color: org.tag.color)),
+                      Flexible(
+                        child: Text(
+                          org.tag.localizedLabel(l),
+                          style: TextStyle(fontSize: 12, color: org.tag.color),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                       const SizedBox(width: 8),
                       Icon(org.chatMode.icon, size: 12, color: Colors.grey),
                       const SizedBox(width: 4),
-                      Text(org.chatMode.label,
+                      Flexible(
+                        child: Text(
+                          org.chatMode.label,
                           style: const TextStyle(
-                              fontSize: 12, color: Colors.grey)),
+                              fontSize: 12, color: Colors.grey),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ],
                   ),
                 ],
               ),
               actions: [
                 _OrgNotificationToggle(orgId: orgId),
-                if (isAdmin) ...[
-                  IconButton(
-                    icon: const Icon(Icons.manage_search_outlined),
-                    tooltip: l.keywordsTooltip,
-                    onPressed: () => _showKeywordsDialog(context, ref, org),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined),
-                    tooltip: l.editTooltip,
-                    onPressed: () => _showEditDialog(context, ref, org),
-                  ),
-                ],
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'help':
+                        showModalBottomSheet<void>(
+                          context: context,
+                          isScrollControlled: true,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.vertical(
+                                top: Radius.circular(16)),
+                          ),
+                          builder: (_) => HelpSheet(
+                            screenTitle: org.name,
+                            topics: [
+                              HelpTopic(
+                                icon: Icons.people_outline,
+                                title: l.helpDetailTopicMembersTitle,
+                                body: l.helpDetailTopicMembersBody,
+                              ),
+                              HelpTopic(
+                                icon: Icons.person_add_outlined,
+                                title: l.helpDetailTopicMembersInviteTitle,
+                                body: l.helpDetailTopicMembersInviteBody,
+                              ),
+                              HelpTopic(
+                                icon: Icons.notifications_outlined,
+                                title: l.helpDetailTopicNotificationsTitle,
+                                body: l.helpDetailTopicNotificationsBody,
+                              ),
+                              HelpTopic(
+                                icon: Icons.chat_bubble_outline,
+                                title: l.helpDetailTopicChatsSendTitle,
+                                body: l.helpDetailTopicChatsSendBody,
+                              ),
+                              HelpTopic(
+                                icon: Icons.shield_outlined,
+                                title: l.helpDetailTopicChatsModTitle,
+                                body: l.helpDetailTopicChatsModBody,
+                              ),
+                              HelpTopic(
+                                icon: Icons.campaign_outlined,
+                                title: l.helpDetailTopicPinnwandTitle,
+                                body: l.helpDetailTopicPinnwandBody,
+                              ),
+                              if (isAdmin || isModerator) ...[
+                                HelpTopic(
+                                  icon: Icons.edit_calendar_outlined,
+                                  title: l.helpDetailTopicPinnwandManageTitle,
+                                  body: l.helpDetailTopicPinnwandManageBody,
+                                ),
+                                HelpTopic(
+                                  icon: Icons.flag_outlined,
+                                  title: l.helpDetailTopicReportsTitle,
+                                  body: l.helpDetailTopicReportsBody,
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
+                      case 'keywords':
+                        _showKeywordsDialog(context, ref, org);
+                      case 'edit':
+                        _showEditDialog(context, ref, org);
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'help',
+                      child: ListTile(
+                        leading: const Icon(Icons.help_outline),
+                        title: Text(l.helpLabel),
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                      ),
+                    ),
+                    if (isAdmin) ...[
+                      PopupMenuItem(
+                        value: 'keywords',
+                        child: ListTile(
+                          leading: const Icon(Icons.manage_search_outlined),
+                          title: Text(l.keywordsTooltip),
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'edit',
+                        child: ListTile(
+                          leading: const Icon(Icons.edit_outlined),
+                          title: Text(l.editTooltip),
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ],
               bottom: TabBar(
                 labelPadding: const EdgeInsets.symmetric(horizontal: 8),
@@ -132,7 +228,6 @@ class OrganizationDetailScreen extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final nameController = TextEditingController(text: org.name);
     OrgTag selectedTag = org.tag;
-    ChatMode selectedMode = org.chatMode;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -169,7 +264,7 @@ class OrganizationDetailScreen extends ConsumerWidget {
                         avatar: Icon(tag.icon,
                             size: 16,
                             color: selected ? Colors.white : tag.color),
-                        label: Text(tag.label),
+                        label: Text(tag.localizedLabel(ld)),
                         selected: selected,
                         selectedColor: tag.color,
                         labelStyle:
@@ -178,55 +273,6 @@ class OrganizationDetailScreen extends ConsumerWidget {
                       );
                     }).toList(),
                   ),
-                  const SizedBox(height: 16),
-                  Text(ld.chatMode,
-                      style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                  const SizedBox(height: 8),
-                  ...ChatMode.values.map((mode) {
-                    final selected = selectedMode == mode;
-                    final color = Theme.of(ctx).colorScheme.primary;
-                    return GestureDetector(
-                      onTap: () => setState(() => selectedMode = mode),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: selected ? color : Colors.grey.shade300,
-                            width: selected ? 2 : 1,
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          color: selected ? color.withAlpha(15) : null,
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(mode.icon,
-                                color: selected ? color : Colors.grey,
-                                size: 20),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(mode.label,
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: selected ? color : null,
-                                          fontSize: 13)),
-                                  Text(mode.description,
-                                      style: const TextStyle(
-                                          fontSize: 11, color: Colors.grey)),
-                                ],
-                              ),
-                            ),
-                            if (selected)
-                              Icon(Icons.check_circle, color: color, size: 18),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
                 ],
               ),
             ),
@@ -251,7 +297,6 @@ class OrganizationDetailScreen extends ConsumerWidget {
               orgId,
               name: nameController.text.trim(),
               tag: selectedTag,
-              chatMode: selectedMode,
             );
       } catch (e) {
         if (context.mounted) {
@@ -339,6 +384,31 @@ class OrganizationDetailScreen extends ConsumerWidget {
             title: Row(
               children: [
                 Expanded(child: Text(ld.keywordsTitle)),
+                IconButton(
+                  icon: const Icon(Icons.help_outline),
+                  tooltip: ld.helpLabel,
+                  onPressed: () => showDialog<void>(
+                    context: ctx,
+                    builder: (hCtx) {
+                      final lh = AppLocalizations.of(hCtx);
+                      return AlertDialog(
+                        title: Text(lh.keywordsHelpTitle),
+                        content: SingleChildScrollView(
+                          child: Text(
+                            lh.keywordsHelpBody,
+                            style: const TextStyle(height: 1.6),
+                          ),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(hCtx),
+                            child: Text(lh.close),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
                 IconButton(
                   icon: const Icon(Icons.upload_file_outlined),
                   tooltip: ld.keywordsImportCsv,

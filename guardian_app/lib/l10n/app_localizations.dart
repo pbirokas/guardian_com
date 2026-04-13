@@ -122,6 +122,12 @@ abstract class AppLocalizations {
   /// **'Abbrechen'**
   String get cancel;
 
+  /// No description provided for @close.
+  ///
+  /// In de, this message translates to:
+  /// **'Schließen'**
+  String get close;
+
   /// No description provided for @save.
   ///
   /// In de, this message translates to:
@@ -139,12 +145,6 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Bearbeiten'**
   String get edit;
-
-  /// No description provided for @close.
-  ///
-  /// In de, this message translates to:
-  /// **'Schließen'**
-  String get close;
 
   /// No description provided for @remove.
   ///
@@ -331,6 +331,60 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Ungültiger Link. Bitte prüfe die URL.'**
   String get invalidLink;
+
+  /// No description provided for @helpProfileTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Profil – Hilfe'**
+  String get helpProfileTitle;
+
+  /// No description provided for @helpProfilePhotoTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Profilbild ändern'**
+  String get helpProfilePhotoTitle;
+
+  /// No description provided for @helpProfilePhotoBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Tippe auf das Kreissymbol mit deinem Avatar, um ein neues Bild aus der Galerie zu wählen. Das Bild wird auf 512 × 512 Pixel verkleinert. Tippe anschliessend oben rechts auf \'Speichern\'.'**
+  String get helpProfilePhotoBody;
+
+  /// No description provided for @helpProfileNameTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Anzeigename'**
+  String get helpProfileNameTitle;
+
+  /// No description provided for @helpProfileNameBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Der Anzeigename ist für alle Mitglieder sichtbar, mit denen du in einer Organisation bist. Ändere ihn im Textfeld und speichere mit \'Speichern\'.'**
+  String get helpProfileNameBody;
+
+  /// No description provided for @helpProfileAppearanceTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Design & Sprache'**
+  String get helpProfileAppearanceTitle;
+
+  /// No description provided for @helpProfileAppearanceBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Unter \'Erscheinungsbild\' wählst du zwischen Hell, Dunkel und Systemstandard.\n\nUnter \'Sprache\' stellst du die App-Sprache ein (Deutsch oder Englisch). Die Änderung wird sofort übernommen.'**
+  String get helpProfileAppearanceBody;
+
+  /// No description provided for @helpProfileRelTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Verknüpfungen'**
+  String get helpProfileRelTitle;
+
+  /// No description provided for @helpProfileRelBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Der Eintrag \'Meine Verknüpfungen\' führt zur Seite, auf der du Eltern-Kind-Verbindungen verwalten kannst.'**
+  String get helpProfileRelBody;
 
   /// No description provided for @editProfile.
   ///
@@ -668,11 +722,53 @@ abstract class AppLocalizations {
   /// **'Kategorie'**
   String get category;
 
+  /// No description provided for @orgTagFamilie.
+  ///
+  /// In de, this message translates to:
+  /// **'Familie'**
+  String get orgTagFamilie;
+
+  /// No description provided for @orgTagFreunde.
+  ///
+  /// In de, this message translates to:
+  /// **'Freunde'**
+  String get orgTagFreunde;
+
+  /// No description provided for @orgTagSchule.
+  ///
+  /// In de, this message translates to:
+  /// **'Schule'**
+  String get orgTagSchule;
+
+  /// No description provided for @orgTagVereine.
+  ///
+  /// In de, this message translates to:
+  /// **'Vereine'**
+  String get orgTagVereine;
+
+  /// No description provided for @orgTagSonstiges.
+  ///
+  /// In de, this message translates to:
+  /// **'Sonstiges'**
+  String get orgTagSonstiges;
+
   /// No description provided for @chatMode.
   ///
   /// In de, this message translates to:
   /// **'Chat-Modus'**
   String get chatMode;
+
+  /// No description provided for @keywordsHelpTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Schlüsselwörter – Hilfe'**
+  String get keywordsHelpTitle;
+
+  /// No description provided for @keywordsHelpBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Wozu dienen Schlüsselwörter?\nGuardians und Moderatoren werden benachrichtigt, sobald eines dieser Wörter in einem Chat-Nachricht erscheint. So lassen sich sensible Themen oder Risikobegriffe frühzeitig erkennen.\n\nWörter hinzufügen\nGib ein Wort in das Textfeld ein und tippe auf \'+\' oder drücke Enter. Gross-/Kleinschreibung wird ignoriert – alles wird in Kleinbuchstaben gespeichert.\n\nWörter entfernen\nTippe auf das \'×\'-Symbol auf einem Chip.\n\nCSV-Import / Export\n• Import (Pfeil nach oben): Lade eine Textdatei mit einem Wort pro Zeile oder kommagetrennt.\n• Export (Pfeil nach unten): Speichere alle Wörter als CSV-Datei.\n\nÄnderungen werden erst nach \'Speichern\' übernommen.'**
+  String get keywordsHelpBody;
 
   /// No description provided for @keywordsTitle.
   ///
@@ -703,6 +799,102 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Mitglieder'**
   String get tabMembers;
+
+  /// No description provided for @helpDetailTopicMembersTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Mitgliederliste & Rollen'**
+  String get helpDetailTopicMembersTitle;
+
+  /// No description provided for @helpDetailTopicMembersBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Im Tab \'Mitglieder\' siehst du alle aktiven Personen der Organisation mit ihrer Rolle (Admin, Moderator, Mitglied, Kind).\n\nRollen im 3-Punkte-Menü (Admin):\n• Rolle ändern – Admin, Moderator, Mitglied oder Kind\n• Guardian zuweisen – verbindet ein Kind mit einem Elternteil\n• Mitglied entfernen\n• Admin-Rolle übertragen\n\nMitglieder können die Org selbst verlassen (ausser Admin).'**
+  String get helpDetailTopicMembersBody;
+
+  /// No description provided for @helpDetailTopicMembersInviteTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Einladen, vorschlagen & importieren'**
+  String get helpDetailTopicMembersInviteTitle;
+
+  /// No description provided for @helpDetailTopicMembersInviteBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Admin / Moderator – \'+\'-Schaltfläche unten rechts:\n• Einzeln per E-Mail einladen (Rolle und ggf. Guardian wählbar)\n• Im \'Sheltered\'-Modus: Massenimport per CSV-Datei\n\nEingeladene Kinder: erscheinen als ausstehend, bis der Guardian die Einladung in \'Meine Verknüpfungen\' genehmigt.\n\nReguläres Mitglied – \'Mitglied vorschlagen\':\nSchlage eine Person vor. Admin oder Moderator muss den Vorschlag oben im Tab bestätigen.\n\nKind (Guardian-Modus) – \'Chat anfragen\':\nSende eine Anfrage für einen 1:1-Chat. Admin oder Moderator genehmigt oder lehnt ab.'**
+  String get helpDetailTopicMembersInviteBody;
+
+  /// No description provided for @helpDetailTopicNotificationsTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Benachrichtigungen'**
+  String get helpDetailTopicNotificationsTitle;
+
+  /// No description provided for @helpDetailTopicNotificationsBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Das Glocken-Symbol (oben rechts) steuert Benachrichtigungen für diese Organisation.\n\nNachrichten-Benachrichtigungen:\n• Jede Nachricht\n• Max. 1x pro Stunde (Standard)\n• Max. 1x pro Tag\n• Nie\n\nKind-Aktivität (Guardian):\nWird benachrichtigt wenn dein Kind eine Nachricht sendet oder empfängt. Intervall ebenfalls einstellbar.'**
+  String get helpDetailTopicNotificationsBody;
+
+  /// No description provided for @helpDetailTopicChatsSendTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Chats – Nachrichten & Medien'**
+  String get helpDetailTopicChatsSendTitle;
+
+  /// No description provided for @helpDetailTopicChatsSendBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Textnachrichten: Tippe in das Eingabefeld und sende mit dem Pfeil-Symbol.\n\nBilder, Audio & Dateien: \'+\'-Symbol neben dem Textfeld:\n• Bilder aus der Galerie (JPEG, max. 2 MB)\n• Sprachnachricht aufnehmen (Mikrofon-Symbol)\n• Dateien senden (max. 5 MB)\n\nAntworten: Nachricht lang drücken → \'Antworten\'. Die Ursprungsnachricht erscheint als Zitat.\n\nReaktionen: Nachricht lang drücken → Emoji wählen (👍❤️😂😮😢😡👎). Erneut tippen entfernt die eigene Reaktion.\n\nNachrichten planen: \'+\' → Uhr-Symbol → Datum und Uhrzeit wählen.\n\nUmfragen (Sheltered-Gruppen): \'+\' → Umfrage-Symbol → Frage mit Optionen erstellen.'**
+  String get helpDetailTopicChatsSendBody;
+
+  /// No description provided for @helpDetailTopicChatsModTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Nachrichten moderieren & melden'**
+  String get helpDetailTopicChatsModTitle;
+
+  /// No description provided for @helpDetailTopicChatsModBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Eigene Nachrichten bearbeiten: Nachricht lang drücken → \'Bearbeiten\'. Bearbeitete Nachrichten werden im Moderations-Log archiviert.\n\nAdmin/Moderator – Nachrichten verwalten:\n• Fremde Nachrichten bearbeiten oder löschen\n• Nachricht anpinnen → erscheint als Banner oben im Chat\n\nMelden: Fremde Nachricht lang drücken → \'Melden\'. Admin und Moderatoren werden benachrichtigt und sehen die Meldung im Meldungen-Tab.'**
+  String get helpDetailTopicChatsModBody;
+
+  /// No description provided for @helpDetailTopicPinnwandTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Pinnwand lesen'**
+  String get helpDetailTopicPinnwandTitle;
+
+  /// No description provided for @helpDetailTopicPinnwandBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Die Pinnwand zeigt offizielle Ankündigungen der Organisation – kein Hin-und-Her wie im Chat, sondern gezielte Informationen von Admins und Moderatoren.\n\nBeiträge haben einen Titel, einen Text und optional ein Ablaufdatum. Abgelaufene Ankündigungen verschwinden automatisch.'**
+  String get helpDetailTopicPinnwandBody;
+
+  /// No description provided for @helpDetailTopicPinnwandManageTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Ankündigungen erstellen & verwalten'**
+  String get helpDetailTopicPinnwandManageTitle;
+
+  /// No description provided for @helpDetailTopicPinnwandManageBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Neue Ankündigung: Tippe auf das \'+\'-Symbol unten rechts → Titel und Text eingeben.\n\nAblaufdatum: Optional kannst du festlegen, bis wann eine Ankündigung sichtbar ist. Nach diesem Datum wird sie automatisch ausgeblendet.\n\nBearbeiten oder löschen: Tippe auf das Drei-Punkte-Menü einer Ankündigung.'**
+  String get helpDetailTopicPinnwandManageBody;
+
+  /// No description provided for @helpDetailTopicReportsTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Meldungen'**
+  String get helpDetailTopicReportsTitle;
+
+  /// No description provided for @helpDetailTopicReportsBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Der Tab \'Meldungen\' ist nur für Admins und Moderatoren sichtbar.\n\nHier werden gemeldete Nachrichten aufgelistet. Du kannst:\n• Zur gemeldeten Nachricht im Chat springen\n• Die Nachricht löschen\n• Die Meldung als geprüft archivieren\n\nArchivierte Meldungen werden ausgeblendet – der Toggle oben zeigt sie wieder an.'**
+  String get helpDetailTopicReportsBody;
 
   /// No description provided for @tabChats.
   ///
@@ -1340,6 +1532,84 @@ abstract class AppLocalizations {
   /// **'Nachrichten werden nur gesendet solange die App geöffnet ist.'**
   String get scheduleHint;
 
+  /// No description provided for @helpChatTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Chat – Hilfe'**
+  String get helpChatTitle;
+
+  /// No description provided for @helpChatWriteTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Nachrichten schreiben & senden'**
+  String get helpChatWriteTitle;
+
+  /// No description provided for @helpChatWriteBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Tippe deine Nachricht in das Textfeld und drücke den Senden-Pfeil. URLs im Text werden automatisch als anklickbare Links erkannt.'**
+  String get helpChatWriteBody;
+
+  /// No description provided for @helpChatMediaTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Bilder, Audio & Dateien'**
+  String get helpChatMediaTitle;
+
+  /// No description provided for @helpChatMediaBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Tippe auf das \'+\'-Symbol links neben dem Textfeld, um ein Bild aus der Galerie oder der Kamera zu wählen, eine Sprachaufnahme zu starten oder eine Datei anzuhängen.'**
+  String get helpChatMediaBody;
+
+  /// No description provided for @helpChatReactTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Antworten & Reaktionen'**
+  String get helpChatReactTitle;
+
+  /// No description provided for @helpChatReactBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Halte eine Nachricht gedrückt, um ein Kontextmenü zu öffnen. Dort kannst du auf eine Nachricht antworten oder mit einem Emoji reagieren. Eine Antwort erscheint mit Vorschau der Originalnachricht.'**
+  String get helpChatReactBody;
+
+  /// No description provided for @helpChatScheduleTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Planen & Umfragen'**
+  String get helpChatScheduleTitle;
+
+  /// No description provided for @helpChatScheduleBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Im \'+\'-Menü kannst du eine Nachricht zeitgesteuert planen. In Gruppen mit \'Betreut\'-Modus ist ausserdem das Erstellen von Umfragen möglich.'**
+  String get helpChatScheduleBody;
+
+  /// No description provided for @helpChatModerateTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Nachrichten moderieren & bearbeiten'**
+  String get helpChatModerateTitle;
+
+  /// No description provided for @helpChatModerateBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Du kannst eigene Nachrichten bearbeiten oder löschen. Administratoren und Moderatoren können zusätzlich beliebige Nachrichten löschen, bearbeiten oder anpinnen.'**
+  String get helpChatModerateBody;
+
+  /// No description provided for @helpChatReportTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Melden, Kopieren & Suchen'**
+  String get helpChatReportTitle;
+
+  /// No description provided for @helpChatReportBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Halte eine Nachricht gedrückt und wähle \'Melden\', um Missbrauch zu melden, oder \'Kopieren\', um den Text zu kopieren. Mit dem Lupen-Symbol in der Titelleiste durchsuchst du alle Nachrichten.'**
+  String get helpChatReportBody;
+
   /// No description provided for @searchMessages.
   ///
   /// In de, this message translates to:
@@ -1598,6 +1868,72 @@ abstract class AppLocalizations {
   /// **'von Moderator moderiert'**
   String get moderatedByModerator;
 
+  /// No description provided for @helpImportTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Massenimport – Hilfe'**
+  String get helpImportTitle;
+
+  /// No description provided for @helpImportFormatTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'CSV-Format'**
+  String get helpImportFormatTitle;
+
+  /// No description provided for @helpImportFormatBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Die Datei muss die Spalten email, rolle und guardians enthalten (Kopfzeile optional). Als Trennzeichen werden , und ; automatisch erkannt.\n\nBeispiel:\nemail;rolle;guardians\nkind@schule.de;kind;eltern@schule.de\nmitglied@schule.de;mitglied;'**
+  String get helpImportFormatBody;
+
+  /// No description provided for @helpImportRolesTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Gültige Rollen'**
+  String get helpImportRolesTitle;
+
+  /// No description provided for @helpImportRolesBody.
+  ///
+  /// In de, this message translates to:
+  /// **'mitglied (oder member) · moderator (oder mod) · kind (oder child)\n\nGross-/Kleinschreibung wird ignoriert.'**
+  String get helpImportRolesBody;
+
+  /// No description provided for @helpImportChildrenTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Kinder importieren'**
+  String get helpImportChildrenTitle;
+
+  /// No description provided for @helpImportChildrenBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Für Zeilen mit der Rolle \'kind\' muss die Guardians-Spalte mindestens eine E-Mail-Adresse enthalten. Die genannten Guardians müssen bereits Mitglieder dieser Organisation sein.'**
+  String get helpImportChildrenBody;
+
+  /// No description provided for @helpImportPreviewTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Vorschau & Validierung'**
+  String get helpImportPreviewTitle;
+
+  /// No description provided for @helpImportPreviewBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Nach dem Laden der Datei wird jede Zeile geprüft. Ein rotes Symbol zeigt einen Fehler (Zeile wird nicht importiert), ein gelbes Symbol zeigt eine Warnung (Import trotzdem möglich).'**
+  String get helpImportPreviewBody;
+
+  /// No description provided for @helpImportRunTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Import starten'**
+  String get helpImportRunTitle;
+
+  /// No description provided for @helpImportRunBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Tippe oben rechts auf \'X importieren\'. Die Schaltfläche erscheint nur, wenn mindestens eine gültige Zeile vorhanden ist. Nach dem Import zeigt ein Log-Protokoll für jede Zeile ob sie erfolgreich war oder fehlgeschlagen ist.'**
+  String get helpImportRunBody;
+
   /// No description provided for @importMembers.
   ///
   /// In de, this message translates to:
@@ -1760,6 +2096,126 @@ abstract class AppLocalizations {
   /// **'Meine Organisationen'**
   String get myOrganizations;
 
+  /// No description provided for @helpLabel.
+  ///
+  /// In de, this message translates to:
+  /// **'Hilfe'**
+  String get helpLabel;
+
+  /// No description provided for @helpTourButton.
+  ///
+  /// In de, this message translates to:
+  /// **'Tour starten'**
+  String get helpTourButton;
+
+  /// No description provided for @helpOrgTopicOrgsTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Was sind Organisationen?'**
+  String get helpOrgTopicOrgsTitle;
+
+  /// No description provided for @helpOrgTopicOrgsBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Organisationen sind Gruppen für sichere Kommunikation – z. B. Familie, Schule oder Verein. Du kannst selbst Organisationen erstellen oder per Einladung beitreten.'**
+  String get helpOrgTopicOrgsBody;
+
+  /// No description provided for @helpOrgTopicRolesTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Rollen'**
+  String get helpOrgTopicRolesTitle;
+
+  /// No description provided for @helpOrgTopicRolesBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Admin – Volle Kontrolle, verwaltet alle Mitglieder und Einstellungen.\nModerator – Kann Chats einsehen und genehmigen.\nMitglied – Kann Chats anfordern und kommunizieren.\nKind – Eingeschränkt, benötigt einen Guardian und Eltern-Zustimmung bei Einladungen.'**
+  String get helpOrgTopicRolesBody;
+
+  /// No description provided for @helpOrgTopicChatModesTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Chat-Modi'**
+  String get helpOrgTopicChatModesTitle;
+
+  /// No description provided for @helpOrgTopicChatModesBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Guardian-Modus – Mitglieder beantragen Chats, Admins oder Moderatoren genehmigen sie.\nSheltered-Modus – Der Admin legt vorab fest, wer mit wem kommunizieren darf. Gruppen-Chats sind möglich.'**
+  String get helpOrgTopicChatModesBody;
+
+  /// No description provided for @helpOrgTopicInviteTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Mitglieder einladen'**
+  String get helpOrgTopicInviteTitle;
+
+  /// No description provided for @helpOrgTopicInviteBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Öffne eine Organisation → tippe auf das Personen-Symbol → E-Mail eingeben und Rolle wählen. Als Admin kannst du in Sheltered-Orgs auch mehrere Mitglieder per CSV-Datei importieren.'**
+  String get helpOrgTopicInviteBody;
+
+  /// No description provided for @helpOrgTopicFamilyTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Eltern-Kind-Verknüpfung'**
+  String get helpOrgTopicFamilyTitle;
+
+  /// No description provided for @helpOrgTopicFamilyBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Kind-Konten sind global auf die Rolle \'Kind\' gesperrt. Wird ein Kind in eine Org eingeladen, müssen die Eltern zuerst zustimmen. Der Baum-Button oben öffnet deine Familienübersicht.'**
+  String get helpOrgTopicFamilyBody;
+
+  /// No description provided for @tourStepProfileTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Profil & Einstellungen'**
+  String get tourStepProfileTitle;
+
+  /// No description provided for @tourStepProfileDesc.
+  ///
+  /// In de, this message translates to:
+  /// **'Tippe hier um dein Profil zu bearbeiten, Benachrichtigungen anzupassen oder dich abzumelden.'**
+  String get tourStepProfileDesc;
+
+  /// No description provided for @tourStepFamilyTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Familienübersicht'**
+  String get tourStepFamilyTitle;
+
+  /// No description provided for @tourStepFamilyDesc.
+  ///
+  /// In de, this message translates to:
+  /// **'Öffnet deine verifizierten Eltern- und Kind-Verbindungen. Das Badge zeigt ausstehende Aktionen.'**
+  String get tourStepFamilyDesc;
+
+  /// No description provided for @tourStepOrgCardTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Deine Organisationen'**
+  String get tourStepOrgCardTitle;
+
+  /// No description provided for @tourStepOrgCardDesc.
+  ///
+  /// In de, this message translates to:
+  /// **'Tippe auf eine Karte um die Organisation zu öffnen. Als Admin siehst du oben rechts ein Menü mit weiteren Optionen.'**
+  String get tourStepOrgCardDesc;
+
+  /// No description provided for @tourStepFabTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Organisation erstellen'**
+  String get tourStepFabTitle;
+
+  /// No description provided for @tourStepFabDesc.
+  ///
+  /// In de, this message translates to:
+  /// **'Tippe hier um eine neue Organisation zu erstellen und Chat-Modus sowie Kategorie festzulegen.'**
+  String get tourStepFabDesc;
+
   /// No description provided for @noOrganizations.
   ///
   /// In de, this message translates to:
@@ -1807,6 +2263,72 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Bild gespeichert'**
   String get imageSaved;
+
+  /// No description provided for @helpRelTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Verknüpfungen – Hilfe'**
+  String get helpRelTitle;
+
+  /// No description provided for @helpRelOverviewTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Was ist eine Eltern-Kind-Verknüpfung?'**
+  String get helpRelOverviewTitle;
+
+  /// No description provided for @helpRelOverviewBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Eine Verknüpfung verbindet ein Elternteil mit einem Kind. Das Kind erhält in allen Organisationen die Rolle \'Kind\' und kann ohne Genehmigung des Elternteils keiner neuen Organisation beitreten.'**
+  String get helpRelOverviewBody;
+
+  /// No description provided for @helpRelConnectTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Kind verbinden'**
+  String get helpRelConnectTitle;
+
+  /// No description provided for @helpRelConnectBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Gib die E-Mail-Adresse des Kontos ein, das du als Kind verknüpfen möchtest, und tippe auf \'Anfrage senden\'. Das Kind muss die Anfrage anschliessend in dieser Ansicht bestätigen.'**
+  String get helpRelConnectBody;
+
+  /// No description provided for @helpRelIncomingTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Eingehende Anfragen'**
+  String get helpRelIncomingTitle;
+
+  /// No description provided for @helpRelIncomingBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Wenn jemand eine Verknüpfungsanfrage an dich schickt, erscheint sie hier. Du kannst sie bestätigen oder ablehnen. Beim Bestätigen wirst du der Rolle \'Kind\' in allen deinen Organisationen zugewiesen.'**
+  String get helpRelIncomingBody;
+
+  /// No description provided for @helpRelConsentsTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Org-Einladungen genehmigen'**
+  String get helpRelConsentsTitle;
+
+  /// No description provided for @helpRelConsentsBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Wenn ein Kind zu einer Organisation eingeladen wird, erscheint die Einladung hier zur Genehmigung. Als Elternteil kannst du die Einladung freigeben oder ablehnen.'**
+  String get helpRelConsentsBody;
+
+  /// No description provided for @helpRelRevokeTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Verbindung trennen'**
+  String get helpRelRevokeTitle;
+
+  /// No description provided for @helpRelRevokeBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Tippe auf den Namen einer verknüpften Person und wähle \'Verbindung trennen\'. Kinder können die Verbindung nicht selbst auflösen – das kann nur das Elternteil tun.'**
+  String get helpRelRevokeBody;
 
   /// No description provided for @myRelationships.
   ///

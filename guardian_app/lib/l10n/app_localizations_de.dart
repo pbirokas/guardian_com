@@ -21,6 +21,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get cancel => 'Abbrechen';
 
   @override
+  String get close => 'Schließen';
+
+  @override
   String get save => 'Speichern';
 
   @override
@@ -28,9 +31,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get edit => 'Bearbeiten';
-
-  @override
-  String get close => 'Schließen';
 
   @override
   String get remove => 'Entfernen';
@@ -133,6 +133,37 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get invalidLink => 'Ungültiger Link. Bitte prüfe die URL.';
+
+  @override
+  String get helpProfileTitle => 'Profil – Hilfe';
+
+  @override
+  String get helpProfilePhotoTitle => 'Profilbild ändern';
+
+  @override
+  String get helpProfilePhotoBody =>
+      'Tippe auf das Kreissymbol mit deinem Avatar, um ein neues Bild aus der Galerie zu wählen. Das Bild wird auf 512 × 512 Pixel verkleinert. Tippe anschliessend oben rechts auf \'Speichern\'.';
+
+  @override
+  String get helpProfileNameTitle => 'Anzeigename';
+
+  @override
+  String get helpProfileNameBody =>
+      'Der Anzeigename ist für alle Mitglieder sichtbar, mit denen du in einer Organisation bist. Ändere ihn im Textfeld und speichere mit \'Speichern\'.';
+
+  @override
+  String get helpProfileAppearanceTitle => 'Design & Sprache';
+
+  @override
+  String get helpProfileAppearanceBody =>
+      'Unter \'Erscheinungsbild\' wählst du zwischen Hell, Dunkel und Systemstandard.\n\nUnter \'Sprache\' stellst du die App-Sprache ein (Deutsch oder Englisch). Die Änderung wird sofort übernommen.';
+
+  @override
+  String get helpProfileRelTitle => 'Verknüpfungen';
+
+  @override
+  String get helpProfileRelBody =>
+      'Der Eintrag \'Meine Verknüpfungen\' führt zur Seite, auf der du Eltern-Kind-Verbindungen verwalten kannst.';
 
   @override
   String get editProfile => 'Profil bearbeiten';
@@ -314,7 +345,29 @@ class AppLocalizationsDe extends AppLocalizations {
   String get category => 'Kategorie';
 
   @override
+  String get orgTagFamilie => 'Familie';
+
+  @override
+  String get orgTagFreunde => 'Freunde';
+
+  @override
+  String get orgTagSchule => 'Schule';
+
+  @override
+  String get orgTagVereine => 'Vereine';
+
+  @override
+  String get orgTagSonstiges => 'Sonstiges';
+
+  @override
   String get chatMode => 'Chat-Modus';
+
+  @override
+  String get keywordsHelpTitle => 'Schlüsselwörter – Hilfe';
+
+  @override
+  String get keywordsHelpBody =>
+      'Wozu dienen Schlüsselwörter?\nGuardians und Moderatoren werden benachrichtigt, sobald eines dieser Wörter in einem Chat-Nachricht erscheint. So lassen sich sensible Themen oder Risikobegriffe frühzeitig erkennen.\n\nWörter hinzufügen\nGib ein Wort in das Textfeld ein und tippe auf \'+\' oder drücke Enter. Gross-/Kleinschreibung wird ignoriert – alles wird in Kleinbuchstaben gespeichert.\n\nWörter entfernen\nTippe auf das \'×\'-Symbol auf einem Chip.\n\nCSV-Import / Export\n• Import (Pfeil nach oben): Lade eine Textdatei mit einem Wort pro Zeile oder kommagetrennt.\n• Export (Pfeil nach unten): Speichere alle Wörter als CSV-Datei.\n\nÄnderungen werden erst nach \'Speichern\' übernommen.';
 
   @override
   String get keywordsTitle => 'Schlüsselwörter';
@@ -331,6 +384,64 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get tabMembers => 'Mitglieder';
+
+  @override
+  String get helpDetailTopicMembersTitle => 'Mitgliederliste & Rollen';
+
+  @override
+  String get helpDetailTopicMembersBody =>
+      'Im Tab \'Mitglieder\' siehst du alle aktiven Personen der Organisation mit ihrer Rolle (Admin, Moderator, Mitglied, Kind).\n\nRollen im 3-Punkte-Menü (Admin):\n• Rolle ändern – Admin, Moderator, Mitglied oder Kind\n• Guardian zuweisen – verbindet ein Kind mit einem Elternteil\n• Mitglied entfernen\n• Admin-Rolle übertragen\n\nMitglieder können die Org selbst verlassen (ausser Admin).';
+
+  @override
+  String get helpDetailTopicMembersInviteTitle =>
+      'Einladen, vorschlagen & importieren';
+
+  @override
+  String get helpDetailTopicMembersInviteBody =>
+      'Admin / Moderator – \'+\'-Schaltfläche unten rechts:\n• Einzeln per E-Mail einladen (Rolle und ggf. Guardian wählbar)\n• Im \'Sheltered\'-Modus: Massenimport per CSV-Datei\n\nEingeladene Kinder: erscheinen als ausstehend, bis der Guardian die Einladung in \'Meine Verknüpfungen\' genehmigt.\n\nReguläres Mitglied – \'Mitglied vorschlagen\':\nSchlage eine Person vor. Admin oder Moderator muss den Vorschlag oben im Tab bestätigen.\n\nKind (Guardian-Modus) – \'Chat anfragen\':\nSende eine Anfrage für einen 1:1-Chat. Admin oder Moderator genehmigt oder lehnt ab.';
+
+  @override
+  String get helpDetailTopicNotificationsTitle => 'Benachrichtigungen';
+
+  @override
+  String get helpDetailTopicNotificationsBody =>
+      'Das Glocken-Symbol (oben rechts) steuert Benachrichtigungen für diese Organisation.\n\nNachrichten-Benachrichtigungen:\n• Jede Nachricht\n• Max. 1x pro Stunde (Standard)\n• Max. 1x pro Tag\n• Nie\n\nKind-Aktivität (Guardian):\nWird benachrichtigt wenn dein Kind eine Nachricht sendet oder empfängt. Intervall ebenfalls einstellbar.';
+
+  @override
+  String get helpDetailTopicChatsSendTitle => 'Chats – Nachrichten & Medien';
+
+  @override
+  String get helpDetailTopicChatsSendBody =>
+      'Textnachrichten: Tippe in das Eingabefeld und sende mit dem Pfeil-Symbol.\n\nBilder, Audio & Dateien: \'+\'-Symbol neben dem Textfeld:\n• Bilder aus der Galerie (JPEG, max. 2 MB)\n• Sprachnachricht aufnehmen (Mikrofon-Symbol)\n• Dateien senden (max. 5 MB)\n\nAntworten: Nachricht lang drücken → \'Antworten\'. Die Ursprungsnachricht erscheint als Zitat.\n\nReaktionen: Nachricht lang drücken → Emoji wählen (👍❤️😂😮😢😡👎). Erneut tippen entfernt die eigene Reaktion.\n\nNachrichten planen: \'+\' → Uhr-Symbol → Datum und Uhrzeit wählen.\n\nUmfragen (Sheltered-Gruppen): \'+\' → Umfrage-Symbol → Frage mit Optionen erstellen.';
+
+  @override
+  String get helpDetailTopicChatsModTitle => 'Nachrichten moderieren & melden';
+
+  @override
+  String get helpDetailTopicChatsModBody =>
+      'Eigene Nachrichten bearbeiten: Nachricht lang drücken → \'Bearbeiten\'. Bearbeitete Nachrichten werden im Moderations-Log archiviert.\n\nAdmin/Moderator – Nachrichten verwalten:\n• Fremde Nachrichten bearbeiten oder löschen\n• Nachricht anpinnen → erscheint als Banner oben im Chat\n\nMelden: Fremde Nachricht lang drücken → \'Melden\'. Admin und Moderatoren werden benachrichtigt und sehen die Meldung im Meldungen-Tab.';
+
+  @override
+  String get helpDetailTopicPinnwandTitle => 'Pinnwand lesen';
+
+  @override
+  String get helpDetailTopicPinnwandBody =>
+      'Die Pinnwand zeigt offizielle Ankündigungen der Organisation – kein Hin-und-Her wie im Chat, sondern gezielte Informationen von Admins und Moderatoren.\n\nBeiträge haben einen Titel, einen Text und optional ein Ablaufdatum. Abgelaufene Ankündigungen verschwinden automatisch.';
+
+  @override
+  String get helpDetailTopicPinnwandManageTitle =>
+      'Ankündigungen erstellen & verwalten';
+
+  @override
+  String get helpDetailTopicPinnwandManageBody =>
+      'Neue Ankündigung: Tippe auf das \'+\'-Symbol unten rechts → Titel und Text eingeben.\n\nAblaufdatum: Optional kannst du festlegen, bis wann eine Ankündigung sichtbar ist. Nach diesem Datum wird sie automatisch ausgeblendet.\n\nBearbeiten oder löschen: Tippe auf das Drei-Punkte-Menü einer Ankündigung.';
+
+  @override
+  String get helpDetailTopicReportsTitle => 'Meldungen';
+
+  @override
+  String get helpDetailTopicReportsBody =>
+      'Der Tab \'Meldungen\' ist nur für Admins und Moderatoren sichtbar.\n\nHier werden gemeldete Nachrichten aufgelistet. Du kannst:\n• Zur gemeldeten Nachricht im Chat springen\n• Die Nachricht löschen\n• Die Meldung als geprüft archivieren\n\nArchivierte Meldungen werden ausgeblendet – der Toggle oben zeigt sie wieder an.';
 
   @override
   String get tabChats => 'Chats';
@@ -701,6 +812,51 @@ class AppLocalizationsDe extends AppLocalizations {
       'Nachrichten werden nur gesendet solange die App geöffnet ist.';
 
   @override
+  String get helpChatTitle => 'Chat – Hilfe';
+
+  @override
+  String get helpChatWriteTitle => 'Nachrichten schreiben & senden';
+
+  @override
+  String get helpChatWriteBody =>
+      'Tippe deine Nachricht in das Textfeld und drücke den Senden-Pfeil. URLs im Text werden automatisch als anklickbare Links erkannt.';
+
+  @override
+  String get helpChatMediaTitle => 'Bilder, Audio & Dateien';
+
+  @override
+  String get helpChatMediaBody =>
+      'Tippe auf das \'+\'-Symbol links neben dem Textfeld, um ein Bild aus der Galerie oder der Kamera zu wählen, eine Sprachaufnahme zu starten oder eine Datei anzuhängen.';
+
+  @override
+  String get helpChatReactTitle => 'Antworten & Reaktionen';
+
+  @override
+  String get helpChatReactBody =>
+      'Halte eine Nachricht gedrückt, um ein Kontextmenü zu öffnen. Dort kannst du auf eine Nachricht antworten oder mit einem Emoji reagieren. Eine Antwort erscheint mit Vorschau der Originalnachricht.';
+
+  @override
+  String get helpChatScheduleTitle => 'Planen & Umfragen';
+
+  @override
+  String get helpChatScheduleBody =>
+      'Im \'+\'-Menü kannst du eine Nachricht zeitgesteuert planen. In Gruppen mit \'Betreut\'-Modus ist ausserdem das Erstellen von Umfragen möglich.';
+
+  @override
+  String get helpChatModerateTitle => 'Nachrichten moderieren & bearbeiten';
+
+  @override
+  String get helpChatModerateBody =>
+      'Du kannst eigene Nachrichten bearbeiten oder löschen. Administratoren und Moderatoren können zusätzlich beliebige Nachrichten löschen, bearbeiten oder anpinnen.';
+
+  @override
+  String get helpChatReportTitle => 'Melden, Kopieren & Suchen';
+
+  @override
+  String get helpChatReportBody =>
+      'Halte eine Nachricht gedrückt und wähle \'Melden\', um Missbrauch zu melden, oder \'Kopieren\', um den Text zu kopieren. Mit dem Lupen-Symbol in der Titelleiste durchsuchst du alle Nachrichten.';
+
+  @override
   String get searchMessages => 'Nachrichten suchen';
 
   @override
@@ -843,6 +999,44 @@ class AppLocalizationsDe extends AppLocalizations {
   String get moderatedByModerator => 'von Moderator moderiert';
 
   @override
+  String get helpImportTitle => 'Massenimport – Hilfe';
+
+  @override
+  String get helpImportFormatTitle => 'CSV-Format';
+
+  @override
+  String get helpImportFormatBody =>
+      'Die Datei muss die Spalten email, rolle und guardians enthalten (Kopfzeile optional). Als Trennzeichen werden , und ; automatisch erkannt.\n\nBeispiel:\nemail;rolle;guardians\nkind@schule.de;kind;eltern@schule.de\nmitglied@schule.de;mitglied;';
+
+  @override
+  String get helpImportRolesTitle => 'Gültige Rollen';
+
+  @override
+  String get helpImportRolesBody =>
+      'mitglied (oder member) · moderator (oder mod) · kind (oder child)\n\nGross-/Kleinschreibung wird ignoriert.';
+
+  @override
+  String get helpImportChildrenTitle => 'Kinder importieren';
+
+  @override
+  String get helpImportChildrenBody =>
+      'Für Zeilen mit der Rolle \'kind\' muss die Guardians-Spalte mindestens eine E-Mail-Adresse enthalten. Die genannten Guardians müssen bereits Mitglieder dieser Organisation sein.';
+
+  @override
+  String get helpImportPreviewTitle => 'Vorschau & Validierung';
+
+  @override
+  String get helpImportPreviewBody =>
+      'Nach dem Laden der Datei wird jede Zeile geprüft. Ein rotes Symbol zeigt einen Fehler (Zeile wird nicht importiert), ein gelbes Symbol zeigt eine Warnung (Import trotzdem möglich).';
+
+  @override
+  String get helpImportRunTitle => 'Import starten';
+
+  @override
+  String get helpImportRunBody =>
+      'Tippe oben rechts auf \'X importieren\'. Die Schaltfläche erscheint nur, wenn mindestens eine gültige Zeile vorhanden ist. Nach dem Import zeigt ein Log-Protokoll für jede Zeile ob sie erfolgreich war oder fehlgeschlagen ist.';
+
+  @override
   String get importMembers => 'Mitglieder importieren';
 
   @override
@@ -944,6 +1138,75 @@ class AppLocalizationsDe extends AppLocalizations {
   String get myOrganizations => 'Meine Organisationen';
 
   @override
+  String get helpLabel => 'Hilfe';
+
+  @override
+  String get helpTourButton => 'Tour starten';
+
+  @override
+  String get helpOrgTopicOrgsTitle => 'Was sind Organisationen?';
+
+  @override
+  String get helpOrgTopicOrgsBody =>
+      'Organisationen sind Gruppen für sichere Kommunikation – z. B. Familie, Schule oder Verein. Du kannst selbst Organisationen erstellen oder per Einladung beitreten.';
+
+  @override
+  String get helpOrgTopicRolesTitle => 'Rollen';
+
+  @override
+  String get helpOrgTopicRolesBody =>
+      'Admin – Volle Kontrolle, verwaltet alle Mitglieder und Einstellungen.\nModerator – Kann Chats einsehen und genehmigen.\nMitglied – Kann Chats anfordern und kommunizieren.\nKind – Eingeschränkt, benötigt einen Guardian und Eltern-Zustimmung bei Einladungen.';
+
+  @override
+  String get helpOrgTopicChatModesTitle => 'Chat-Modi';
+
+  @override
+  String get helpOrgTopicChatModesBody =>
+      'Guardian-Modus – Mitglieder beantragen Chats, Admins oder Moderatoren genehmigen sie.\nSheltered-Modus – Der Admin legt vorab fest, wer mit wem kommunizieren darf. Gruppen-Chats sind möglich.';
+
+  @override
+  String get helpOrgTopicInviteTitle => 'Mitglieder einladen';
+
+  @override
+  String get helpOrgTopicInviteBody =>
+      'Öffne eine Organisation → tippe auf das Personen-Symbol → E-Mail eingeben und Rolle wählen. Als Admin kannst du in Sheltered-Orgs auch mehrere Mitglieder per CSV-Datei importieren.';
+
+  @override
+  String get helpOrgTopicFamilyTitle => 'Eltern-Kind-Verknüpfung';
+
+  @override
+  String get helpOrgTopicFamilyBody =>
+      'Kind-Konten sind global auf die Rolle \'Kind\' gesperrt. Wird ein Kind in eine Org eingeladen, müssen die Eltern zuerst zustimmen. Der Baum-Button oben öffnet deine Familienübersicht.';
+
+  @override
+  String get tourStepProfileTitle => 'Profil & Einstellungen';
+
+  @override
+  String get tourStepProfileDesc =>
+      'Tippe hier um dein Profil zu bearbeiten, Benachrichtigungen anzupassen oder dich abzumelden.';
+
+  @override
+  String get tourStepFamilyTitle => 'Familienübersicht';
+
+  @override
+  String get tourStepFamilyDesc =>
+      'Öffnet deine verifizierten Eltern- und Kind-Verbindungen. Das Badge zeigt ausstehende Aktionen.';
+
+  @override
+  String get tourStepOrgCardTitle => 'Deine Organisationen';
+
+  @override
+  String get tourStepOrgCardDesc =>
+      'Tippe auf eine Karte um die Organisation zu öffnen. Als Admin siehst du oben rechts ein Menü mit weiteren Optionen.';
+
+  @override
+  String get tourStepFabTitle => 'Organisation erstellen';
+
+  @override
+  String get tourStepFabDesc =>
+      'Tippe hier um eine neue Organisation zu erstellen und Chat-Modus sowie Kategorie festzulegen.';
+
+  @override
   String get noOrganizations => 'Noch keine Organisationen';
 
   @override
@@ -968,6 +1231,44 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get imageSaved => 'Bild gespeichert';
+
+  @override
+  String get helpRelTitle => 'Verknüpfungen – Hilfe';
+
+  @override
+  String get helpRelOverviewTitle => 'Was ist eine Eltern-Kind-Verknüpfung?';
+
+  @override
+  String get helpRelOverviewBody =>
+      'Eine Verknüpfung verbindet ein Elternteil mit einem Kind. Das Kind erhält in allen Organisationen die Rolle \'Kind\' und kann ohne Genehmigung des Elternteils keiner neuen Organisation beitreten.';
+
+  @override
+  String get helpRelConnectTitle => 'Kind verbinden';
+
+  @override
+  String get helpRelConnectBody =>
+      'Gib die E-Mail-Adresse des Kontos ein, das du als Kind verknüpfen möchtest, und tippe auf \'Anfrage senden\'. Das Kind muss die Anfrage anschliessend in dieser Ansicht bestätigen.';
+
+  @override
+  String get helpRelIncomingTitle => 'Eingehende Anfragen';
+
+  @override
+  String get helpRelIncomingBody =>
+      'Wenn jemand eine Verknüpfungsanfrage an dich schickt, erscheint sie hier. Du kannst sie bestätigen oder ablehnen. Beim Bestätigen wirst du der Rolle \'Kind\' in allen deinen Organisationen zugewiesen.';
+
+  @override
+  String get helpRelConsentsTitle => 'Org-Einladungen genehmigen';
+
+  @override
+  String get helpRelConsentsBody =>
+      'Wenn ein Kind zu einer Organisation eingeladen wird, erscheint die Einladung hier zur Genehmigung. Als Elternteil kannst du die Einladung freigeben oder ablehnen.';
+
+  @override
+  String get helpRelRevokeTitle => 'Verbindung trennen';
+
+  @override
+  String get helpRelRevokeBody =>
+      'Tippe auf den Namen einer verknüpften Person und wähle \'Verbindung trennen\'. Kinder können die Verbindung nicht selbst auflösen – das kann nur das Elternteil tun.';
 
   @override
   String get myRelationships => 'Meine Verknüpfungen';

@@ -500,6 +500,24 @@ abstract class AppLocalizations {
   /// **'Möchtest du dein Konto wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.'**
   String get deleteAccountConfirmContent;
 
+  /// No description provided for @deleteAccountBlockedTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Konto löschen nicht möglich'**
+  String get deleteAccountBlockedTitle;
+
+  /// No description provided for @deleteAccountBlockedChild.
+  ///
+  /// In de, this message translates to:
+  /// **'Dein Konto ist mit einem Elternteil verknüpft. Die Verbindung muss zuerst durch dein Elternteil aufgehoben werden, bevor du dein Konto löschen kannst.'**
+  String get deleteAccountBlockedChild;
+
+  /// No description provided for @deleteAccountBlockedParent.
+  ///
+  /// In de, this message translates to:
+  /// **'Du hast noch aktive Verknüpfungen mit Kindern. Bitte hebe zuerst alle Verbindungen unter \"Meine Verknüpfungen\" auf.'**
+  String get deleteAccountBlockedParent;
+
   /// No description provided for @notificationsTitle.
   ///
   /// In de, this message translates to:

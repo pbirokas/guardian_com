@@ -225,6 +225,17 @@ class AppLocalizationsDe extends AppLocalizations {
       'Möchtest du dein Konto wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.';
 
   @override
+  String get deleteAccountBlockedTitle => 'Konto löschen nicht möglich';
+
+  @override
+  String get deleteAccountBlockedChild =>
+      'Dein Konto ist mit einem Elternteil verknüpft. Die Verbindung muss zuerst durch dein Elternteil aufgehoben werden, bevor du dein Konto löschen kannst.';
+
+  @override
+  String get deleteAccountBlockedParent =>
+      'Du hast noch aktive Verknüpfungen mit Kindern. Bitte hebe zuerst alle Verbindungen unter \"Meine Verknüpfungen\" auf.';
+
+  @override
   String get notificationsTitle => 'Benachrichtigungen';
 
   @override

@@ -81,6 +81,9 @@
   "deleteAccount": "Konto löschen",
   "deleteAccountSubtitle": "Alle Daten werden unwiderruflich gelöscht",
   "deleteAccountConfirmContent": "Möchtest du dein Konto wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+  "deleteAccountBlockedTitle": "Konto löschen nicht möglich",
+  "deleteAccountBlockedChild": "Dein Konto ist mit einem Elternteil verknüpft. Die Verbindung muss zuerst durch dein Elternteil aufgehoben werden, bevor du dein Konto löschen kannst.",
+  "deleteAccountBlockedParent": "Du hast noch aktive Verknüpfungen mit Kindern. Bitte hebe zuerst alle Verbindungen unter \"Meine Verknüpfungen\" auf.",
 
   "notificationsTitle": "Benachrichtigungen",
   "notificationsHint": "Diese Einstellungen gelten als Standard für alle Organisationen. Du kannst sie pro Organisation über das Glocken-Symbol anpassen.",

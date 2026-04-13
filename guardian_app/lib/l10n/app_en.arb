@@ -81,6 +81,9 @@
   "deleteAccount": "Delete account",
   "deleteAccountSubtitle": "All data will be permanently deleted",
   "deleteAccountConfirmContent": "Do you really want to delete your account? This action cannot be undone.",
+  "deleteAccountBlockedTitle": "Cannot delete account",
+  "deleteAccountBlockedChild": "Your account is linked to a parent. The connection must first be removed by your parent before you can delete your account.",
+  "deleteAccountBlockedParent": "You still have active connections with children. Please remove all connections under \"My Connections\" first.",
 
   "notificationsTitle": "Notifications",
   "notificationsHint": "These settings apply as the default for all organizations. You can adjust them per organization via the bell icon.",

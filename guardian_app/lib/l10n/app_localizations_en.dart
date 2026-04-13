@@ -222,6 +222,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Do you really want to delete your account? This action cannot be undone.';
 
   @override
+  String get deleteAccountBlockedTitle => 'Cannot delete account';
+
+  @override
+  String get deleteAccountBlockedChild =>
+      'Your account is linked to a parent. The connection must first be removed by your parent before you can delete your account.';
+
+  @override
+  String get deleteAccountBlockedParent =>
+      'You still have active connections with children. Please remove all connections under \"My Connections\" first.';
+
+  @override
   String get notificationsTitle => 'Notifications';
 
   @override

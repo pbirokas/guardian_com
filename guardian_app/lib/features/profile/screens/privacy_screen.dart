@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:guardian_app/l10n/app_localizations.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../organizations/providers/organizations_provider.dart';
 
-class PrivacyScreen extends StatefulWidget {
+class PrivacyScreen extends ConsumerStatefulWidget {
   const PrivacyScreen({super.key});
 
   @override
-  State<PrivacyScreen> createState() => _PrivacyScreenState();
+  ConsumerState<PrivacyScreen> createState() => _PrivacyScreenState();
 }
 
-class _PrivacyScreenState extends State<PrivacyScreen> {
+class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
   bool _showOnlineStatus = true;
   bool _showLastSeen = true;
   bool _showProfilePhoto = true;
@@ -60,14 +63,60 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
             title: Text(l.deleteAccount,
                 style: const TextStyle(color: Colors.red)),
             subtitle: Text(l.deleteAccountSubtitle),
-            onTap: () => _confirmDelete(context, l),
+            onTap: () => _handleDeleteTap(context, l),
           ),
         ],
       ),
     );
   }
 
-  void _confirmDelete(BuildContext context, AppLocalizations l) {
+  void _handleDeleteTap(BuildContext context, AppLocalizations l) {
+    final currentUser = ref.read(currentAppUserProvider).value;
+
+    // Block if the user is a child with verified parents
+    if (currentUser?.isChild == true &&
+        (currentUser?.verifiedParentUids.isNotEmpty ?? false)) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(l.deleteAccountBlockedTitle),
+          content: Text(l.deleteAccountBlockedChild),
+          actions: [
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                context.push('/relationships');
+              },
+              child: Text(l.myRelationships),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Block if the user is a parent with verified children
+    if (currentUser?.verifiedChildUids.isNotEmpty ?? false) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(l.deleteAccountBlockedTitle),
+          content: Text(l.deleteAccountBlockedParent),
+          actions: [
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                context.push('/relationships');
+              },
+              child: Text(l.myRelationships),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // No active connections — show normal confirmation dialog
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(

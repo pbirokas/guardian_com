@@ -354,43 +354,44 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
             const Divider(),
           ],
 
-          // ── Verified children ──
-          _SectionHeader(l.myChildren),
-          ...childrenAsync.when(
-            data: (children) {
-              if (children.isEmpty) {
-                return [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
-                    child: Text(l.noChildren,
-                        style:
-                            const TextStyle(color: Colors.grey)),
-                  ),
-                ];
-              }
-              return children
-                  .map((u) => _RelationTile(
-                        uid: u['uid'] as String,
-                        name: u['displayName'] as String? ?? '',
-                        email: u['email'] as String? ?? '',
-                        photoUrl: u['photoUrl'] as String?,
-                        label: l.verifiedChild,
-                        onRevoke: () => _revokeConnection(
-                            u['uid'] as String,
-                            u['displayName'] as String? ?? ''),
-                      ))
-                  .toList();
-            },
-            loading: () => [
-              const Center(
-                  child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: CircularProgressIndicator()))
-            ],
-            error: (_, _) => const [],
-          ),
-          const Divider(),
+          // ── Verified children (not shown for child accounts) ──
+          if (currentUser?.isChild != true) ...[
+            _SectionHeader(l.myChildren),
+            ...childrenAsync.when(
+              data: (children) {
+                if (children.isEmpty) {
+                  return [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      child: Text(l.noChildren,
+                          style: const TextStyle(color: Colors.grey)),
+                    ),
+                  ];
+                }
+                return children
+                    .map((u) => _RelationTile(
+                          uid: u['uid'] as String,
+                          name: u['displayName'] as String? ?? '',
+                          email: u['email'] as String? ?? '',
+                          photoUrl: u['photoUrl'] as String?,
+                          label: l.verifiedChild,
+                          onRevoke: () => _revokeConnection(
+                              u['uid'] as String,
+                              u['displayName'] as String? ?? ''),
+                        ))
+                    .toList();
+              },
+              loading: () => [
+                const Center(
+                    child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: CircularProgressIndicator()))
+              ],
+              error: (_, _) => const [],
+            ),
+            const Divider(),
+          ],
 
           // ── Verified parents (only shown when at least one exists) ──
           ...parentsAsync.when(

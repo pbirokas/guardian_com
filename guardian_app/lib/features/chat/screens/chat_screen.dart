@@ -19,6 +19,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/models/message.dart';
 import '../../../core/widgets/help_sheet.dart';
+import '../../../core/providers/chat_font_size_provider.dart';
 import '../../../core/models/org_member.dart';
 import '../../../core/models/organization.dart';
 import '../../../core/models/scheduled_message.dart';
@@ -754,7 +755,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                         await ref
                                             .read(chatServiceProvider)
                                             .removeMemberFromConversation(
-                                                conv.id, m.uid);
+                                                conv.id, m.uid,
+                                                memberName: m.displayName);
                                         setDialogState(() =>
                                             participants.remove(m));
                                       } catch (e) {
@@ -1328,7 +1330,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 }
 
-class _MessageBubble extends StatelessWidget {
+class _MessageBubble extends ConsumerWidget {
   final Message message;
   final bool isMe;
   final bool showSenderName;
@@ -1365,9 +1367,38 @@ class _MessageBubble extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
+    final chatFontSize = ref.watch(chatFontSizeProvider);
+
+    // System-Nachrichten (Mitglied hinzugefügt/entfernt) separat rendern
+    if (message.type == 'system') {
+      final target = message.systemTargetName ?? '';
+      final text = switch (message.systemEvent) {
+        'memberAdded' => l.systemMemberAdded(target),
+        'memberRemoved' => l.systemMemberRemoved(target),
+        _ => target,
+      };
+      return Center(
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainerHighest.withAlpha(200),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurfaceVariant,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      );
+    }
 
     final hasText = message.text.isNotEmpty &&
         message.pollId == null &&
@@ -1567,6 +1598,7 @@ class _MessageBubble extends StatelessWidget {
               _LinkText(
                 text: message.text,
                 style: TextStyle(
+                  fontSize: chatFontSize,
                   color: message.isArchived
                       ? (isMe
                           ? colorScheme.onPrimary.withAlpha(160)
@@ -2640,18 +2672,28 @@ class _PollBubbleState extends ConsumerState<_PollBubble> {
                                   style: TextStyle(
                                       fontSize: 13, color: labelColor))),
                           if (showResults)
-                            GestureDetector(
+                            InkWell(
                               onTap: canShowVoters
                                   ? () => showVoters(opt.text, voterUids)
                                   : null,
-                              child: Text(
-                                '$count',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: dimColor,
-                                  decoration: canShowVoters
-                                      ? TextDecoration.underline
-                                      : null,
+                              borderRadius: BorderRadius.circular(6),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                child: Text(
+                                  '$count',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: canShowVoters
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                    color: canShowVoters ? barColor : dimColor,
+                                    decoration: canShowVoters
+                                        ? TextDecoration.underline
+                                        : null,
+                                    decorationColor:
+                                        canShowVoters ? barColor : null,
+                                  ),
                                 ),
                               ),
                             ),

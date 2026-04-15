@@ -410,6 +410,36 @@ abstract class AppLocalizations {
   /// **'Erscheinungsbild'**
   String get appearance;
 
+  /// No description provided for @chatFontSize.
+  ///
+  /// In de, this message translates to:
+  /// **'Schriftgrösse im Chat'**
+  String get chatFontSize;
+
+  /// No description provided for @fontSizeSmall.
+  ///
+  /// In de, this message translates to:
+  /// **'Klein'**
+  String get fontSizeSmall;
+
+  /// No description provided for @fontSizeMedium.
+  ///
+  /// In de, this message translates to:
+  /// **'Mittel'**
+  String get fontSizeMedium;
+
+  /// No description provided for @fontSizeLarge.
+  ///
+  /// In de, this message translates to:
+  /// **'Gross'**
+  String get fontSizeLarge;
+
+  /// No description provided for @fontSizeXL.
+  ///
+  /// In de, this message translates to:
+  /// **'Sehr gross'**
+  String get fontSizeXL;
+
   /// No description provided for @themeSystem.
   ///
   /// In de, this message translates to:
@@ -2587,6 +2617,78 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Ausstehende Eltern-Kind-Aktionen'**
   String get pendingFamilyItems;
+
+  /// No description provided for @systemMemberAdded.
+  ///
+  /// In de, this message translates to:
+  /// **'{targetName} wurde zum Chat hinzugefügt'**
+  String systemMemberAdded(String targetName);
+
+  /// No description provided for @systemMemberRemoved.
+  ///
+  /// In de, this message translates to:
+  /// **'{targetName} wurde aus dem Chat entfernt'**
+  String systemMemberRemoved(String targetName);
+
+  /// No description provided for @auditLog.
+  ///
+  /// In de, this message translates to:
+  /// **'Änderungsprotokoll'**
+  String get auditLog;
+
+  /// No description provided for @auditNoEntries.
+  ///
+  /// In de, this message translates to:
+  /// **'Noch keine Einträge'**
+  String get auditNoEntries;
+
+  /// No description provided for @auditActionInvitationSent.
+  ///
+  /// In de, this message translates to:
+  /// **'Einladung verschickt'**
+  String get auditActionInvitationSent;
+
+  /// No description provided for @auditActionMemberConfirmed.
+  ///
+  /// In de, this message translates to:
+  /// **'Mitglied bestätigt'**
+  String get auditActionMemberConfirmed;
+
+  /// No description provided for @auditActionMemberRemoved.
+  ///
+  /// In de, this message translates to:
+  /// **'Mitglied entfernt'**
+  String get auditActionMemberRemoved;
+
+  /// No description provided for @auditActionSettingsChanged.
+  ///
+  /// In de, this message translates to:
+  /// **'Einstellungen geändert'**
+  String get auditActionSettingsChanged;
+
+  /// No description provided for @auditActionRoleChanged.
+  ///
+  /// In de, this message translates to:
+  /// **'Rolle geändert'**
+  String get auditActionRoleChanged;
+
+  /// No description provided for @auditActionAdminTransferred.
+  ///
+  /// In de, this message translates to:
+  /// **'Admin-Rolle übertragen'**
+  String get auditActionAdminTransferred;
+
+  /// No description provided for @auditActionKeywordsChanged.
+  ///
+  /// In de, this message translates to:
+  /// **'Schlüsselwörter aktualisiert'**
+  String get auditActionKeywordsChanged;
+
+  /// No description provided for @auditBy.
+  ///
+  /// In de, this message translates to:
+  /// **'von {name}'**
+  String auditBy(String name);
 }
 
 class _AppLocalizationsDelegate

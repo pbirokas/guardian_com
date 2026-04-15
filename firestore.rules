@@ -99,8 +99,21 @@ service cloud.firestore {
 
         // Only admin and moderators can create, update, delete
         allow create: if isAdminOrMod(orgId);
-        allow update: if isAdminOrMod(orgId);
+        // Admins/mods can update everything; any member can update only reactions
+        allow update: if isAdminOrMod(orgId)
+          || (isMember(orgId)
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']));
         allow delete: if isAdminOrMod(orgId);
+      }
+
+      // ─── Audit log subcollection ─────────────────────────────────────────
+
+      match /auditLog/{entryId} {
+        // Only admins and moderators can read the audit log
+        allow read, list: if isAdminOrMod(orgId);
+        // Any org member can create entries (written by the service on their behalf)
+        // Entries are immutable — no update or delete allowed
+        allow create: if isMember(orgId);
       }
 
       // ─── Members subcollection ────────────────────────────────────────────

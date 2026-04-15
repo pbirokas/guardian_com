@@ -10,6 +10,7 @@ import 'package:guardian_app/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/models/announcement.dart';
+import '../../../core/models/org_audit_entry.dart';
 import '../../../core/models/app_user.dart';
 import '../../../core/widgets/help_sheet.dart';
 import '../../../core/models/conversation.dart';
@@ -149,6 +150,14 @@ class OrganizationDetailScreen extends ConsumerWidget {
                         _showKeywordsDialog(context, ref, org);
                       case 'edit':
                         _showEditDialog(context, ref, org);
+                      case 'auditLog':
+                        showModalBottomSheet<void>(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (_) =>
+                              _AuditLogSheet(orgId: orgId),
+                        );
                     }
                   },
                   itemBuilder: (_) => [
@@ -161,6 +170,17 @@ class OrganizationDetailScreen extends ConsumerWidget {
                         dense: true,
                       ),
                     ),
+                    if (isAdmin || isModerator) ...[
+                      PopupMenuItem(
+                        value: 'auditLog',
+                        child: ListTile(
+                          leading: const Icon(Icons.history_outlined),
+                          title: Text(l.auditLog),
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                        ),
+                      ),
+                    ],
                     if (isAdmin) ...[
                       PopupMenuItem(
                         value: 'keywords',
@@ -3313,14 +3333,59 @@ class _AnnouncementCard extends ConsumerWidget {
     required this.canManage,
   });
 
+  void _showReactionPicker(
+      BuildContext context, WidgetRef ref, String currentUid) {
+    final myReaction = announcement.reactions[currentUid];
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: ['👍', '❤️', '😂', '😮', '😢', '😡', '👎']
+                .map((e) => GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                        ref
+                            .read(organizationServiceProvider)
+                            .reactToAnnouncement(
+                              orgId,
+                              announcement.id,
+                              currentUid,
+                              myReaction == e ? null : e,
+                            );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: myReaction == e
+                              ? Theme.of(context).colorScheme.primaryContainer
+                              : null,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(e, style: const TextStyle(fontSize: 26)),
+                      ),
+                    ))
+                .toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
+    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
     final isExpired = announcement.isExpired;
+    final hasReactions = announcement.reactions.isNotEmpty;
 
-    return Card(
+    return GestureDetector(
+      onLongPress: () => _showReactionPicker(context, ref, currentUid),
+      child: Card(
       margin: EdgeInsets.zero,
       color: isExpired
           ? colorScheme.surfaceContainerHighest.withAlpha(180)
@@ -3423,6 +3488,17 @@ class _AnnouncementCard extends ConsumerWidget {
                 ],
               ),
             ],
+            if (hasReactions) ...[
+              const SizedBox(height: 6),
+              _AnnouncementReactionChips(
+                reactions: announcement.reactions,
+                currentUid: currentUid,
+                onTap: (emoji) => ref
+                    .read(organizationServiceProvider)
+                    .reactToAnnouncement(
+                        orgId, announcement.id, currentUid, emoji),
+              ),
+            ],
             const SizedBox(height: 10),
             Row(
               children: [
@@ -3452,6 +3528,7 @@ class _AnnouncementCard extends ConsumerWidget {
           ],
         ),
       ),
+    ),
     );
   }
 
@@ -3499,5 +3576,228 @@ class _AnnouncementCard extends ConsumerWidget {
       return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     }
     return '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
+  }
+}
+
+// ── Ankündigungs-Reaktionen ───────────────────────────────────────────────────
+
+class _AnnouncementReactionChips extends StatelessWidget {
+  final Map<String, String> reactions;
+  final String currentUid;
+  final void Function(String? emoji) onTap;
+
+  const _AnnouncementReactionChips({
+    required this.reactions,
+    required this.currentUid,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final counts = <String, int>{};
+    for (final emoji in reactions.values) {
+      counts[emoji] = (counts[emoji] ?? 0) + 1;
+    }
+    final myEmoji = reactions[currentUid];
+
+    return Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      children: counts.entries.map((e) {
+        final isMyReaction = myEmoji == e.key;
+        return GestureDetector(
+          onTap: () => onTap(isMyReaction ? null : e.key),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: isMyReaction
+                  ? Theme.of(context).colorScheme.primaryContainer
+                  : Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(12),
+              border: isMyReaction
+                  ? Border.all(
+                      color: Theme.of(context).colorScheme.primary,
+                      width: 1,
+                    )
+                  : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(e.key, style: const TextStyle(fontSize: 13)),
+                if (e.value > 1) ...[
+                  const SizedBox(width: 3),
+                  Text(
+                    '${e.value}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isMyReaction
+                          ? Theme.of(context).colorScheme.onPrimaryContainer
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+// ── Änderungsprotokoll ────────────────────────────────────────────────────────
+
+class _AuditLogSheet extends ConsumerWidget {
+  final String orgId;
+  const _AuditLogSheet({required this.orgId});
+
+  String _actionLabel(AppLocalizations l, OrgAuditEntry e) {
+    return switch (e.action) {
+      AuditAction.invitationSent => l.auditActionInvitationSent,
+      AuditAction.memberConfirmed => l.auditActionMemberConfirmed,
+      AuditAction.memberRemoved => l.auditActionMemberRemoved,
+      AuditAction.settingsChanged => l.auditActionSettingsChanged,
+      AuditAction.roleChanged => l.auditActionRoleChanged,
+      AuditAction.adminTransferred => l.auditActionAdminTransferred,
+      AuditAction.keywordsChanged => l.auditActionKeywordsChanged,
+    };
+  }
+
+  String _detailLine(OrgAuditEntry e) {
+    final d = e.details;
+    return switch (e.action) {
+      AuditAction.invitationSent =>
+        '${d['name'] ?? d['email'] ?? ''}'
+        '${d['role'] != null ? ' (${d['role']})' : ''}',
+      AuditAction.memberConfirmed => d['name'] as String? ?? '',
+      AuditAction.memberRemoved => d['name'] as String? ?? '',
+      AuditAction.settingsChanged =>
+        [
+          if (d['name'] != null) d['name'],
+          if (d['tag'] != null) d['tag'],
+        ].join(', '),
+      AuditAction.roleChanged =>
+        '${d['name'] ?? ''}: ${d['oldRole'] ?? ''} → ${d['newRole'] ?? ''}',
+      AuditAction.adminTransferred => d['newAdminName'] as String? ?? '',
+      AuditAction.keywordsChanged =>
+        '${d['count'] ?? ''} Schlüsselwörter',
+    };
+  }
+
+  String _formatTs(DateTime dt) {
+    final now = DateTime.now();
+    String pad2(int n) => n.toString().padLeft(2, '0');
+    if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
+      return '${pad2(dt.hour)}:${pad2(dt.minute)}';
+    }
+    return '${pad2(dt.day)}.${pad2(dt.month)}.${dt.year} ${pad2(dt.hour)}:${pad2(dt.minute)}';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final entriesAsync = ref
+        .watch(organizationServiceProvider)
+        .watchAuditLog(orgId);
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (_, controller) => Material(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 16, 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.history_outlined),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(l.auditLog,
+                        style: const TextStyle(
+                            fontSize: 17, fontWeight: FontWeight.bold)),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: StreamBuilder<List<OrgAuditEntry>>(
+                stream: entriesAsync,
+                builder: (context, snap) {
+                  if (snap.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final entries = snap.data ?? [];
+                  if (entries.isEmpty) {
+                    return Center(
+                      child: Text(l.auditNoEntries,
+                          style: TextStyle(color: Colors.grey[500])),
+                    );
+                  }
+                  return ListView.separated(
+                    controller: controller,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
+                    itemCount: entries.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (_, i) {
+                      final e = entries[i];
+                      final detail = _detailLine(e);
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(_actionLabel(l, e),
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14)),
+                                  if (detail.isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Text(detail,
+                                        style: const TextStyle(fontSize: 13)),
+                                  ],
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    l.auditBy(e.actorName),
+                                    style: TextStyle(
+                                        fontSize: 12, color: Colors.grey[600]),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _formatTs(e.timestamp),
+                              style: TextStyle(
+                                  fontSize: 11, color: Colors.grey[500]),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

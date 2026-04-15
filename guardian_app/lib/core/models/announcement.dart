@@ -9,6 +9,7 @@ class Announcement {
   final DateTime createdAt;
   final DateTime? updatedAt;
   final DateTime? expiresAt;
+  final Map<String, String> reactions;
 
   const Announcement({
     required this.id,
@@ -19,6 +20,7 @@ class Announcement {
     required this.createdAt,
     this.updatedAt,
     this.expiresAt,
+    this.reactions = const {},
   });
 
   bool get isExpired =>
@@ -39,6 +41,8 @@ class Announcement {
       expiresAt: data['expiresAt'] != null
           ? (data['expiresAt'] as Timestamp).toDate()
           : null,
+      reactions: (data['reactions'] as Map<String, dynamic>? ?? {})
+          .map((k, v) => MapEntry(k, v as String)),
     );
   }
 

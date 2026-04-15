@@ -178,6 +178,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appearance => 'Appearance';
 
   @override
+  String get chatFontSize => 'Chat font size';
+
+  @override
+  String get fontSizeSmall => 'Small';
+
+  @override
+  String get fontSizeMedium => 'Medium';
+
+  @override
+  String get fontSizeLarge => 'Large';
+
+  @override
+  String get fontSizeXL => 'Extra large';
+
+  @override
   String get themeSystem => 'System';
 
   @override
@@ -1411,4 +1426,46 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pendingFamilyItems => 'Pending parent-child actions';
+
+  @override
+  String systemMemberAdded(String targetName) {
+    return '$targetName was added to the chat';
+  }
+
+  @override
+  String systemMemberRemoved(String targetName) {
+    return '$targetName was removed from the chat';
+  }
+
+  @override
+  String get auditLog => 'Change log';
+
+  @override
+  String get auditNoEntries => 'No entries yet';
+
+  @override
+  String get auditActionInvitationSent => 'Invitation sent';
+
+  @override
+  String get auditActionMemberConfirmed => 'Member confirmed';
+
+  @override
+  String get auditActionMemberRemoved => 'Member removed';
+
+  @override
+  String get auditActionSettingsChanged => 'Settings changed';
+
+  @override
+  String get auditActionRoleChanged => 'Role changed';
+
+  @override
+  String get auditActionAdminTransferred => 'Admin role transferred';
+
+  @override
+  String get auditActionKeywordsChanged => 'Keywords updated';
+
+  @override
+  String auditBy(String name) {
+    return 'by $name';
+  }
 }

@@ -13,6 +13,7 @@ import '../../../core/providers/theme_provider.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/organizations/providers/organizations_provider.dart';
 import '../../../core/widgets/help_sheet.dart';
+import '../../../core/providers/chat_font_size_provider.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -249,6 +250,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             onChanged: (locale) =>
                 ref.read(localeProvider.notifier).setLocale(locale),
           ),
+          const SizedBox(height: 16),
+          _ChatFontSizeSetting(
+            current: ref.watch(chatFontSizeProvider),
+            onChanged: (size) =>
+                ref.read(chatFontSizeProvider.notifier).set(size),
+          ),
           if (defaultTargetPlatform == TargetPlatform.windows ||
               defaultTargetPlatform == TargetPlatform.linux) ...[
             const SizedBox(height: 16),
@@ -386,6 +393,44 @@ class _LanguageSetting extends StatelessWidget {
               label: Text(l.languageEnglish),
             ),
           ],
+          selected: {current},
+          onSelectionChanged: (selection) => onChanged(selection.first),
+        ),
+      ],
+    );
+  }
+}
+
+class _ChatFontSizeSetting extends StatelessWidget {
+  final double current;
+  final ValueChanged<double> onChanged;
+
+  const _ChatFontSizeSetting({required this.current, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final labels = {
+      13.0: l.fontSizeSmall,
+      15.0: l.fontSizeMedium,
+      17.0: l.fontSizeLarge,
+      19.0: l.fontSizeXL,
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(l.chatFontSize,
+              style: const TextStyle(fontWeight: FontWeight.w600)),
+        ),
+        SegmentedButton<double>(
+          segments: chatFontSizeSteps
+              .map((s) => ButtonSegment(
+                    value: s,
+                    label: Text(labels[s] ?? ''),
+                  ))
+              .toList(),
           selected: {current},
           onSelectionChanged: (selection) => onChanged(selection.first),
         ),

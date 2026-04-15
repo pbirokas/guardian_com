@@ -67,6 +67,11 @@
   "newImageSelected": "Neues Bild ausgewählt — speichern um zu übernehmen",
   "displayName": "Anzeigename",
   "appearance": "Erscheinungsbild",
+  "chatFontSize": "Schriftgrösse im Chat",
+  "fontSizeSmall": "Klein",
+  "fontSizeMedium": "Mittel",
+  "fontSizeLarge": "Gross",
+  "fontSizeXL": "Sehr gross",
   "themeSystem": "System",
   "themeLight": "Hell",
   "themeDark": "Dunkel",
@@ -608,5 +613,28 @@
   "familyTreeTooltip": "Familienübersicht",
   "coParentsLabel": "Weitere Eltern",
   "onlyParent": "Einziges Elternteil",
-  "pendingFamilyItems": "Ausstehende Eltern-Kind-Aktionen"
+  "pendingFamilyItems": "Ausstehende Eltern-Kind-Aktionen",
+
+  "systemMemberAdded": "{targetName} wurde zum Chat hinzugefügt",
+  "@systemMemberAdded": {
+    "placeholders": { "targetName": { "type": "String" } }
+  },
+  "systemMemberRemoved": "{targetName} wurde aus dem Chat entfernt",
+  "@systemMemberRemoved": {
+    "placeholders": { "targetName": { "type": "String" } }
+  },
+
+  "auditLog": "Änderungsprotokoll",
+  "auditNoEntries": "Noch keine Einträge",
+  "auditActionInvitationSent": "Einladung verschickt",
+  "auditActionMemberConfirmed": "Mitglied bestätigt",
+  "auditActionMemberRemoved": "Mitglied entfernt",
+  "auditActionSettingsChanged": "Einstellungen geändert",
+  "auditActionRoleChanged": "Rolle geändert",
+  "auditActionAdminTransferred": "Admin-Rolle übertragen",
+  "auditActionKeywordsChanged": "Schlüsselwörter aktualisiert",
+  "auditBy": "von {name}",
+  "@auditBy": {
+    "placeholders": { "name": { "type": "String" } }
+  }
 }

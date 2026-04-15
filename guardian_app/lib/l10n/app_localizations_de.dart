@@ -179,6 +179,21 @@ class AppLocalizationsDe extends AppLocalizations {
   String get appearance => 'Erscheinungsbild';
 
   @override
+  String get chatFontSize => 'Schriftgrösse im Chat';
+
+  @override
+  String get fontSizeSmall => 'Klein';
+
+  @override
+  String get fontSizeMedium => 'Mittel';
+
+  @override
+  String get fontSizeLarge => 'Gross';
+
+  @override
+  String get fontSizeXL => 'Sehr gross';
+
+  @override
   String get themeSystem => 'System';
 
   @override
@@ -1419,4 +1434,46 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get pendingFamilyItems => 'Ausstehende Eltern-Kind-Aktionen';
+
+  @override
+  String systemMemberAdded(String targetName) {
+    return '$targetName wurde zum Chat hinzugefügt';
+  }
+
+  @override
+  String systemMemberRemoved(String targetName) {
+    return '$targetName wurde aus dem Chat entfernt';
+  }
+
+  @override
+  String get auditLog => 'Änderungsprotokoll';
+
+  @override
+  String get auditNoEntries => 'Noch keine Einträge';
+
+  @override
+  String get auditActionInvitationSent => 'Einladung verschickt';
+
+  @override
+  String get auditActionMemberConfirmed => 'Mitglied bestätigt';
+
+  @override
+  String get auditActionMemberRemoved => 'Mitglied entfernt';
+
+  @override
+  String get auditActionSettingsChanged => 'Einstellungen geändert';
+
+  @override
+  String get auditActionRoleChanged => 'Rolle geändert';
+
+  @override
+  String get auditActionAdminTransferred => 'Admin-Rolle übertragen';
+
+  @override
+  String get auditActionKeywordsChanged => 'Schlüsselwörter aktualisiert';
+
+  @override
+  String auditBy(String name) {
+    return 'von $name';
+  }
 }

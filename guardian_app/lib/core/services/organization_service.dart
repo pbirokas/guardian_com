@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/announcement.dart';
+import '../models/org_audit_entry.dart';
 import '../models/organization.dart';
 import '../models/app_user.dart';
 import '../models/org_member.dart';
@@ -13,6 +14,34 @@ class OrganizationService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   String get _uid => _auth.currentUser!.uid;
+
+  /// Schreibt einen Eintrag ins Änderungsprotokoll der Organisation.
+  Future<void> _logAudit(
+      String orgId, AuditAction action, Map<String, dynamic> details) async {
+    final user = _auth.currentUser;
+    await _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('auditLog')
+        .add({
+      'actorUid': _uid,
+      'actorName': user?.displayName ?? user?.email ?? '',
+      'action': action.name,
+      'details': details,
+      'timestamp': Timestamp.now(),
+    });
+  }
+
+  Stream<List<OrgAuditEntry>> watchAuditLog(String orgId) {
+    return _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('auditLog')
+        .orderBy('timestamp', descending: true)
+        .limit(100)
+        .snapshots()
+        .map((s) => s.docs.map(OrgAuditEntry.fromFirestore).toList());
+  }
 
   Future<Organization> createOrganization(
       String name, OrgTag tag, ChatMode chatMode) async {
@@ -85,6 +114,10 @@ class OrganizationService {
     };
     if (updates.isNotEmpty) {
       await _db.collection('organizations').doc(orgId).update(updates);
+      await _logAudit(orgId, AuditAction.settingsChanged, {
+        if (name != null) 'name': name,
+        if (tag != null) 'tag': tag.name,
+      });
     }
   }
 
@@ -130,6 +163,8 @@ class OrganizationService {
         'createdAt': Timestamp.now(),
       });
       await _writeInvitationLookup(normalizedEmail, inviteRef.id);
+      await _logAudit(orgId, AuditAction.invitationSent,
+          {'email': normalizedEmail, 'role': role.name});
       return;
     }
 
@@ -198,6 +233,11 @@ class OrganizationService {
         });
       }
     });
+    await _logAudit(orgId, AuditAction.invitationSent, {
+      'email': normalizedEmail,
+      'name': userData['displayName'] as String? ?? normalizedEmail,
+      'role': role.name,
+    });
   }
 
   Future<void> updateGuardians(
@@ -223,6 +263,7 @@ class OrganizationService {
     final role = OrgRole.values.byName(snap.data()!['role'] as String);
     final membership = OrgMembership(orgId: orgId, role: role);
 
+    final childName = snap.data()!['displayName'] as String? ?? '';
     await _db.runTransaction((tx) async {
       tx.update(memberDoc, {'status': MemberStatus.active.name});
       tx.update(_db.collection('organizations').doc(orgId), {
@@ -233,6 +274,7 @@ class OrganizationService {
         'isChild': true,
       });
     });
+    await _logAudit(orgId, AuditAction.memberConfirmed, {'name': childName});
   }
 
   Future<void> rejectChildInvite(String orgId, String childUid) async {
@@ -285,6 +327,8 @@ class OrganizationService {
 
   Future<void> updateKeywords(String orgId, List<String> keywords) async {
     await _db.collection('organizations').doc(orgId).update({'keywords': keywords});
+    await _logAudit(orgId, AuditAction.keywordsChanged,
+        {'count': keywords.length});
   }
 
   Future<void> archiveOrganization(String orgId) async {
@@ -325,6 +369,7 @@ class OrganizationService {
     final snap = await memberDoc.get();
     if (!snap.exists) return;
 
+    final memberName = snap.data()!['displayName'] as String? ?? '';
     final role = OrgRole.values.byName(snap.data()!['role'] as String);
     final membership = OrgMembership(orgId: orgId, role: role);
 
@@ -337,6 +382,7 @@ class OrganizationService {
         'memberships': FieldValue.arrayRemove([membership.toMap()]),
       });
     });
+    await _logAudit(orgId, AuditAction.memberRemoved, {'name': memberName});
   }
 
   Future<void> leaveOrganization(String orgId) async {
@@ -416,6 +462,9 @@ class OrganizationService {
         'memberships': FieldValue.arrayUnion([newAdminNewMembership.toMap()]),
       });
     });
+    final newAdminName = snap.data()!['displayName'] as String? ?? '';
+    await _logAudit(orgId, AuditAction.adminTransferred,
+        {'newAdminName': newAdminName});
   }
 
   Future<void> updateMemberRole(String orgId, String targetUid, OrgRole newRole) async {
@@ -441,6 +490,7 @@ class OrganizationService {
     final oldMembership = OrgMembership(orgId: orgId, role: oldRole);
     final newMembership = OrgMembership(orgId: orgId, role: newRole);
 
+    final memberName = snap.data()!['displayName'] as String? ?? '';
     await _db.runTransaction((tx) async {
       tx.update(memberDoc, {'role': newRole.name});
       tx.update(_db.collection('users').doc(targetUid), {
@@ -449,6 +499,11 @@ class OrganizationService {
       tx.update(_db.collection('users').doc(targetUid), {
         'memberships': FieldValue.arrayUnion([newMembership.toMap()]),
       });
+    });
+    await _logAudit(orgId, AuditAction.roleChanged, {
+      'name': memberName,
+      'oldRole': oldRole.name,
+      'newRole': newRole.name,
     });
   }
 
@@ -699,5 +754,19 @@ class OrganizationService {
         .collection('announcements')
         .doc(announcementId)
         .delete();
+  }
+
+  Future<void> reactToAnnouncement(
+      String orgId, String announcementId, String uid, String? emoji) async {
+    final ref = _db
+        .collection('organizations')
+        .doc(orgId)
+        .collection('announcements')
+        .doc(announcementId);
+    if (emoji == null) {
+      await ref.update({'reactions.$uid': FieldValue.delete()});
+    } else {
+      await ref.update({'reactions.$uid': emoji});
+    }
   }
 }

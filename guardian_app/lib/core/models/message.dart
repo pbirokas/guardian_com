@@ -21,6 +21,10 @@ class Message {
   final String? replyToSenderName;
   final String? replyToText;
   final Map<String, String> reactions;
+  final String type; // 'user' | 'system'
+  final String? systemEvent; // 'memberAdded' | 'memberRemoved'
+  final String? systemActorName;
+  final String? systemTargetName;
 
   const Message({
     required this.id,
@@ -43,6 +47,10 @@ class Message {
     this.replyToSenderName,
     this.replyToText,
     this.reactions = const {},
+    this.type = 'user',
+    this.systemEvent,
+    this.systemActorName,
+    this.systemTargetName,
   });
 
   factory Message.fromFirestore(DocumentSnapshot doc) {
@@ -72,6 +80,10 @@ class Message {
       reactions: data['reactions'] != null
           ? Map<String, String>.from(data['reactions'] as Map)
           : const {},
+      type: data['type'] as String? ?? 'user',
+      systemEvent: data['systemEvent'] as String?,
+      systemActorName: data['systemActorName'] as String?,
+      systemTargetName: data['systemTargetName'] as String?,
     );
   }
 

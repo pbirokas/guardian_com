@@ -67,6 +67,11 @@
   "newImageSelected": "New image selected — save to apply",
   "displayName": "Display name",
   "appearance": "Appearance",
+  "chatFontSize": "Chat font size",
+  "fontSizeSmall": "Small",
+  "fontSizeMedium": "Medium",
+  "fontSizeLarge": "Large",
+  "fontSizeXL": "Extra large",
   "themeSystem": "System",
   "themeLight": "Light",
   "themeDark": "Dark",
@@ -608,5 +613,28 @@
   "familyTreeTooltip": "Family overview",
   "coParentsLabel": "Co-parents",
   "onlyParent": "Only parent",
-  "pendingFamilyItems": "Pending parent-child actions"
+  "pendingFamilyItems": "Pending parent-child actions",
+
+  "systemMemberAdded": "{targetName} was added to the chat",
+  "@systemMemberAdded": {
+    "placeholders": { "targetName": { "type": "String" } }
+  },
+  "systemMemberRemoved": "{targetName} was removed from the chat",
+  "@systemMemberRemoved": {
+    "placeholders": { "targetName": { "type": "String" } }
+  },
+
+  "auditLog": "Change log",
+  "auditNoEntries": "No entries yet",
+  "auditActionInvitationSent": "Invitation sent",
+  "auditActionMemberConfirmed": "Member confirmed",
+  "auditActionMemberRemoved": "Member removed",
+  "auditActionSettingsChanged": "Settings changed",
+  "auditActionRoleChanged": "Role changed",
+  "auditActionAdminTransferred": "Admin role transferred",
+  "auditActionKeywordsChanged": "Keywords updated",
+  "auditBy": "by {name}",
+  "@auditBy": {
+    "placeholders": { "name": { "type": "String" } }
+  }
 }

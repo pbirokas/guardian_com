@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/providers/connectivity_provider.dart';
 import 'core/providers/locale_provider.dart' show localeProvider;
+import 'core/providers/chat_font_size_provider.dart';
 import 'core/providers/scale_provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/router/app_router.dart';
@@ -61,11 +62,13 @@ void main() async {
 
   final savedTheme = await loadSavedThemeMode();
   final savedScale = await loadSavedScaleFactor();
+  final savedChatFontSize = await loadSavedChatFontSize();
 
   final app = ProviderScope(
     overrides: [
       themeModeProvider.overrideWith(() => ThemeModeNotifier(savedTheme)),
       scaleFactorProvider.overrideWith(() => ScaleFactorNotifier(savedScale)),
+      chatFontSizeProvider.overrideWith(() => ChatFontSizeNotifier(savedChatFontSize)),
     ],
     child: const GuardianApp(),
   );

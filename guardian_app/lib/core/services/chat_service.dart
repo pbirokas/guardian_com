@@ -537,12 +537,34 @@ class ChatService {
     return conv;
   }
 
+  /// Postet eine System-Nachricht (z.B. Mitglied hinzugefügt/entfernt) in den Chat.
+  Future<void> _postSystemMessage(
+      String convId, String event, String targetName) async {
+    final msgRef =
+        _db.collection('conversations').doc(convId).collection('messages').doc();
+    final actor = _auth.currentUser;
+    await msgRef.set({
+      'type': 'system',
+      'systemEvent': event,
+      'systemActorName': actor?.displayName ?? actor?.email ?? '',
+      'systemTargetName': targetName,
+      'senderUid': 'system',
+      'senderName': 'system',
+      'text': '',
+      'sentAt': Timestamp.fromDate(DateTime.now()),
+      'isArchived': false,
+    });
+  }
+
   /// Entfernt ein Mitglied aus einem Gruppen-Chat (Sheltered-Modus).
   Future<void> removeMemberFromConversation(
-      String convId, String memberUid) async {
+      String convId, String memberUid, {String memberName = ''}) async {
     await _db.collection('conversations').doc(convId).update({
       'participantUids': FieldValue.arrayRemove([memberUid]),
     });
+    if (memberName.isNotEmpty) {
+      await _postSystemMessage(convId, 'memberRemoved', memberName);
+    }
   }
 
   /// Fügt neue Mitglieder zu einem bestehenden Gruppen-Chat hinzu (Sheltered-Modus).
@@ -550,6 +572,7 @@ class ChatService {
   Future<void> addMembersToConversation(
       String convId, String orgId, List<String> newMemberUids) async {
     final newGuardianUids = <String>[];
+    final addedNames = <String>[];
     for (final uid in newMemberUids) {
       final memberDoc = await _db
           .collection('organizations')
@@ -562,6 +585,8 @@ class ChatService {
       final singular = data['guardianUid'] as String?;
       final plural = List<String>.from(data['guardianUids'] as List? ?? []);
       newGuardianUids.addAll({singular, ...plural}.whereType<String>());
+      final name = data['displayName'] as String? ?? '';
+      if (name.isNotEmpty) addedNames.add(name);
     }
 
     await _db.collection('conversations').doc(convId).update({
@@ -569,6 +594,10 @@ class ChatService {
       if (newGuardianUids.isNotEmpty)
         'guardianUids': FieldValue.arrayUnion(newGuardianUids),
     });
+
+    for (final name in addedNames) {
+      await _postSystemMessage(convId, 'memberAdded', name);
+    }
   }
 
   /// Überwachte Konversationen für Guardians (via guardianUids, approved, kein Teilnehmer)

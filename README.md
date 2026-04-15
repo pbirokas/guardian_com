@@ -140,6 +140,7 @@ Erreichbar über **Profil → Meine Verknüpfungen**. Der Screen vereint alle As
 - **Nachrichten anpinnen** — Admin/Moderator kann eine Nachricht anpinnen; wird als Banner oben im Chat angezeigt
 - **Geplante Nachrichten** — Nachricht für einen späteren Zeitpunkt planen
 - **Abstimmungen (Polls)** — Frage mit Optionen erstellen (Einzel- oder Mehrfachauswahl), optionale Anonymisierung; Abstimmungsergebnisse mit Wähler-Namen (bei nicht-anonymen Umfragen)
+- **System-Nachrichten** — bei Sheltered-Gruppen-Chats erscheint beim Hinzufügen oder Entfernen von Mitgliedern eine zentrierte, graue Info-Zeile im Chatverlauf
 
 ### Chat-Verwaltung (Admin & Moderator)
 - Chats archivieren (werden read-only)
@@ -217,6 +218,24 @@ Jeder Screen der App enthält einen kontextsensitiven **`?`-Hilfe-Button**, der 
 | **Schlüsselwörter-Dialog** | Zweck, Hinzufügen, Löschen, CSV-Import/Export | Inline-Hilfe-Dialog (kein eigener Screen) |
 
 Die Schritt-für-Schritt-Tour auf der Organisations-Übersicht hebt die wichtigsten UI-Elemente mit dem `showcaseview`-Package hervor und passt sich dynamisch an (aktive Orgs und Kind-Konten werden berücksichtigt).
+
+### Pinnwand — Reaktionen auf Ankündigungen
+- Mitglieder können Ankündigungen per **langem Druck** mit einem Emoji reagieren (👍❤️😂😮😢😡👎)
+- Reaktionen erscheinen als Chips unterhalb des Inhalts; erneutes Antippen entfernt die eigene Reaktion
+- Eigene Reaktion wird farblich hervorgehoben
+
+### Änderungsprotokoll (Org-Detail → `⋮`-Menü)
+- Admins und Moderatoren können über das `⋮`-Menü das **Änderungsprotokoll** der Organisation öffnen
+- Jeder Eintrag zeigt: **Was** wurde geändert, **von wem** und **wann**
+- Protokollierte Aktionen:
+  - Einladung verschickt
+  - Mitglied bestätigt
+  - Mitglied entfernt
+  - Einstellungen geändert (Name, Kategorie)
+  - Rolle geändert (inkl. Vorher/Nachher)
+  - Admin-Rolle übertragen
+  - Schlüsselwörter aktualisiert
+- Einträge sind unveränderlich (kein Update/Delete über Sicherheitsregeln)
 
 ### Sonstiges
 - Dark / Light Mode
@@ -316,6 +335,15 @@ organizations/{orgId}
     childAlertInterval
     lastMessageAlertAt
     lastChildAlertAt
+  announcements/{announcementId}
+    reactions/{uid}               ← Emoji-String (Pinnwand-Reaktionen)
+  auditLog/{entryId}              ← Änderungsprotokoll
+    actorUid, actorName
+    action                        ← invitationSent | memberConfirmed | memberRemoved |
+                                  #   settingsChanged | roleChanged | adminTransferred |
+                                  #   keywordsChanged
+    details{}
+    timestamp
 
 conversations/{convId}
   pinnedMessageId               ← Angepinnte Nachricht
@@ -323,6 +351,9 @@ conversations/{convId}
   typingUsers/{uid}             ← Timestamp (Tipp-Indikator)
   messages/{msgId}
     reactions/{uid}             ← Emoji-String (Nachrichten-Reaktionen)
+    type                        ← 'user' | 'system'
+    systemEvent                 ← 'memberAdded' | 'memberRemoved'
+    systemActorName, systemTargetName
   polls/{pollId}
     isAnonymous
     votes{}
@@ -438,45 +469,7 @@ Umbenennen und mit eigenen Firebase-Werten befüllen, oder `flutterfire configur
 
 ## Changelog
 
-### 2026-04-13 — In-App-Hilfe, UI-Fixes & Eltern-Kind-Stabilisierung
-
-#### Neue Funktionen
-
-**In-App-Hilfe-System (`HelpSheet`)**
-- Neues wiederverwendbares Widget `HelpSheet` / `HelpTopic` in `core/widgets/help_sheet.dart`
-- Kontextsensitiver `?`-Hilfe-Button auf allen wichtigen Screens: Organisations-Übersicht, Org-Detail, Chat, Meine Verknüpfungen, Massenimport, Profil
-- Schlüsselwörter-Dialog erhält inline Hilfe-Button im Titelbereich
-- Alle Hilfetexte vollständig zweisprachig (Deutsch / Englisch)
-- Themen passen sich der Nutzerrolle an (z. B. Admin-Tipps nur für Admins)
-
-**Schritt-für-Schritt-Tour (Organisations-Übersicht)**
-- Interaktive Tour mit `showcaseview` hebt Profil-Avatar, Verknüpfungen-Symbol, erste Org-Karte und FAB hervor
-- Startet über den `?`-Button im HelpSheet; dynamisch je nach Kontostand
-
-**Org-Detail AppBar aufgeräumt**
-- Alle Aktionen (Hilfe, Schlüsselwörter, Bearbeiten) in ein `⋮`-Overflow-Menü zusammengefasst
-- Nur noch Glocken-Symbol + `⋮` in der AppBar → mehr Platz für den Org-Namen
-
-**Pinnwand-Hilfe erweitert**
-- Neuer Admin/Mod-only Topic „Ankündigungen erstellen & verwalten" (inkl. Ablaufdatum)
-
-**Mitglieder-Tab-Hilfe erweitert**
-- Neuer Topic „Einladen, vorschlagen & importieren" erklärt rollenspezifische Workflows (Admin, Mitglied, Kind, Elternteil)
-
-#### Fehlerbehebungen & Verbesserungen
-
-| Bereich | Änderung |
-|---|---|
-| **Cloud Function `onClaimConfirmed`** | try/catch mit `console.error` + `throw` hinzugefügt (war bisher lautlos fehlgeschlagen); setzt `isChild: true` und stuft Kind-Rollen in allen Orgs auf `child` herab |
-| **AppBar-Overflow (Org-Detail)** | `Row`-Overflow durch `Flexible` + `TextOverflow.ellipsis` auf Subtitle-Labels behoben |
-| **HelpSheet-Hintergrund** | `DraggableScrollableSheet`-Inhalt in `Material`-Widget eingebettet — Sheet war transparent |
-| **Kategorien-Übersetzung** | `OrgTag.localizedLabel(AppLocalizations l)` ergänzt; Labels sind jetzt vollständig übersetzt (DE/EN) |
-| **Chat-Modus aus Bearbeiten-Dialog entfernt** | Chat-Modus einer Organisation kann nach Erstellung nicht mehr geändert werden |
-| **Konto-Löschung blockiert** | Löschen ist gesperrt, solange verifizierte Eltern- oder Kind-Verbindungen bestehen |
-| **Kind-Konto: „Meine Kinder" ausgeblendet** | Nutzer mit `isChild: true` sehen den Abschnitt nicht mehr |
-| **„Meine Eltern" bedingt angezeigt** | Abschnitt erscheint nur, wenn mindestens ein verifizierter Elternteil vorhanden ist |
-| **Datenschutz & Lösch-Seite** | `privacy_policy.html` und `delete_account.html` um Eltern-Kind-Verknüpfungs-Abschnitt erweitert |
-| **Neuer ARB-Schlüssel `close`** | Für semantisch korrekte Schliessen-Buttons in reinen Info-Dialogen |
+Eine vollständige Liste aller Änderungen befindet sich in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 

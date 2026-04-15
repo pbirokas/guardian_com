@@ -1,11 +1,16 @@
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const { onCall, onRequest } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
+const { setGlobalOptions } = require('firebase-functions/v2');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
 const { getAuth } = require('firebase-admin/auth');
 const nodemailer = require('nodemailer');
+
+// Alle Funktionen in derselben Region wie die Firestore-Datenbank deployen.
+// Wichtig: cross-region Triggers (us-central1 ↔ europe-west3) sind unzuverlässig.
+setGlobalOptions({ region: 'europe-west3' });
 
 const gmailAppPassword = defineSecret('GMAIL_APP_PASSWORD');
 
@@ -17,6 +22,25 @@ const db = getFirestore();
 /**
  * Sends an FCM push notification to a list of FCM tokens.
  */
+/**
+ * Removes a stale FCM token from all user documents in Firestore.
+ * Called when FCM returns registration-token-not-registered or invalid-registration-token.
+ */
+async function removeStaleToken(token) {
+  try {
+    const snap = await db.collection('users')
+      .where('fcmToken', '==', token)
+      .limit(1)
+      .get();
+    if (!snap.empty) {
+      await snap.docs[0].ref.update({ fcmToken: null });
+      console.log(`Removed stale FCM token for user ${snap.docs[0].id}`);
+    }
+  } catch (e) {
+    console.error('Failed to remove stale token:', e.message);
+  }
+}
+
 async function sendToTokens(tokens, title, body, data) {
   const sendPromises = tokens.map((token) =>
     getMessaging()
@@ -31,8 +55,20 @@ async function sendToTokens(tokens, title, body, data) {
           payload: { aps: { sound: 'default', badge: 1 } },
         },
       })
-      .catch((err) => {
-        console.error(`Failed to send to token ${token.substring(0, 10)}...:`, err.message);
+      .then((msgId) => {
+        console.log(`FCM OK token=${token.substring(0, 12)}... msgId=${msgId}`);
+      })
+      .catch(async (err) => {
+        console.error(
+          `FCM FAIL token=${token.substring(0, 12)}... code=${err.code} msg=${err.message}`
+        );
+        // Token abgelaufen oder ungültig → aus Firestore löschen
+        if (
+          err.code === 'messaging/registration-token-not-registered' ||
+          err.code === 'messaging/invalid-registration-token'
+        ) {
+          await removeStaleToken(token);
+        }
       })
   );
   await Promise.all(sendPromises);
@@ -82,6 +118,9 @@ exports.onNewMessage = onDocumentCreated(
 
     const senderId = message.senderUid;
     const text = message.text ?? '';
+
+    // System-Nachrichten (z.B. Mitglied hinzugefügt/entfernt) ignorieren
+    if (message.type === 'system' || senderId === 'system') return;
 
     // Load conversation
     const convSnap = await db.collection('conversations').doc(convId).get();

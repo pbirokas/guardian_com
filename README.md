@@ -64,6 +64,7 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 - Abgelehnte Anfragen werden gelöscht → neue Anfrage jederzeit möglich
 - Nach Chat-Löschung kann ebenfalls eine neue Anfrage gestellt werden
 - Genehmigte Chats sind für den Guardian des Kindes sichtbar
+- **Chat-Übersicht:** „Überwachte Chats" blendet Chats aus, in denen man selbst Mitglied ist (keine Doppeleinträge); Sektion ist ein- und ausklappbar
 
 #### Sheltered-Modus
 - Admin legt vorab fest, wer mit wem kommunizieren darf
@@ -139,7 +140,7 @@ Erreichbar über **Profil → Meine Verknüpfungen**. Der Screen vereint alle As
 - Ältere Nachrichten automatisch nachladen beim Hochscrollen
 - **Nachrichten anpinnen** — Admin/Moderator kann eine Nachricht anpinnen; wird als Banner oben im Chat angezeigt
 - **Geplante Nachrichten** — Nachricht für einen späteren Zeitpunkt planen
-- **Abstimmungen (Polls)** — Frage mit Optionen erstellen (Einzel- oder Mehrfachauswahl), optionale Anonymisierung; Abstimmungsergebnisse mit Wähler-Namen (bei nicht-anonymen Umfragen)
+- **Abstimmungen (Polls)** — Frage mit Optionen erstellen (Einzel- oder Mehrfachauswahl), optionale Anonymisierung; Abstimmungsergebnisse mit Wähler-Namen (bei nicht-anonymen Umfragen); optionales Ablaufdatum mit Uhrzeit — abgelaufene Umfragen schließen automatisch
 - **System-Nachrichten** — bei Sheltered-Gruppen-Chats erscheint beim Hinzufügen oder Entfernen von Mitgliedern eine zentrierte, graue Info-Zeile im Chatverlauf
 
 ### Chat-Verwaltung (Admin & Moderator)

@@ -394,6 +394,13 @@
   "endPoll": "End",
   "pollClosed": "Closed",
   "poll": "Poll",
+  "pollExpiresOn": "Ends on {date}",
+  "@pollExpiresOn": {
+    "placeholders": { "date": { "type": "String" } }
+  },
+  "pollExpired": "Expired",
+  "addExpiry": "Add expiry date",
+  "noExpiry": "No expiry date",
   "votes": "{count} votes",
   "@votes": {
     "placeholders": { "count": { "type": "int" } }

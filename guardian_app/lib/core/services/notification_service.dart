@@ -89,8 +89,13 @@ class NotificationService {
   }
 
   void _handleTap(RemoteMessage message) {
+    final type = message.data['type'] as String?;
     final convId = message.data['convId'] as String?;
-    if (convId != null) {
+    final orgId = message.data['orgId'] as String?;
+
+    if (type == 'new_announcement' && orgId != null) {
+      _router?.push('/organizations/$orgId');
+    } else if (convId != null) {
       _router?.push('/chat/$convId',
           extra: message.data['chatTitle'] as String?);
     }

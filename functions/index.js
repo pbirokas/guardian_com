@@ -1,5 +1,6 @@
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const { onCall, onRequest } = require('firebase-functions/v2/https');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { defineSecret } = require('firebase-functions/params');
 const { setGlobalOptions } = require('firebase-functions/v2');
 const { initializeApp } = require('firebase-admin/app');
@@ -980,3 +981,128 @@ exports.onParentConsent = onDocumentUpdated(
     }
   },
 );
+
+// ── Neue Ankündigung auf der Pinnwand ─────────────────────────────────────────
+
+exports.onNewAnnouncement = onDocumentCreated(
+  'organizations/{orgId}/announcements/{announcementId}',
+  async (event) => {
+    const { orgId, announcementId } = event.params;
+    const announcement = event.data.data();
+
+    const title = announcement.title ?? '';
+    const content = announcement.content ?? '';
+    const authorName = announcement.authorName ?? '';
+
+    // Org-Name und Mitgliederliste laden
+    const [orgSnap, membersSnap] = await Promise.all([
+      db.collection('organizations').doc(orgId).get(),
+      db.collection('organizations').doc(orgId).collection('members').get(),
+    ]);
+
+    if (!orgSnap.exists) return;
+    const orgName = orgSnap.data().name ?? '';
+    const memberUids = orgSnap.data().memberUids ?? [];
+
+    // Alle aktiven Mitglieder benachrichtigen außer dem Ersteller
+    const authorUid = announcement.authorUid ?? '';
+    const recipientUids = memberUids.filter((uid) => uid !== authorUid);
+
+    if (recipientUids.length === 0) return;
+
+    // Nur Mitglieder mit aktivierten Benachrichtigungen
+    const memberMap = {};
+    membersSnap.docs.forEach((doc) => { memberMap[doc.id] = doc.data(); });
+
+    const eligibleUids = recipientUids.filter((uid) => {
+      const member = memberMap[uid];
+      return member?.notificationsEnabled !== false;
+    });
+
+    if (eligibleUids.length === 0) return;
+
+    const tokens = await getTokensForUids(eligibleUids);
+    if (tokens.length === 0) return;
+
+    const body = content.length > 100 ? content.substring(0, 100) + '…' : content;
+
+    await sendToTokens(
+      tokens,
+      `📢 ${orgName}: ${title}`,
+      body,
+      {
+        type: 'new_announcement',
+        orgId,
+        announcementId,
+        authorName,
+      },
+    );
+
+    console.log(
+      `Sent ${tokens.length} announcement notification(s) for org ${orgId} (${title})`,
+    );
+  },
+);
+
+// ── Abgelaufene Ankündigungen automatisch löschen ─────────────────────────────
+// Läuft täglich um 03:00 Uhr und löscht alle Ankündigungen,
+// deren Ablaufdatum vor mehr als 24 Stunden erreicht wurde.
+
+exports.cleanupExpiredAnnouncements = onSchedule('every day 03:00', async () => {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000); // jetzt minus 1 Tag
+
+  const orgsSnap = await db.collection('organizations').get();
+  let totalDeleted = 0;
+
+  await Promise.all(
+    orgsSnap.docs.map(async (orgDoc) => {
+      const expiredSnap = await db
+        .collection('organizations')
+        .doc(orgDoc.id)
+        .collection('announcements')
+        .where('expiresAt', '<', Timestamp.fromDate(cutoff))
+        .get();
+
+      if (expiredSnap.empty) return;
+
+      const batch = db.batch();
+      expiredSnap.docs.forEach((doc) => batch.delete(doc.ref));
+      await batch.commit();
+      totalDeleted += expiredSnap.size;
+    }),
+  );
+
+  console.log(`cleanupExpiredAnnouncements: ${totalDeleted} announcement(s) deleted.`);
+});
+
+// ── Abgelaufene Umfragen automatisch schließen ────────────────────────────────
+// Läuft täglich um 03:05 Uhr und setzt isClosed=true für alle Umfragen,
+// deren Ablaufdatum überschritten wurde.
+
+exports.cleanupExpiredPolls = onSchedule('every day 03:05', async () => {
+  const now = new Date();
+
+  const convsSnap = await db.collection('conversations').get();
+  let totalClosed = 0;
+
+  await Promise.all(
+    convsSnap.docs.map(async (convDoc) => {
+      const expiredSnap = await db
+        .collection('conversations')
+        .doc(convDoc.id)
+        .collection('polls')
+        .where('expiresAt', '<=', Timestamp.fromDate(now))
+        .where('isClosed', '==', false)
+        .get();
+
+      if (expiredSnap.empty) return;
+
+      const batch = db.batch();
+      expiredSnap.docs.forEach((doc) => batch.update(doc.ref, { isClosed: true }));
+      await batch.commit();
+      totalClosed += expiredSnap.size;
+    }),
+  );
+
+  console.log(`cleanupExpiredPolls: ${totalClosed} poll(s) closed.`);
+});

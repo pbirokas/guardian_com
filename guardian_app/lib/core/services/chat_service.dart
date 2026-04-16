@@ -720,6 +720,7 @@ class ChatService {
     required List<String> optionTexts,
     required bool multipleChoice,
     bool isAnonymous = false,
+    DateTime? expiresAt,
   }) async {
     final user = _auth.currentUser!;
     final pollRef = _db
@@ -747,6 +748,7 @@ class ChatService {
       createdAt: DateTime.now(),
       multipleChoice: multipleChoice,
       isAnonymous: isAnonymous,
+      expiresAt: expiresAt,
     );
 
     final preview = question.length > 60

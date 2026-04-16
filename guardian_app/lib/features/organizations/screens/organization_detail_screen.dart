@@ -540,7 +540,7 @@ class OrganizationDetailScreen extends ConsumerWidget {
 
 // ── Chats Tab ────────────────────────────────────────────────────────────────
 
-class _ChatsTab extends ConsumerWidget {
+class _ChatsTab extends ConsumerStatefulWidget {
   final Organization org;
   final String currentUid;
   final bool isAdmin;
@@ -554,7 +554,20 @@ class _ChatsTab extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ChatsTab> createState() => _ChatsTabState();
+}
+
+class _ChatsTabState extends ConsumerState<_ChatsTab> {
+  bool _supervisedExpanded = true;
+
+  Organization get org => widget.org;
+  String get currentUid => widget.currentUid;
+  bool get isAdmin => widget.isAdmin;
+  bool get isModerator => widget.isModerator;
+
+  @override
+  Widget build(BuildContext context) {
+    final ref = this.ref;
     final l = AppLocalizations.of(context);
     final convsAsync = isAdmin
         ? ref.watch(adminConversationsProvider(org.id))
@@ -594,6 +607,9 @@ class _ChatsTab extends ConsumerWidget {
         final guardianSupervisorConvs =
             guardianSupervisorConvsAsync.value ?? [];
         final shelteredModConvs = shelteredModConvsAsync.value ?? [];
+        // Deduplizieren: IDs aus der eigenen Chat-Liste (approved) ausschließen,
+        // da man als Elternteil oft auch Mitglied im selben Chat ist.
+        final approvedIds = approved.map((c) => c.id).toSet();
         final allSupervisorConvs = [
           ...supervisorConvs,
           ...guardianSupervisorConvs
@@ -601,7 +617,7 @@ class _ChatsTab extends ConsumerWidget {
           ...shelteredModConvs.where((c) =>
               !supervisorConvs.any((s) => s.id == c.id) &&
               !guardianSupervisorConvs.any((g) => g.id == c.id)),
-        ];
+        ].where((c) => !approvedIds.contains(c.id)).toList();
 
         return Stack(
           children: [
@@ -799,45 +815,58 @@ class _ChatsTab extends ConsumerWidget {
                   // Überwachte Chats (für Moderatoren + Guardians)
                   if (allSupervisorConvs.isNotEmpty) ...[
                     SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                        child: Row(
-                          children: [
-                            Icon(Icons.visibility_outlined,
-                                size: 14, color: Colors.grey[600]),
-                            const SizedBox(width: 6),
-                            Text(
-                              l.monitoredChats(allSupervisorConvs.length),
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
-                                  fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (ctx, i) => membersAsync.maybeWhen(
-                          data: (members) => _ConversationTile(
-                            conv: allSupervisorConvs[i],
-                            members: members,
-                            currentUid: currentUid,
-                            isSupervisor: true,
-                            isAdminOrMod: isAdmin || isModerator,
-                            onArchive: (isAdmin || isModerator)
-                                ? () => ref.read(chatServiceProvider).archiveConversation(allSupervisorConvs[i].id)
-                                : null,
-                            onDelete: (isAdmin || isModerator)
-                                ? () => ref.read(chatServiceProvider).deleteConversation(allSupervisorConvs[i].id)
-                                : null,
+                      child: InkWell(
+                        onTap: () => setState(
+                            () => _supervisedExpanded = !_supervisedExpanded),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 8, 4),
+                          child: Row(
+                            children: [
+                              Icon(Icons.visibility_outlined,
+                                  size: 14, color: Colors.grey[600]),
+                              const SizedBox(width: 6),
+                              Text(
+                                l.monitoredChats(allSupervisorConvs.length),
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                    fontWeight: FontWeight.bold),
+                              ),
+                              const Spacer(),
+                              Icon(
+                                _supervisedExpanded
+                                    ? Icons.expand_less
+                                    : Icons.expand_more,
+                                size: 18,
+                                color: Colors.grey[600],
+                              ),
+                            ],
                           ),
-                          orElse: () => const SizedBox(),
                         ),
-                        childCount: allSupervisorConvs.length,
                       ),
                     ),
+                    if (_supervisedExpanded)
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (ctx, i) => membersAsync.maybeWhen(
+                            data: (members) => _ConversationTile(
+                              conv: allSupervisorConvs[i],
+                              members: members,
+                              currentUid: currentUid,
+                              isSupervisor: true,
+                              isAdminOrMod: isAdmin || isModerator,
+                              onArchive: (isAdmin || isModerator)
+                                  ? () => ref.read(chatServiceProvider).archiveConversation(allSupervisorConvs[i].id)
+                                  : null,
+                              onDelete: (isAdmin || isModerator)
+                                  ? () => ref.read(chatServiceProvider).deleteConversation(allSupervisorConvs[i].id)
+                                  : null,
+                            ),
+                            orElse: () => const SizedBox(),
+                          ),
+                          childCount: allSupervisorConvs.length,
+                        ),
+                      ),
                   ],
                   // Archivierte Chats
                   if (archivedConvs.isNotEmpty) ...[

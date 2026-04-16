@@ -990,6 +990,20 @@ class AppLocalizationsDe extends AppLocalizations {
   String get poll => 'Umfrage';
 
   @override
+  String pollExpiresOn(String date) {
+    return 'Endet am $date';
+  }
+
+  @override
+  String get pollExpired => 'Abgelaufen';
+
+  @override
+  String get addExpiry => 'Ablaufdatum hinzufügen';
+
+  @override
+  String get noExpiry => 'Kein Ablaufdatum';
+
+  @override
   String votes(int count) {
     return '$count Stimmen';
   }

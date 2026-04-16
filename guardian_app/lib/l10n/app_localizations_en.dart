@@ -983,6 +983,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get poll => 'Poll';
 
   @override
+  String pollExpiresOn(String date) {
+    return 'Ends on $date';
+  }
+
+  @override
+  String get pollExpired => 'Expired';
+
+  @override
+  String get addExpiry => 'Add expiry date';
+
+  @override
+  String get noExpiry => 'No expiry date';
+
+  @override
   String votes(int count) {
     return '$count votes';
   }

@@ -1862,6 +1862,30 @@ abstract class AppLocalizations {
   /// **'Umfrage'**
   String get poll;
 
+  /// No description provided for @pollExpiresOn.
+  ///
+  /// In de, this message translates to:
+  /// **'Endet am {date}'**
+  String pollExpiresOn(String date);
+
+  /// No description provided for @pollExpired.
+  ///
+  /// In de, this message translates to:
+  /// **'Abgelaufen'**
+  String get pollExpired;
+
+  /// No description provided for @addExpiry.
+  ///
+  /// In de, this message translates to:
+  /// **'Ablaufdatum hinzufügen'**
+  String get addExpiry;
+
+  /// No description provided for @noExpiry.
+  ///
+  /// In de, this message translates to:
+  /// **'Kein Ablaufdatum'**
+  String get noExpiry;
+
   /// No description provided for @votes.
   ///
   /// In de, this message translates to:

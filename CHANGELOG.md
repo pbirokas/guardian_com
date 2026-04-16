@@ -4,6 +4,22 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+### 2026-04-16 — Ablaufdatum für Umfragen & Chat-Übersicht verbessert
+
+#### Neue Funktionen
+
+**Ablaufdatum für Umfragen (Sheltered-Gruppen)**
+- Beim Erstellen einer Umfrage kann optional ein Ablaufdatum mit Uhrzeit gesetzt werden
+- Abgelaufene Umfragen werden automatisch als geschlossen angezeigt (kein Abstimmen mehr möglich), ohne dass ein Admin manuell eingreifen muss
+- Das Ablaufdatum wird in der Umfragekachel angezeigt, solange die Umfrage noch offen ist
+- Neue Cloud Function `cleanupExpiredPolls` schließt täglich um 03:05 Uhr alle Umfragen mit überschrittenem Ablaufdatum (setzt `isClosed: true`)
+
+**Verbesserte Chat-Übersicht (Guardian-Modus)**
+- Doppelte Einträge entfernt: Chats, in denen man selbst Mitglied ist, erscheinen nicht mehr zusätzlich unter „Überwachte Chats"
+- Sektion „Überwachte Chats" ist jetzt ein- und ausklappbar (Tipp auf den Abschnittstitel)
+
+---
+
 ### 2026-04-15 — Reaktionen auf Ankündigungen, Chat-Systemnachrichten & Änderungsprotokoll
 
 #### Neue Funktionen

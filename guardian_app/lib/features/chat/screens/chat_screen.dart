@@ -339,6 +339,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ];
     var multipleChoice = false;
     var isAnonymous = false;
+    DateTime? expiresAt;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -418,6 +419,69 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                     contentPadding: EdgeInsets.zero,
                   ),
+                  const Divider(height: 16),
+                  Row(
+                    children: [
+                      Icon(Icons.schedule_outlined,
+                          size: 16, color: Colors.grey[600]),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          expiresAt == null
+                              ? ld.noExpiry
+                              : '${expiresAt!.day.toString().padLeft(2, '0')}.'
+                                '${expiresAt!.month.toString().padLeft(2, '0')}.'
+                                '${expiresAt!.year}  '
+                                '${expiresAt!.hour.toString().padLeft(2, '0')}:'
+                                '${expiresAt!.minute.toString().padLeft(2, '0')}',
+                          style: TextStyle(
+                              fontSize: 13, color: Colors.grey[700]),
+                        ),
+                      ),
+                      TextButton(
+                        style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(0, 0),
+                            tapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap),
+                        onPressed: () async {
+                          final date = await showDatePicker(
+                            context: ctx,
+                            initialDate: expiresAt ??
+                                DateTime.now().add(
+                                    const Duration(days: 1)),
+                            firstDate: DateTime.now(),
+                            lastDate: DateTime.now()
+                                .add(const Duration(days: 365)),
+                          );
+                          if (date == null) return;
+                          final time = await showTimePicker(
+                            // ignore: use_build_context_synchronously
+                            context: ctx,
+                            initialTime: TimeOfDay(
+                                hour: expiresAt?.hour ?? 23,
+                                minute: expiresAt?.minute ?? 59),
+                          );
+                          if (time == null) return;
+                          setState(() {
+                            expiresAt = DateTime(date.year, date.month,
+                                date.day, time.hour, time.minute);
+                          });
+                        },
+                        child: Text(ld.addExpiry,
+                            style: const TextStyle(fontSize: 12)),
+                      ),
+                      if (expiresAt != null)
+                        IconButton(
+                          icon: const Icon(Icons.close,
+                              size: 16, color: Colors.grey),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: () =>
+                              setState(() => expiresAt = null),
+                        ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -452,6 +516,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             optionTexts: options,
             multipleChoice: multipleChoice,
             isAnonymous: isAnonymous,
+            expiresAt: expiresAt,
           );
       _markRead();
       _scrollToBottom();
@@ -2565,9 +2630,12 @@ class _PollBubbleState extends ConsumerState<_PollBubble> {
           Text('Fehler', style: TextStyle(fontSize: 12, color: onColor)),
       data: (poll) {
         if (poll == null) return const SizedBox.shrink();
+        final isExpired = poll.expiresAt != null &&
+            DateTime.now().isAfter(poll.expiresAt!);
+        final effectivelyClosed = poll.isClosed || isExpired;
         final hasVoted = poll.hasVoted(currentUid);
-        final showResults = hasVoted || poll.isClosed;
-        final canClose = !poll.isClosed && poll.createdBy == currentUid;
+        final showResults = hasVoted || effectivelyClosed;
+        final canClose = !effectivelyClosed && poll.createdBy == currentUid;
         final dimColor = (onColor ?? Colors.grey).withAlpha(180);
 
         void showVoters(String optionText, List<String> voterUids) {
@@ -2620,7 +2688,11 @@ class _PollBubbleState extends ConsumerState<_PollBubble> {
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    poll.isClosed ? l.pollClosed : l.poll,
+                    effectivelyClosed
+                        ? (isExpired && !poll.isClosed
+                            ? l.pollExpired
+                            : l.pollClosed)
+                        : l.poll,
                     style: TextStyle(fontSize: 11, color: dimColor),
                   ),
                 ),
@@ -2635,6 +2707,19 @@ class _PollBubbleState extends ConsumerState<_PollBubble> {
                         size: 16, color: onColor ?? Colors.red),
                   ),
               ]),
+              if (poll.expiresAt != null && !effectivelyClosed) ...[
+                const SizedBox(height: 2),
+                Text(
+                  l.pollExpiresOn(
+                    '${poll.expiresAt!.day.toString().padLeft(2, '0')}.'
+                    '${poll.expiresAt!.month.toString().padLeft(2, '0')}.'
+                    '${poll.expiresAt!.year}  '
+                    '${poll.expiresAt!.hour.toString().padLeft(2, '0')}:'
+                    '${poll.expiresAt!.minute.toString().padLeft(2, '0')}',
+                  ),
+                  style: TextStyle(fontSize: 10, color: dimColor),
+                ),
+              ],
               const SizedBox(height: 6),
               Text(poll.question,
                   style: TextStyle(
@@ -2652,7 +2737,7 @@ class _PollBubbleState extends ConsumerState<_PollBubble> {
                     showResults && !poll.isAnonymous && count > 0;
 
                 return GestureDetector(
-                  onTap: (!poll.isClosed && !_voting) ? () => _vote(opt.id) : null,
+                  onTap: (!effectivelyClosed && !_voting) ? () => _vote(opt.id) : null,
                   child: Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Column(

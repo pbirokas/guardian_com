@@ -2090,6 +2090,36 @@ abstract class AppLocalizations {
   /// **'Vielleicht später'**
   String get maybeLater;
 
+  /// No description provided for @neverShowAgain.
+  ///
+  /// In de, this message translates to:
+  /// **'Nicht mehr anzeigen'**
+  String get neverShowAgain;
+
+  /// No description provided for @batteryOptTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Akku-Optimierung deaktivieren'**
+  String get batteryOptTitle;
+
+  /// No description provided for @batteryOptContent.
+  ///
+  /// In de, this message translates to:
+  /// **'Für zuverlässige Push-Benachrichtigungen empfiehlt es sich, die Akku-Optimierung für Guardian Com zu deaktivieren. Andernfalls kann Android Benachrichtigungen im Hintergrund verzögern oder blockieren.'**
+  String get batteryOptContent;
+
+  /// No description provided for @batteryOptSetup.
+  ///
+  /// In de, this message translates to:
+  /// **'Jetzt einrichten'**
+  String get batteryOptSetup;
+
+  /// No description provided for @batteryOptDontAsk.
+  ///
+  /// In de, this message translates to:
+  /// **'Nicht mehr fragen'**
+  String get batteryOptDontAsk;
+
   /// No description provided for @aboutApp.
   ///
   /// In de, this message translates to:

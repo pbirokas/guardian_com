@@ -161,6 +161,7 @@ Erreichbar über **Profil → Meine Verknüpfungen**. Der Screen vereint alle As
 - Benachrichtigung bei neuer Chat-Anfrage (Guardian-Modus) — für Approver, Guardian und Angefragten
 - Foreground & Background: native System-Benachrichtigung
 - **Tap auf Benachrichtigung öffnet direkt den Chat** — auch wenn die App geschlossen war (robustes Deep-Link-Handling via Pending-Message-Pattern, kein fragiles Timeout mehr)
+- **Akku-Optimierungs-Hinweis**: beim Start wird geprüft, ob Android Doze/Akku-Optimierung aktiv ist; ein Dialog erklärt das Problem und leitet direkt zur Systemeinstellung weiter — „Nicht mehr fragen" unterdrückt den Hinweis dauerhaft
 - Benachrichtigungsintervall global und pro Organisation einstellbar:
   - Jede Nachricht
   - Max. 1x pro Stunde

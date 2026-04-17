@@ -372,15 +372,21 @@ class OrganizationService {
     final memberName = snap.data()!['displayName'] as String? ?? '';
     final role = OrgRole.values.byName(snap.data()!['role'] as String);
     final membership = OrgMembership(orgId: orgId, role: role);
+    final userDoc = _db.collection('users').doc(targetUid);
 
     await _db.runTransaction((tx) async {
+      // User-Dokument innerhalb der Transaction lesen – es könnte bereits
+      // gelöscht worden sein (z. B. manuell in der Firebase Console).
+      final userSnap = await tx.get(userDoc);
       tx.delete(memberDoc);
       tx.update(_db.collection('organizations').doc(orgId), {
         'memberUids': FieldValue.arrayRemove([targetUid]),
       });
-      tx.update(_db.collection('users').doc(targetUid), {
-        'memberships': FieldValue.arrayRemove([membership.toMap()]),
-      });
+      if (userSnap.exists) {
+        tx.update(userDoc, {
+          'memberships': FieldValue.arrayRemove([membership.toMap()]),
+        });
+      }
     });
     await _logAudit(orgId, AuditAction.memberRemoved, {'name': memberName});
   }

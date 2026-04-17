@@ -1125,6 +1125,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get maybeLater => 'Maybe later';
 
   @override
+  String get neverShowAgain => 'Never show again';
+
+  @override
+  String get batteryOptTitle => 'Disable battery optimisation';
+
+  @override
+  String get batteryOptContent =>
+      'For reliable push notifications, it is recommended to disable battery optimisation for Guardian Com. Otherwise Android may delay or block background notifications.';
+
+  @override
+  String get batteryOptSetup => 'Set up now';
+
+  @override
+  String get batteryOptDontAsk => 'Don\'t ask again';
+
+  @override
   String get aboutApp => 'About';
 
   @override

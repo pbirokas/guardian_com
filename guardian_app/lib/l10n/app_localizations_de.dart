@@ -1132,6 +1132,22 @@ class AppLocalizationsDe extends AppLocalizations {
   String get maybeLater => 'Vielleicht später';
 
   @override
+  String get neverShowAgain => 'Nicht mehr anzeigen';
+
+  @override
+  String get batteryOptTitle => 'Akku-Optimierung deaktivieren';
+
+  @override
+  String get batteryOptContent =>
+      'Für zuverlässige Push-Benachrichtigungen empfiehlt es sich, die Akku-Optimierung für Guardian Com zu deaktivieren. Andernfalls kann Android Benachrichtigungen im Hintergrund verzögern oder blockieren.';
+
+  @override
+  String get batteryOptSetup => 'Jetzt einrichten';
+
+  @override
+  String get batteryOptDontAsk => 'Nicht mehr fragen';
+
+  @override
   String get aboutApp => 'Über die App';
 
   @override

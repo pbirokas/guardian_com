@@ -4,6 +4,23 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+### 2026-04-17 — Akku-Optimierung & Spenden-Einstellung
+
+#### Neue Funktionen
+
+**Akku-Optimierungs-Hinweis (Android)**
+- Beim App-Start wird geprüft, ob Android die Akku-Optimierung für Guardian Com aktiv hat
+- Falls ja, erscheint ein einmaliger Dialog mit Erklärung und direktem „Jetzt einrichten"-Button, der den Android-Systemdialog öffnet
+- „Vielleicht später" schließt den Dialog, er erscheint beim nächsten Start erneut
+- „Nicht mehr fragen" unterdrückt den Hinweis dauerhaft
+- Technisch: eigener Platform-Channel (`com.guardianapp.guardian_app/battery`) in `MainActivity.kt`, kein zusätzliches Package nötig
+
+**Spenden-Aufruf deaktivierbar**
+- Neuer Button „Nicht mehr anzeigen" im wöchentlichen Spenden-Dialog
+- Wird er gedrückt, erscheint der Dialog dauerhaft nicht mehr (gespeichert in SharedPreferences)
+
+---
+
 ### 2026-04-16 — Ablaufdatum für Umfragen & Chat-Übersicht verbessert
 
 #### Neue Funktionen

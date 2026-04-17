@@ -478,6 +478,12 @@
   "kofiButton": "Donate via Ko-fi",
   "paypalButton": "Donate via PayPal",
   "maybeLater": "Maybe later",
+  "neverShowAgain": "Never show again",
+
+  "batteryOptTitle": "Disable battery optimisation",
+  "batteryOptContent": "For reliable push notifications, it is recommended to disable battery optimisation for Guardian Com. Otherwise Android may delay or block background notifications.",
+  "batteryOptSetup": "Set up now",
+  "batteryOptDontAsk": "Don't ask again",
 
   "aboutApp": "About",
   "aboutAppDialogTitle": "Guardian Com",

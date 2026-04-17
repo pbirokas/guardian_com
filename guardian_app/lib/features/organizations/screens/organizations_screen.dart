@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:guardian_app/l10n/app_localizations.dart';
@@ -7,6 +8,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/services/battery_optimization_service.dart';
 import '../../../core/widgets/help_sheet.dart';
 import '../../../core/models/organization.dart';
 import '../../../features/auth/providers/auth_provider.dart';
@@ -35,11 +37,17 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
   final _tourFirstOrgKey = GlobalKey();
   final _tourFabKey      = GlobalKey();
 
-  static const _kLastDonationShown = 'lastDonationShownAt';
+  static const _kLastDonationShown    = 'lastDonationShownAt';
+  static const _kDonationDisabled     = 'donationDisabled';
   static const _kDonationIntervalDays = 7;
+  static const _kBatteryOptDismissed  = 'batteryOptDismissed';
+
+  // ── Spenden-Dialog ───────────────────────────────────────────────────────
 
   Future<void> _maybeShowDonationDialog() async {
     final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_kDonationDisabled) == true) return;
+
     final lastShown = prefs.getInt(_kLastDonationShown);
     final now = DateTime.now().millisecondsSinceEpoch;
     final intervalMs = const Duration(days: _kDonationIntervalDays).inMilliseconds;
@@ -79,8 +87,69 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
         ),
         actions: [
           TextButton(
+            onPressed: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool(_kDonationDisabled, true);
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: Text(l.neverShowAgain,
+                style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+          ),
+          TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text(l.maybeLater),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Akku-Optimierungs-Dialog (nur Android) ───────────────────────────────
+
+  Future<void> _maybeShowBatteryOptDialog() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_kBatteryOptDismissed) == true) return;
+
+    final isIgnoring = await BatteryOptimizationService.isIgnoring();
+    if (isIgnoring) return; // Bereits ausgenommen – nichts zu tun
+
+    if (!mounted) return;
+    final l = AppLocalizations.of(context);
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.battery_alert_outlined, color: Colors.orange),
+            const SizedBox(width: 10),
+            Expanded(child: Text(l.batteryOptTitle)),
+          ],
+        ),
+        content: Text(l.batteryOptContent,
+            style: const TextStyle(fontSize: 14)),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool(_kBatteryOptDismissed, true);
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: Text(l.batteryOptDontAsk,
+                style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l.maybeLater),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await BatteryOptimizationService.requestIgnore();
+            },
+            child: Text(l.batteryOptSetup),
           ),
         ],
       ),
@@ -317,16 +386,14 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
       data: (u) => u?.isChild ?? false,
     );
 
-    // Spenden-Popup: einmal pro Woche, nicht für Kinder
+    // Spenden-Popup & Akku-Optimierungs-Hinweis: nach dem ersten Frame zeigen
     if (!_donationCheckDone) {
       currentAppUserAsync.whenData((u) {
-        if (u?.isChild != true) {
-          _donationCheckDone = true;
-          WidgetsBinding.instance.addPostFrameCallback(
-              (_) => _maybeShowDonationDialog());
-        } else {
-          _donationCheckDone = true; // Kinder: nie zeigen
-        }
+        _donationCheckDone = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          await _maybeShowBatteryOptDialog();
+          if (u?.isChild != true) await _maybeShowDonationDialog();
+        });
       });
     }
 

@@ -478,6 +478,12 @@
   "kofiButton": "Ko-fi spenden",
   "paypalButton": "PayPal spenden",
   "maybeLater": "Vielleicht später",
+  "neverShowAgain": "Nicht mehr anzeigen",
+
+  "batteryOptTitle": "Akku-Optimierung deaktivieren",
+  "batteryOptContent": "Für zuverlässige Push-Benachrichtigungen empfiehlt es sich, die Akku-Optimierung für Guardian Com zu deaktivieren. Andernfalls kann Android Benachrichtigungen im Hintergrund verzögern oder blockieren.",
+  "batteryOptSetup": "Jetzt einrichten",
+  "batteryOptDontAsk": "Nicht mehr fragen",
 
   "aboutApp": "Über die App",
   "aboutAppDialogTitle": "Guardian Com",

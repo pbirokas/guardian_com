@@ -29,12 +29,19 @@ void main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // App Check wird nur auf Android unterstützt (nicht auf Windows/Linux).
+  // try-catch + Timeout: Play Integrity schlägt auf manchen Geräten fehl
+  // (z. B. Huawei/EMUI, veraltete Google Play Services). Da App Check
+  // aktuell nicht erzwungen wird, ist ein stiller Fehlschlag unkritisch.
   if (defaultTargetPlatform == TargetPlatform.android) {
-    await FirebaseAppCheck.instance.activate(
-      providerAndroid: kDebugMode
-          ? const AndroidDebugProvider()
-          : const AndroidPlayIntegrityProvider(),
-    );
+    try {
+      await FirebaseAppCheck.instance.activate(
+        providerAndroid: kDebugMode
+            ? const AndroidDebugProvider()
+            : const AndroidPlayIntegrityProvider(),
+      ).timeout(const Duration(seconds: 8));
+    } catch (_) {
+      // App startet ohne App Check – keine Auswirkung solange Enforcement aus.
+    }
   }
 
   final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||

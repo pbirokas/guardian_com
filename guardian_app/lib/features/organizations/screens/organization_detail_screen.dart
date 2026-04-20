@@ -1249,7 +1249,7 @@ class _MembersTab extends ConsumerWidget {
                   FloatingActionButton.extended(
                     heroTag: 'invite',
                     onPressed: () =>
-                        _showInviteDialog(context, widgetRef, members),
+                        _showInviteDialog(context, widgetRef, members, isAdmin: isAdmin),
                     icon: const Icon(Icons.person_add_outlined),
                     label: Text(l.inviteMember),
                   ),
@@ -1287,7 +1287,8 @@ class _MembersTab extends ConsumerWidget {
   }
 
   Future<void> _showInviteDialog(
-      BuildContext context, WidgetRef ref, List<OrgMember> members) async {
+      BuildContext context, WidgetRef ref, List<OrgMember> members,
+      {bool isAdmin = false}) async {
     final l = AppLocalizations.of(context);
     final emailController = TextEditingController();
     OrgRole selectedRole = OrgRole.member;
@@ -1306,8 +1307,9 @@ class _MembersTab extends ConsumerWidget {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) {
           final ld = AppLocalizations.of(ctx);
+          // Moderatoren dürfen keine weiteren Moderatoren einladen
           final roleLabels = {
-            OrgRole.moderator: ld.roleModerator,
+            if (isAdmin) OrgRole.moderator: ld.roleModerator,
             OrgRole.member: ld.roleMember,
             OrgRole.child: ld.roleChild,
           };

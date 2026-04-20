@@ -124,9 +124,12 @@ service cloud.firestore {
         allow read: if isMember(orgId) || (isSignedIn() && memberId == request.auth.uid);
 
         // Admin creates members via inviteMember(); OR
+        // Moderator creates members, but only with role 'member' or 'child'; OR
         // User creates their own member doc (org creation → role=admin, or invitation processing)
         allow create: if isSignedIn() && (
           isAdmin(orgId) ||
+          (isModerator(orgId) &&
+            request.resource.data.role in ['member', 'child']) ||
           memberId == request.auth.uid
         );
 

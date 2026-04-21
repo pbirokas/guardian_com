@@ -50,6 +50,7 @@ async function sendToTokens(tokens, title, body, data) {
         notification: { title, body },
         data,
         android: {
+          priority: 'high', // FCM delivery priority – bypasses Doze mode
           notification: { channelId: 'guardian_messages', priority: 'high' },
         },
         apns: {

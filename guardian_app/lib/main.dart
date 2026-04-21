@@ -8,6 +8,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/providers/connectivity_provider.dart';
 import 'core/providers/locale_provider.dart' show localeProvider;
@@ -21,6 +22,7 @@ import 'core/services/desktop_notification_service_stub.dart'
 import 'core/services/notification_service.dart';
 import 'core/services/tray_service_stub.dart'
     if (dart.library.io) 'core/services/tray_service.dart';
+import 'features/auth/providers/auth_provider.dart';
 import 'firebase_options.dart';
 import 'package:guardian_app/l10n/app_localizations.dart';
 
@@ -138,6 +140,12 @@ class _GuardianAppState extends ConsumerState<GuardianApp> {
         defaultTargetPlatform == TargetPlatform.linux) {
       DesktopNotificationService.setRouter(router);
     }
+
+    // FCM-Token bei jedem Kalt-Start refreshen, damit veraltete Tokens in
+    // Firestore aktualisiert werden (Token-Rotation durch Google möglich).
+    ref.listen<AsyncValue<User?>>(authStateProvider, (_, next) {
+      if (next.value != null) NotificationService().initialize();
+    });
 
     const seedColor = Colors.blue;
     final isOnline = ref.watch(connectivityProvider).value ?? true;

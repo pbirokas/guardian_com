@@ -115,7 +115,7 @@ class OrganizationService {
     if (updates.isNotEmpty) {
       await _db.collection('organizations').doc(orgId).update(updates);
       await _logAudit(orgId, AuditAction.settingsChanged, {
-        if (name != null) 'name': name,
+        'name': ?name,
         if (tag != null) 'tag': tag.name,
       });
     }

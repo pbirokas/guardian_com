@@ -1498,4 +1498,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String auditBy(String name) {
     return 'by $name';
   }
+
+  @override
+  String get chatInfoTitle => 'Chat overview';
+
+  @override
+  String get chatParticipants => 'Participants';
+
+  @override
+  String get chatSupervisors => 'Supervisors';
+
+  @override
+  String get chatSupervisorHint => 'People who can only read this chat';
 }

@@ -1107,3 +1107,64 @@ exports.cleanupExpiredPolls = onSchedule('every day 03:05', async () => {
 
   console.log(`cleanupExpiredPolls: ${totalClosed} poll(s) closed.`);
 });
+
+// ── Guardian-Änderungen in Conversations propagieren ─────────────────────────
+// Wenn sich guardianUids eines Kindes ändert, werden alle Conversations,
+// an denen das Kind beteiligt ist, aktualisiert.
+// Läuft server-seitig (Admin SDK) – keine Firestore Rules nötig.
+
+exports.onMemberGuardiansChanged = onDocumentUpdated(
+  'organizations/{orgId}/members/{memberId}',
+  async (event) => {
+    const before = event.data.before.data();
+    const after  = event.data.after.data();
+    const { orgId, memberId } = event.params;
+
+    const guardiansBefore = before.guardianUids ?? [];
+    const guardiansAfter  = after.guardianUids  ?? [];
+
+    // Nur weiterarbeiten wenn sich etwas geändert hat
+    const added   = guardiansAfter.filter((uid) => !guardiansBefore.includes(uid));
+    const removed = guardiansBefore.filter((uid) => !guardiansAfter.includes(uid));
+    if (added.length === 0 && removed.length === 0) return;
+
+    const convsSnap = await db
+      .collection('conversations')
+      .where('orgId', '==', orgId)
+      .where('participantUids', 'array-contains', memberId)
+      .get();
+
+    if (convsSnap.empty) return;
+
+    const batch = db.batch();
+    for (const doc of convsSnap.docs) {
+      const update = {};
+      if (added.length > 0)   update.guardianUids = FieldValue.arrayUnion(...added);
+      if (removed.length > 0) {
+        // Guardian nur entfernen wenn er kein Guardian eines anderen Kindes
+        // in derselben Conversation ist.
+        const convData = doc.data();
+        const participants = convData.participantUids ?? [];
+        const keepUids = new Set();
+        await Promise.all(participants.filter((p) => p !== memberId).map(async (p) => {
+          const memberSnap = await db
+            .collection('organizations').doc(orgId)
+            .collection('members').doc(p).get();
+          if (!memberSnap.exists) return;
+          const g = memberSnap.data().guardianUids ?? [];
+          g.forEach((uid) => keepUids.add(uid));
+        }));
+        const safeToRemove = removed.filter((uid) => !keepUids.has(uid));
+        if (safeToRemove.length > 0) {
+          update.guardianUids = FieldValue.arrayRemove(...safeToRemove);
+        }
+      }
+      if (Object.keys(update).length > 0) batch.update(doc.ref, update);
+    }
+    await batch.commit();
+    console.log(
+      `onMemberGuardiansChanged: org=${orgId} child=${memberId} ` +
+      `added=${added.length} removed=${removed.length}`
+    );
+  }
+);

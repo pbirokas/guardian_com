@@ -649,5 +649,9 @@
   "auditBy": "von {name}",
   "@auditBy": {
     "placeholders": { "name": { "type": "String" } }
-  }
+  },
+  "chatInfoTitle": "Chat-Übersicht",
+  "chatParticipants": "Teilnehmer",
+  "chatSupervisors": "Überwacher",
+  "chatSupervisorHint": "Personen, die diesen Chat nur lesen können"
 }

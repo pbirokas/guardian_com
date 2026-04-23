@@ -592,10 +592,19 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text(l.errorMessage(e.toString()))),
       data: (convs) {
-        final approved =
-            convs.where((c) => c.status == ConversationStatus.approved).toList();
-        final archivedConvs =
-            convs.where((c) => c.status == ConversationStatus.archived).toList();
+        // Nur Conversations wo der User selbst Teilnehmer ist → reguläre Liste.
+        // Nicht-Teilnehmer-Chats (z. B. Admin-Oversight in Sheltered-Gruppen)
+        // landen über supervisorConvs in allSupervisorConvs.
+        final approved = convs
+            .where((c) =>
+                c.status == ConversationStatus.approved &&
+                c.participantUids.contains(currentUid))
+            .toList();
+        final archivedConvs = convs
+            .where((c) =>
+                c.status == ConversationStatus.archived &&
+                c.participantUids.contains(currentUid))
+            .toList();
         final ownPendingConvs = !isAdmin
             ? convs
                 .where((c) => c.status == ConversationStatus.pending)
@@ -607,17 +616,35 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
         final guardianSupervisorConvs =
             guardianSupervisorConvsAsync.value ?? [];
         final shelteredModConvs = shelteredModConvsAsync.value ?? [];
-        // Deduplizieren: IDs aus der eigenen Chat-Liste (approved) ausschließen,
-        // da man als Elternteil oft auch Mitglied im selben Chat ist.
         final approvedIds = approved.map((c) => c.id).toSet();
-        final allSupervisorConvs = [
-          ...supervisorConvs,
-          ...guardianSupervisorConvs
-              .where((c) => !supervisorConvs.any((s) => s.id == c.id)),
-          ...shelteredModConvs.where((c) =>
-              !supervisorConvs.any((s) => s.id == c.id) &&
-              !guardianSupervisorConvs.any((g) => g.id == c.id)),
-        ].where((c) => !approvedIds.contains(c.id)).toList();
+
+        // Admin: alle genehmigten Conversations wo er kein Teilnehmer ist
+        // als Oversight-Chats behandeln (Fallback für ältere Daten, bei denen
+        // canApproveUids evtl. nicht den Admin enthält).
+        final adminOversightConvs = isAdmin
+            ? convs
+                .where((c) =>
+                    c.status == ConversationStatus.approved &&
+                    !c.participantUids.contains(currentUid))
+                .toList()
+            : <Conversation>[];
+
+        // Deduplizieren über eine Map: neuere Einträge aus spezifischeren
+        // Quellen überschreiben ältere aus dem allgemeinen Admin-Query.
+        final supervisorMap = <String, Conversation>{
+          for (final c in adminOversightConvs) c.id: c,
+          for (final c in supervisorConvs) c.id: c,
+          for (final c in guardianSupervisorConvs) c.id: c,
+          for (final c in shelteredModConvs) c.id: c,
+        };
+        final allSupervisorConvs = supervisorMap.values
+            .where((c) => !approvedIds.contains(c.id))
+            .toList()
+          ..sort((a, b) {
+            if (a.lastMessageAt == null) return 1;
+            if (b.lastMessageAt == null) return -1;
+            return b.lastMessageAt!.compareTo(a.lastMessageAt!);
+          });
 
         return Stack(
           children: [
@@ -1955,6 +1982,137 @@ class _ConversationTile extends StatelessWidget {
     );
   }
 
+  void _showChatInfoSheet(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    // Participants = people in the chat
+    final participants = members
+        .where((m) => conv.participantUids.contains(m.uid))
+        .toList();
+
+    // Supervisors = guardianUids + canApproveUids (live moderators from members list),
+    // excluding anyone who is already a participant.
+    final participantSet = conv.participantUids.toSet();
+    final supervisorUids = {
+      ...conv.guardianUids,
+      ...members
+          .where((m) => m.role == OrgRole.admin || m.role == OrgRole.moderator)
+          .map((m) => m.uid),
+    }.where((uid) => !participantSet.contains(uid)).toSet();
+    final supervisors =
+        members.where((m) => supervisorUids.contains(m.uid)).toList();
+
+    Widget memberRow(OrgMember m) {
+      final photo = m.photoUrl;
+      final initial = m.displayName.isNotEmpty ? m.displayName[0].toUpperCase() : '?';
+      final roleLabel = switch (m.role) {
+        OrgRole.admin => l.roleAdmin,
+        OrgRole.moderator => l.roleModerator,
+        OrgRole.member => l.roleMember,
+        OrgRole.child => l.roleChild,
+      };
+      return ListTile(
+        dense: true,
+        leading: CircleAvatar(
+          radius: 18,
+          backgroundImage: photo != null ? NetworkImage(photo) : null,
+          child: photo == null ? Text(initial, style: const TextStyle(fontSize: 13)) : null,
+        ),
+        title: Text(m.displayName, style: const TextStyle(fontSize: 14)),
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(roleLabel,
+              style: TextStyle(
+                  fontSize: 11, color: theme.colorScheme.onSecondaryContainer)),
+        ),
+      );
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.85,
+        builder: (_, scrollController) => Column(
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[400],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Row(children: [
+                const Icon(Icons.group_outlined, size: 18),
+                const SizedBox(width: 8),
+                Text(l.chatInfoTitle,
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+              ]),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView(
+                controller: scrollController,
+                children: [
+                  // ── Teilnehmer ─────────────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                    child: Text(l.chatParticipants,
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[600])),
+                  ),
+                  if (participants.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      child: Text('—', style: TextStyle(color: Colors.grey[400])),
+                    )
+                  else
+                    ...participants.map(memberRow),
+
+                  // ── Überwacher ─────────────────────────────────────────
+                  if (supervisors.isNotEmpty) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 2),
+                      child: Text(l.chatSupervisors,
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[600])),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                      child: Text(l.chatSupervisorHint,
+                          style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+                    ),
+                    ...supervisors.map(memberRow),
+                  ],
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -2082,6 +2240,13 @@ class _ConversationTile extends StatelessWidget {
                         : hasUnread
                             ? Theme.of(context).colorScheme.primary
                             : Colors.grey)),
+          if (isSupervisor) ...[
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: () => _showChatInfoSheet(context),
+              child: Icon(Icons.info_outline, size: 18, color: Colors.grey[500]),
+            ),
+          ],
           if (isAdminOrMod) ...[
             const SizedBox(width: 4),
             GestureDetector(

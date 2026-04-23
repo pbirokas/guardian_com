@@ -65,6 +65,7 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 - Nach Chat-Löschung kann ebenfalls eine neue Anfrage gestellt werden
 - Genehmigte Chats sind für den Guardian des Kindes sichtbar
 - **Chat-Übersicht:** „Überwachte Chats" blendet Chats aus, in denen man selbst Mitglied ist (keine Doppeleinträge); Sektion ist ein- und ausklappbar
+- **Chat-Info (ⓘ):** Guardians, Eltern, Admins und Moderatoren können in der Kachel eines überwachten Chats auf ⓘ tippen, um Teilnehmer und Supervisoren des Chats anzuzeigen
 
 #### Sheltered-Modus
 - Admin legt vorab fest, wer mit wem kommunizieren darf
@@ -78,6 +79,7 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 - Guardian muss die Einladung seines Kindes bestätigen
 - Guardian-Kind-Beziehung wird in der Mitgliederliste mit Symbol angezeigt
 - Guardian hat Lesezugriff auf die Chats seines Kindes
+- Wird ein Guardian nachträglich einem Kind zugewiesen, propagiert eine Cloud Function die Änderung automatisch in alle bestehenden Chats des Kindes
 
 ### Verifizierte Eltern-Kind-Verknüpfung (konto-übergreifend)
 
@@ -161,6 +163,8 @@ Erreichbar über **Profil → Meine Verknüpfungen**. Der Screen vereint alle As
 - Benachrichtigung bei neuer Chat-Anfrage (Guardian-Modus) — für Approver, Guardian und Angefragten
 - Foreground & Background: native System-Benachrichtigung
 - **Tap auf Benachrichtigung öffnet direkt den Chat** — auch wenn die App geschlossen war (robustes Deep-Link-Handling via Pending-Message-Pattern, kein fragiles Timeout mehr)
+- **Zuverlässige Zustellung (Doze-Modus):** FCM-Nachrichten werden mit `android.priority: high` versendet, sodass Android den Doze-Modus überbrückt und Benachrichtigungen auch nach Stunden ohne Aktivität ankommen
+- **FCM-Token-Erneuerung nach Kaltstart:** Token wird bei jedem Login neu registriert, damit keine veralteten Token zu Benachrichtigungsausfällen führen
 - **Akku-Optimierungs-Hinweis**: beim Start wird geprüft, ob Android Doze/Akku-Optimierung aktiv ist; ein Dialog erklärt das Problem und leitet direkt zur Systemeinstellung weiter — „Nicht mehr fragen" unterdrückt den Hinweis dauerhaft
 - Benachrichtigungsintervall global und pro Organisation einstellbar:
   - Jede Nachricht

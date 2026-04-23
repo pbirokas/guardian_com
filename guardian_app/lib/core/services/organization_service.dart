@@ -242,6 +242,9 @@ class OrganizationService {
 
   Future<void> updateGuardians(
       String orgId, String childUid, List<String> guardianUids) async {
+    // Nur das Member-Dokument aktualisieren.
+    // Die Propagation der guardianUids in bestehende Conversations übernimmt
+    // die Cloud Function onMemberGuardiansChanged (Admin SDK, keine Permissions).
     await _db
         .collection('organizations')
         .doc(orgId)

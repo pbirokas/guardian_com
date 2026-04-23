@@ -2743,6 +2743,30 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'von {name}'**
   String auditBy(String name);
+
+  /// No description provided for @chatInfoTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Chat-Übersicht'**
+  String get chatInfoTitle;
+
+  /// No description provided for @chatParticipants.
+  ///
+  /// In de, this message translates to:
+  /// **'Teilnehmer'**
+  String get chatParticipants;
+
+  /// No description provided for @chatSupervisors.
+  ///
+  /// In de, this message translates to:
+  /// **'Überwacher'**
+  String get chatSupervisors;
+
+  /// No description provided for @chatSupervisorHint.
+  ///
+  /// In de, this message translates to:
+  /// **'Personen, die diesen Chat nur lesen können'**
+  String get chatSupervisorHint;
 }
 
 class _AppLocalizationsDelegate

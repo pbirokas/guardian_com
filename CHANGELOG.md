@@ -4,6 +4,34 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+### 2026-04-23 — FCM-Zuverlässigkeit, Chat-Info & Überwachungs-Korrekturen
+
+#### Neue Funktionen
+
+**Chat-Info-Blatt für überwachte Chats (ⓘ)**
+- Guardians, Eltern, Admins und Moderatoren sehen in der Liste der überwachten Chats ein ⓘ-Icon
+- Antippen öffnet ein `DraggableScrollableSheet` mit zwei Sektionen: „Teilnehmer" und „Supervisoren"
+- Teilnehmer werden aus `conv.participantUids` gelesen; Supervisoren aus `guardianUids` plus aktiven Admin-/Mod-Mitgliedern ohne direkten Chat-Zugriff
+
+#### Fehlerbehebungen
+
+| Bereich | Änderung |
+|---|---|
+| **FCM-Benachrichtigungen (Doze-Modus)** | `android.priority: 'high'` auf Nachrichten-Ebene gesetzt — Android ignorierte Benachrichtigungen nach einigen Stunden, weil der Doze-Modus die FCM-Verbindung unterbrach |
+| **FCM-Token beim Kaltstart** | `ref.listen` auf `authStateProvider` in `main.dart` erneuert den FCM-Token nach dem Login, sodass bereits angemeldete Nutzer nach App-Neustart zuverlässig Benachrichtigungen erhalten |
+| **Falsche Namen in überwachten Chats** | Für Supervisoren wird jetzt das Kind in `participantUids` per `OrgRole.child`-Filter gesucht — vorher wurde gelegentlich der Name des zweiten Guardians statt des Kindes angezeigt |
+| **PERMISSION_DENIED beim Öffnen überwachter Chats** | Firestore-Regel für Conversations erweitert: neue Hilfsfunktion `canAccessConv()` prüft zusätzlich `guardianUids` und `isAdminOrMod(orgId)` (dynamisch) — `canApproveUids` war veraltet |
+| **PERMISSION_DENIED für Supervisor im Chat** | `ChatScreen` prüft `_isParticipant`; Supervisoren (nicht in `participantUids`) dürfen lesen, aber nicht schreiben — schützt `_markRead()` und `_onTextChanged()` |
+| **Admin sieht eigene Chats unter „Überwachte Chats"** | `approved`- und `archivedConvs`-Listen filtern jetzt auf `participantUids.contains(currentUid)` — Chats ohne eigene Teilnahme fließen korrekt in `allSupervisorConvs` |
+| **Nachträglich hinzugefügter Guardian sieht keine Kinder-Chats** | Neue Cloud Function `onMemberGuardiansChanged` reagiert auf Änderungen an `members/{memberId}.guardianUids` und propagiert Ergänzungen/Entfernungen per `FieldValue.arrayUnion/arrayRemove` in alle betroffenen Conversations — serverseitig via Admin SDK, ohne Firestore-Regeln |
+| **PERMISSION_DENIED bei Moderator entfernt Guardian** | Clientseitige Conversation-Abfrage in `updateGuardians()` entfernt; Propagation erfolgt ausschließlich über die Cloud Function — Moderatoren dürfen keine org-weiten Queries ausführen |
+
+#### Infrastruktur
+
+- `firestore.indexes.json`: fehlende Compound-Indizes ergänzt (`conversations` — `orgId` + `participantUids`, `orgInviteConsents`, `memberSuggestions`, `claimRequests` ×2, `scheduledMessages`)
+
+---
+
 ### 2026-04-17 — Akku-Optimierung & Spenden-Einstellung
 
 #### Neue Funktionen

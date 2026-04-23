@@ -158,41 +158,40 @@ service cloud.firestore {
     // ─── Conversations ───────────────────────────────────────────────────────
 
     match /conversations/{convId} {
-      // Single document read: participant, orgAdmin, canApprove member, or guardian
-      allow get: if isSignedIn() && (
-        request.auth.uid in resource.data.participantUids ||
-        resource.data.orgAdminUid == request.auth.uid ||
-        request.auth.uid in resource.data.canApproveUids ||
-        request.auth.uid in resource.data.guardianUids
-      );
+      // Returns true if the caller has any supervisory or participant access.
+      // canApproveUids / guardianUids are set at creation time and may be stale
+      // when roles change later → also check the live org membership (isAdminOrMod).
+      function canAccessConv() {
+        return request.auth.uid in resource.data.participantUids ||
+               resource.data.orgAdminUid == request.auth.uid ||
+               request.auth.uid in resource.data.canApproveUids ||
+               request.auth.uid in resource.data.guardianUids ||
+               isAdminOrMod(resource.data.orgId);
+      }
 
-      // Queries: allow if the returned doc includes the caller in one of the uid arrays.
-      // Covers: watchOrgConversations, watchAdminConversations, watchPendingRequests,
-      //         watchModeratorPendingRequests, watchGuardianPendingRequests,
-      //         watchSupervisorConversations, watchGuardianSupervisorConversations,
-      //         watchShelteredModeratorConversations
-      allow list: if isSignedIn() && (
-        request.auth.uid in resource.data.participantUids ||
-        resource.data.orgAdminUid == request.auth.uid ||
-        request.auth.uid in resource.data.canApproveUids ||
-        request.auth.uid in resource.data.guardianUids
-      );
+      // Single document read: participant, orgAdmin, canApprove member, guardian,
+      // or current admin/moderator of the org (live role check).
+      allow get: if isSignedIn() && canAccessConv();
+
+      // Queries: covers watchOrgConversations, watchAdminConversations,
+      // watchPendingRequests, watchModeratorPendingRequests,
+      // watchGuardianPendingRequests, watchSupervisorConversations,
+      // watchGuardianSupervisorConversations, watchShelteredModeratorConversations.
+      allow list: if isSignedIn() && canAccessConv();
 
       allow create: if isSignedIn();
 
       allow update: if isSignedIn() && (
-        // Pinning/unpinning: only orgAdmin or canApproveUids (admins/moderators)
+        // Pinning/unpinning: only orgAdmin, canApproveUids, or current admin/mod
         (request.resource.data.diff(resource.data).affectedKeys()
             .hasAny(['pinnedMessageId', 'pinnedMessageText']) &&
           (resource.data.orgAdminUid == request.auth.uid ||
-           request.auth.uid in resource.data.canApproveUids)) ||
-        // All other fields: any participant, orgAdmin, canApprove member, or guardian
+           request.auth.uid in resource.data.canApproveUids ||
+           isAdminOrMod(resource.data.orgId))) ||
+        // All other fields: participant, orgAdmin, canApprove, guardian, or current admin/mod
         (!request.resource.data.diff(resource.data).affectedKeys()
             .hasAny(['pinnedMessageId', 'pinnedMessageText']) &&
-          (request.auth.uid in resource.data.participantUids ||
-           resource.data.orgAdminUid == request.auth.uid ||
-           request.auth.uid in resource.data.canApproveUids ||
-           request.auth.uid in resource.data.guardianUids))
+          canAccessConv())
       );
 
       allow delete: if isSignedIn() && isAdmin(resource.data.orgId);
@@ -257,29 +256,33 @@ service cloud.firestore {
       // ─── Messages subcollection ───────────────────────────────────────────
 
       match /messages/{messageId} {
-        allow read: if isSignedIn() && (
-          request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.participantUids ||
-          get(/databases/$(database)/documents/conversations/$(convId)).data.orgAdminUid == request.auth.uid ||
-          request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.canApproveUids ||
-          request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.guardianUids
-        );
+        function convSnap() {
+          return get(/databases/$(database)/documents/conversations/$(convId)).data;
+        }
+        function canReadMsg() {
+          return request.auth.uid in convSnap().participantUids ||
+                 convSnap().orgAdminUid == request.auth.uid ||
+                 request.auth.uid in convSnap().canApproveUids ||
+                 request.auth.uid in convSnap().guardianUids ||
+                 isAdminOrMod(convSnap().orgId);
+        }
+
+        allow read: if isSignedIn() && canReadMsg();
 
         allow create: if isSignedIn() && (
-          request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.participantUids ||
-          request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.canApproveUids ||
-          get(/databases/$(database)/documents/conversations/$(convId)).data.orgAdminUid == request.auth.uid
+          request.auth.uid in convSnap().participantUids ||
+          request.auth.uid in convSnap().canApproveUids ||
+          convSnap().orgAdminUid == request.auth.uid
         );
 
         allow update: if isSignedIn() && (
           request.auth.uid == resource.data.senderUid ||
-          isAdminOrMod(get(/databases/$(database)/documents/conversations/$(convId)).data.orgId) ||
-          // Reactions: any participant can set/remove their own reaction
-          (request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.participantUids &&
+          isAdminOrMod(convSnap().orgId) ||
+          (request.auth.uid in convSnap().participantUids &&
            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']))
         );
 
-        allow delete: if isSignedIn() &&
-          isAdmin(get(/databases/$(database)/documents/conversations/$(convId)).data.orgId);
+        allow delete: if isSignedIn() && isAdmin(convSnap().orgId);
       }
     }
 

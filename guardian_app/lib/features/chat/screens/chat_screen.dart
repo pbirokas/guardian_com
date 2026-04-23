@@ -82,6 +82,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _onTextChanged() {
+    if (!_isParticipant) return;
     if (_controller.text.trim().isNotEmpty) {
       if (!_isTyping) {
         _isTyping = true;
@@ -134,7 +135,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  bool get _isParticipant {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return false;
+    final conv = ref.read(conversationProvider(widget.chatId)).value;
+    return conv == null || conv.participantUids.contains(uid);
+  }
+
   void _markRead() {
+    if (!_isParticipant) return;
     ref.read(chatServiceProvider).markAsRead(widget.chatId).catchError((_) {});
   }
 

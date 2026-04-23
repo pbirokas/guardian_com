@@ -1970,9 +1970,25 @@ class _ConversationTile extends StatelessWidget {
             color: Theme.of(context).colorScheme.onSecondaryContainer),
       );
     } else {
-      final otherUid = conv.participantUids.firstWhere(
-          (uid) => uid != currentUid,
-          orElse: () => '');
+      // Bei überwachten Chats immer das Kind anzeigen, unabhängig davon wer
+      // schaut – sonst sehen Guardians zufällig den anderen Erwachsenen.
+      final String otherUid;
+      if (isSupervisor) {
+        final childUid = members
+            .where((m) =>
+                m.role == OrgRole.child &&
+                conv.participantUids.contains(m.uid))
+            .map((m) => m.uid)
+            .firstOrNull;
+        otherUid = childUid ??
+            conv.participantUids.firstWhere(
+                (uid) => uid != currentUid,
+                orElse: () => conv.participantUids.firstOrNull ?? '');
+      } else {
+        otherUid = conv.participantUids.firstWhere(
+            (uid) => uid != currentUid,
+            orElse: () => '');
+      }
       final other = members.where((m) => m.uid == otherUid).firstOrNull;
       title = other?.displayName ?? 'Unbekannt';
       final photoUrl = other?.photoUrl;

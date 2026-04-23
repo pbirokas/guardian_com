@@ -487,5 +487,5 @@ Beiträge sind willkommen! Bitte lies zuerst [`CONTRIBUTING.md`](CONTRIBUTING.md
 
 ## Lizenz
 
-Dieses Projekt steht unter der [MIT-Lizenz](LICENSE).  
+Dieses Projekt steht unter der [PolyForm Noncommercial License 1.0.0](LICENSE).  
 © 2025 Pantelis Birokas

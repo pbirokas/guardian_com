@@ -655,5 +655,9 @@
   "chatSupervisors": "Supervisors",
   "chatSupervisorHint": "People who can only read this chat",
   "chatTypeGroup": "Group",
-  "chatTypeDirect": "Direct message"
+  "chatTypeDirect": "Direct message",
+  "renameGroup": "Rename group",
+  "personalChatName": "Personal chat name",
+  "chatNameHint": "Group name",
+  "personalNameHint": "Name only visible to you"
 }

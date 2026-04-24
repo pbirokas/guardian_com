@@ -23,6 +23,8 @@ class Conversation {
   final Map<String, DateTime> typingUsers;
   final String? pinnedMessageId;
   final String? pinnedMessageText;
+  // Per-user display names for direct chats (key = uid, value = custom name)
+  final Map<String, String> personalNames;
 
   const Conversation({
     required this.id,
@@ -45,6 +47,7 @@ class Conversation {
     this.typingUsers = const {},
     this.pinnedMessageId,
     this.pinnedMessageText,
+    this.personalNames = const {},
   });
 
   bool hasUnread(String uid) {
@@ -96,6 +99,9 @@ class Conversation {
       typingUsers: typingUsers,
       pinnedMessageId: data['pinnedMessageId'] as String?,
       pinnedMessageText: data['pinnedMessageText'] as String?,
+      personalNames: data['personalNames'] != null
+          ? Map<String, String>.from(data['personalNames'] as Map)
+          : {},
     );
   }
 

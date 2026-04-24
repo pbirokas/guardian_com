@@ -1516,4 +1516,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatTypeDirect => 'Direct message';
+
+  @override
+  String get renameGroup => 'Rename group';
+
+  @override
+  String get personalChatName => 'Personal chat name';
+
+  @override
+  String get chatNameHint => 'Group name';
+
+  @override
+  String get personalNameHint => 'Name only visible to you';
 }

@@ -1524,4 +1524,16 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatTypeDirect => 'Direktnachricht';
+
+  @override
+  String get renameGroup => 'Gruppe umbenennen';
+
+  @override
+  String get personalChatName => 'Eigener Chatname';
+
+  @override
+  String get chatNameHint => 'Gruppenname';
+
+  @override
+  String get personalNameHint => 'Name nur für dich sichtbar';
 }

@@ -70,6 +70,8 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 - **Chat-Info (ⓘ):** Guardians, Eltern, Admins und Moderatoren können in der Kachel eines überwachten Chats auf ⓘ tippen, um Teilnehmer und Supervisoren des Chats anzuzeigen
 - **Typ-Indikator:** Jede Kachel in der „Überwachte Chats"-Liste zeigt „Gruppe" oder „Direktnachricht", damit Gruppen- und 1-zu-1-Chats auf einen Blick unterscheidbar sind
 - „Chat Starten" aus der Mitgliederliste öffnet immer einen eigenen 1-zu-1-Chat, auch wenn bereits eine Gruppenkonversation mit derselben Person existiert
+- **Gruppen umbenennen:** Admins und Moderatoren können Gruppenkonversationen jederzeit umbenennen — über das ✏️-Icon in der AppBar oder das `⋮`-Menü der Chat-Kachel
+- **Persönlicher Chatname:** Jeder Teilnehmer eines Direktchats kann für sich einen eigenen Anzeigenamen vergeben (nur für ihn sichtbar) — per ✏️-Icon in der AppBar, `⋮`-Menü oder Long-Press auf die Chat-Kachel
 
 #### Sheltered-Modus
 - Admin legt vorab fest, wer mit wem kommunizieren darf
@@ -492,4 +494,4 @@ Beiträge sind willkommen! Bitte lies zuerst [`CONTRIBUTING.md`](CONTRIBUTING.md
 ## Lizenz
 
 Dieses Projekt steht unter der [PolyForm Noncommercial License 1.0.0](LICENSE).  
-© 2025 Pantelis Birokas
+© 2026 Pantelis Birokas

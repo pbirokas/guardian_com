@@ -147,6 +147,47 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ref.read(chatServiceProvider).markAsRead(widget.chatId).catchError((_) {});
   }
 
+  Future<void> _showRenameDialog(Conversation conv, {required bool isGroup}) async {
+    final l = AppLocalizations.of(context);
+    final controller = TextEditingController(
+      text: isGroup
+          ? (conv.name ?? '')
+          : (conv.personalNames[FirebaseAuth.instance.currentUser?.uid ?? ''] ?? ''),
+    );
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(isGroup ? l.renameGroup : l.personalChatName),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 40,
+          decoration: InputDecoration(
+            hintText: isGroup ? l.chatNameHint : l.personalNameHint,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l.save),
+          ),
+        ],
+      ),
+    );
+    final name = controller.text;
+    if (confirmed != true) return;
+    final service = ref.read(chatServiceProvider);
+    if (isGroup) {
+      await service.renameConversation(conv.id, name);
+    } else {
+      await service.setPersonalName(conv.id, name);
+    }
+  }
+
   @override
   void dispose() {
     _controller.removeListener(_onTextChanged);
@@ -886,7 +927,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           (uid) => uid != currentUid,
           orElse: () => '');
       final other = members?.where((m) => m.uid == otherUid).firstOrNull;
-      title = other?.displayName ?? widget.partnerName ?? 'Chat';
+      final personalName = conv.personalNames[currentUid];
+      title = (personalName != null && personalName.isNotEmpty)
+          ? personalName
+          : (other?.displayName ?? widget.partnerName ?? 'Chat');
     }
 
     final isModeratorOrAdmin = conv != null &&
@@ -976,6 +1020,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     );
                   },
                 ),
+                if (conv != null && conv.isGroup && isModeratorOrAdmin)
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined),
+                    tooltip: l.renameGroup,
+                    onPressed: () => _showRenameDialog(conv, isGroup: true),
+                  ),
+                if (conv != null && !conv.isGroup && _isParticipant)
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined),
+                    tooltip: l.personalChatName,
+                    onPressed: () => _showRenameDialog(conv, isGroup: false),
+                  ),
                 IconButton(
                   icon: const Icon(Icons.search),
                   tooltip: l.searchMessages,

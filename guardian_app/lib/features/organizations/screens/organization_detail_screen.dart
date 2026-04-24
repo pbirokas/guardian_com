@@ -785,6 +785,7 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                                 conv: conv,
                                 members: members,
                                 currentUid: currentUid,
+                                ref: ref,
                                 isAdminOrMod: false,
                                 onArchive: null,
                                 onDelete: null,
@@ -826,6 +827,7 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                             conv: approved[i],
                             members: members,
                             currentUid: currentUid,
+                            ref: ref,
                             isAdminOrMod: isAdmin || isModerator,
                             onArchive: (isAdmin || isModerator)
                                 ? () => ref.read(chatServiceProvider).archiveConversation(approved[i].id)
@@ -880,6 +882,7 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                               conv: allSupervisorConvs[i],
                               members: members,
                               currentUid: currentUid,
+                              ref: ref,
                               isSupervisor: true,
                               isAdminOrMod: isAdmin || isModerator,
                               onArchive: (isAdmin || isModerator)
@@ -923,6 +926,7 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                             conv: archivedConvs[i],
                             members: members,
                             currentUid: currentUid,
+                            ref: ref,
                             isAdminOrMod: isAdmin || isModerator,
                             onUnarchive: (isAdmin || isModerator)
                                 ? () => ref.read(chatServiceProvider).approveConversation(archivedConvs[i].id)
@@ -1932,6 +1936,7 @@ class _ConversationTile extends StatelessWidget {
   final Conversation conv;
   final List<OrgMember> members;
   final String currentUid;
+  final WidgetRef ref;
   final bool isSupervisor;
   final bool isAdminOrMod;
   final VoidCallback? onArchive;
@@ -1942,6 +1947,7 @@ class _ConversationTile extends StatelessWidget {
     required this.conv,
     required this.members,
     required this.currentUid,
+    required this.ref,
     this.isSupervisor = false,
     this.isAdminOrMod = false,
     this.onArchive,
@@ -1958,6 +1964,24 @@ class _ConversationTile extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (conv.isGroup && isAdminOrMod)
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: Text(l.renameGroup),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showRenameDialog(context, isGroup: true);
+                },
+              ),
+            if (!conv.isGroup && conv.participantUids.contains(currentUid))
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: Text(l.personalChatName),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showRenameDialog(context, isGroup: false);
+                },
+              ),
             if (!isArchived && onArchive != null)
               ListTile(
                 leading: const Icon(Icons.archive_outlined),
@@ -2113,6 +2137,48 @@ class _ConversationTile extends StatelessWidget {
     );
   }
 
+  Future<void> _showRenameDialog(BuildContext context,
+      {required bool isGroup}) async {
+    final l = AppLocalizations.of(context);
+    final controller = TextEditingController(
+      text: isGroup
+          ? (conv.name ?? '')
+          : (conv.personalNames[currentUid] ?? ''),
+    );
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(isGroup ? l.renameGroup : l.personalChatName),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 40,
+          decoration: InputDecoration(
+            hintText: isGroup ? l.chatNameHint : l.personalNameHint,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l.save),
+          ),
+        ],
+      ),
+    );
+    final name = controller.text;
+    if (confirmed != true) return;
+    final service = ref.read(chatServiceProvider);
+    if (isGroup) {
+      await service.renameConversation(conv.id, name);
+    } else {
+      await service.setPersonalName(conv.id, name);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -2148,7 +2214,10 @@ class _ConversationTile extends StatelessWidget {
             orElse: () => '');
       }
       final other = members.where((m) => m.uid == otherUid).firstOrNull;
-      title = other?.displayName ?? 'Unbekannt';
+      final personalName = conv.personalNames[currentUid];
+      title = (personalName != null && personalName.isNotEmpty)
+          ? personalName
+          : (other?.displayName ?? 'Unbekannt');
       final photoUrl = other?.photoUrl;
       avatar = CircleAvatar(
         backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
@@ -2283,6 +2352,9 @@ class _ConversationTile extends StatelessWidget {
         ],
       ),
       onTap: () => context.push('/chat/${conv.id}', extra: title),
+      onLongPress: (!conv.isGroup && conv.participantUids.contains(currentUid) && !isAdminOrMod)
+          ? () => _showRenameDialog(context, isGroup: false)
+          : null,
     );
   }
 

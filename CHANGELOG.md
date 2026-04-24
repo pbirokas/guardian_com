@@ -4,6 +4,30 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+### 2026-04-24 — Chat umbenennen, Chat-Start-Logik, Mitglieder-Aktionen & Rollensperre
+
+#### Neue Funktionen
+
+**Gruppen umbenennen (Admin & Moderator)**
+- „Umbenennen"-Option im `⋮`-Menü der Chat-Kachel für Gruppenkonversationen
+- Edit-Icon (✏️) in der AppBar des Chat-Screens — nur für Admin und Moderatoren sichtbar
+- Der neue Name wird in Echtzeit in Kachel und AppBar übernommen
+
+**Persönlicher Chatname für Direktnachrichten**
+- Jeder Teilnehmer kann für sich einen eigenen Anzeigenamen für einen 1-zu-1-Chat vergeben
+- Erreichbar über das Edit-Icon in der AppBar oder über „Eigener Chatname" im `⋮`-Menü
+- Nutzer ohne `⋮`-Zugang (Nicht-Admin/Mod) können per Long-Press auf die Chat-Kachel umbenennen
+- Name ist nur für den jeweiligen Nutzer sichtbar — gespeichert im Feld `personalNames` der Konversation
+- Kein persönlicher Name gesetzt → Originalname des Gesprächspartners wird angezeigt
+
+#### Fehlerbehebungen
+
+| Bereich | Änderung |
+|---|---|
+| **TextEditingController disposed zu früh** | `controller.dispose()` in Rename-Dialogen entfernt — lokal erstellte Controller dürfen während der Dialog-Schließ-Animation nicht manuell disposed werden |
+
+---
+
 ### 2026-04-24 — Chat-Start-Logik, Mitglieder-Aktionen & Rollensperre
 
 #### Neue Funktionen

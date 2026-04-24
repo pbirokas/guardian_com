@@ -655,5 +655,9 @@
   "chatSupervisors": "Überwacher",
   "chatSupervisorHint": "Personen, die diesen Chat nur lesen können",
   "chatTypeGroup": "Gruppe",
-  "chatTypeDirect": "Direktnachricht"
+  "chatTypeDirect": "Direktnachricht",
+  "renameGroup": "Gruppe umbenennen",
+  "personalChatName": "Eigener Chatname",
+  "chatNameHint": "Gruppenname",
+  "personalNameHint": "Name nur für dich sichtbar"
 }

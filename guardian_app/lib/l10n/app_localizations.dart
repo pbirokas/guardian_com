@@ -2779,6 +2779,30 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Direktnachricht'**
   String get chatTypeDirect;
+
+  /// No description provided for @renameGroup.
+  ///
+  /// In de, this message translates to:
+  /// **'Gruppe umbenennen'**
+  String get renameGroup;
+
+  /// No description provided for @personalChatName.
+  ///
+  /// In de, this message translates to:
+  /// **'Eigener Chatname'**
+  String get personalChatName;
+
+  /// No description provided for @chatNameHint.
+  ///
+  /// In de, this message translates to:
+  /// **'Gruppenname'**
+  String get chatNameHint;
+
+  /// No description provided for @personalNameHint.
+  ///
+  /// In de, this message translates to:
+  /// **'Name nur für dich sichtbar'**
+  String get personalNameHint;
 }
 
 class _AppLocalizationsDelegate

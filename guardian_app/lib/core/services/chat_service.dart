@@ -149,6 +149,17 @@ class ChatService {
     return conv;
   }
 
+  Future<void> renameConversation(String convId, String name) async {
+    await _db.collection('conversations').doc(convId).update({'name': name.trim()});
+  }
+
+  Future<void> setPersonalName(String convId, String name) async {
+    final trimmed = name.trim();
+    await _db.collection('conversations').doc(convId).update({
+      'personalNames.$_uid': trimmed.isEmpty ? FieldValue.delete() : trimmed,
+    });
+  }
+
   Future<void> approveConversation(String convId) async {
     await _db.collection('conversations').doc(convId).update({
       'status': ConversationStatus.approved.name,

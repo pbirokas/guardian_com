@@ -9,7 +9,8 @@
       "Bash(python -c \"from PIL import Image, ImageDraw; print\\('Pillow OK'\\)\")",
       "Bash(python -c \"import cairosvg; print\\('cairosvg OK'\\)\")",
       "Bash(python -c \"import aggdraw; print\\('aggdraw OK'\\)\")",
-      "Bash(grep -v \"^$\")"
+      "Bash(grep -v \"^$\")",
+      "Bash(git -C \"c:\\\\Users\\\\pbiro\\\\Documents\\\\git\\\\fist_steps\" diff --stat HEAD)"
     ]
   }
 }

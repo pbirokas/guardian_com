@@ -4,6 +4,24 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+### 2026-04-24 — Chat-Start-Logik, Mitglieder-Aktionen & Rollensperre
+
+#### Neue Funktionen
+
+**Typ-Indikator in überwachten Chats**
+- Jede Kachel in der „Überwachte Chats"-Liste zeigt ein kleines „Gruppe" oder „Direktnachricht"-Label mit passendem Icon, damit Gruppen- und 1-zu-1-Chats klar unterscheidbar sind
+
+#### Fehlerbehebungen
+
+| Bereich | Änderung |
+|---|---|
+| **Chat Starten navigiert in Gruppenkonversation** | `createApprovedConversation` ignoriert jetzt bestehende Gruppenkonversationen beim Suchen nach einem vorhandenen Chat — ein neuer 1-zu-1-Chat wird immer separat angelegt |
+| **„No action available" bei Mitgliedern** | `⋮`-Button wird nur noch angezeigt wenn tatsächlich Aktionen verfügbar sind; reguläre Mitglieder ohne Aktionen sehen den Button gar nicht mehr |
+| **Rolle ändern für Kinder (Exception)** | „Rolle ändern" und „Admin übertragen" werden für Kind-Mitglieder komplett ausgeblendet |
+| **Rolle ändern blendet „Kind" für Guardians aus** | Mitglieder, die Guardian eines Kindes sind, dürfen ihre Rolle ändern (z. B. zu Moderator), erhalten aber „Kind" nicht als Zieloption angeboten |
+
+---
+
 ### 2026-04-23 — FCM-Zuverlässigkeit, Chat-Info & Überwachungs-Korrekturen
 
 #### Neue Funktionen

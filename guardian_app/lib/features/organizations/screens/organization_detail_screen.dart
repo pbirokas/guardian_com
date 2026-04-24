@@ -2206,17 +2206,43 @@ class _ConversationTile extends StatelessWidget {
               : hasUnread
                   ? const TextStyle(fontWeight: FontWeight.bold)
                   : null),
-      subtitle: conv.lastMessage != null
-          ? Text(conv.lastMessage!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: isArchived
-                  ? TextStyle(color: Colors.grey[400])
-                  : hasUnread
-                      ? const TextStyle(fontWeight: FontWeight.w500)
-                      : null)
-          : Text(l.noMessages,
-              style: TextStyle(color: isArchived ? Colors.grey[400] : Colors.grey)),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isSupervisor) ...[
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  conv.isGroup ? Icons.group : Icons.person,
+                  size: 11,
+                  color: Colors.grey[500],
+                ),
+                const SizedBox(width: 3),
+                Text(
+                  conv.isGroup ? l.chatTypeGroup : l.chatTypeDirect,
+                  style: TextStyle(fontSize: 10, color: Colors.grey[500]),
+                ),
+              ],
+            ),
+            const SizedBox(height: 1),
+          ],
+          if (conv.lastMessage != null)
+            Text(conv.lastMessage!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: isArchived
+                    ? TextStyle(color: Colors.grey[400])
+                    : hasUnread
+                        ? const TextStyle(fontWeight: FontWeight.w500)
+                        : null)
+          else
+            Text(l.noMessages,
+                style:
+                    TextStyle(color: isArchived ? Colors.grey[400] : Colors.grey)),
+        ],
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -2343,6 +2369,26 @@ class _MemberTile extends StatelessWidget {
     required this.currentUid,
   });
 
+  // Rolle ist gesperrt wenn das Mitglied selbst ein Kind ist.
+  bool get _isRoleLocked => member.role == OrgRole.child;
+
+  // Guardian eines Kindes: darf Rolle wechseln, aber nicht zu "Kind".
+  bool get _isGuardianOfChild =>
+      allMembers.any((m) => m.guardianUids.contains(member.uid));
+
+  bool get _hasActions {
+    if (member.uid == currentUid) return true; // eigene Kachel: Benachrichtigungen + Austreten
+    final isGuardian = member.guardianUids.contains(currentUid);
+    final isMod = !isAdmin &&
+        allMembers.where((m) => m.uid == currentUid).firstOrNull?.role ==
+            OrgRole.moderator;
+    if ((isMod || isAdmin) && member.role == OrgRole.child) return true;
+    if (!isAdmin && isGuardian) return true;
+    if (!isAdmin && !isGuardian && org.chatMode == ChatMode.guardian) return true;
+    if (isAdmin && member.role != OrgRole.admin) return true;
+    return false;
+  }
+
   String _roleLabel(OrgRole role, AppLocalizations l) => switch (role) {
         OrgRole.admin => l.roleAdmin,
         OrgRole.moderator => l.roleModerator,
@@ -2433,24 +2479,26 @@ class _MemberTile extends StatelessWidget {
                   _startAdminChat(context);
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.swap_horiz),
-                title: Text(l.changeRole),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showRoleDialog(context);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.admin_panel_settings_outlined,
-                    color: Colors.orange),
-                title: Text(l.transferAdmin,
-                    style: const TextStyle(color: Colors.orange)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _confirmTransferAdmin(context);
-                },
-              ),
+              if (!_isRoleLocked) ...[
+                ListTile(
+                  leading: const Icon(Icons.swap_horiz),
+                  title: Text(l.changeRole),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showRoleDialog(context);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.admin_panel_settings_outlined,
+                      color: Colors.orange),
+                  title: Text(l.transferAdmin,
+                      style: const TextStyle(color: Colors.orange)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _confirmTransferAdmin(context);
+                  },
+                ),
+              ],
               ListTile(
                 leading: const Icon(Icons.person_remove_outlined, color: Colors.red),
                 title: Text(l.remove, style: const TextStyle(color: Colors.red)),
@@ -2460,11 +2508,6 @@ class _MemberTile extends StatelessWidget {
                 },
               ),
             ],
-            if (!isOwnTile && !isGuardian && !isAdmin && !isMod)
-              ListTile(
-                title: Text(l.noActionsAvailable,
-                    style: const TextStyle(color: Colors.grey)),
-              ),
           ],
         ),
       ),
@@ -2568,7 +2611,7 @@ class _MemberTile extends StatelessWidget {
           final roleLabels = {
             OrgRole.moderator: ld.roleModerator,
             OrgRole.member: ld.roleMember,
-            OrgRole.child: ld.roleChild,
+            if (!_isGuardianOfChild) OrgRole.child: ld.roleChild,
           };
           return AlertDialog(
             title: Text(ld.roleFor(member.displayName)),
@@ -2853,10 +2896,11 @@ class _MemberTile extends StatelessWidget {
               style: TextStyle(fontSize: 11, color: _roleColor(member.role)),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.more_vert, size: 20),
-            onPressed: () => _showOptions(context),
-          ),
+          if (_hasActions)
+            IconButton(
+              icon: const Icon(Icons.more_vert, size: 20),
+              onPressed: () => _showOptions(context),
+            ),
         ],
       ),
       onTap: null,

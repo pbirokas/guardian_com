@@ -2767,6 +2767,18 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Personen, die diesen Chat nur lesen können'**
   String get chatSupervisorHint;
+
+  /// No description provided for @chatTypeGroup.
+  ///
+  /// In de, this message translates to:
+  /// **'Gruppe'**
+  String get chatTypeGroup;
+
+  /// No description provided for @chatTypeDirect.
+  ///
+  /// In de, this message translates to:
+  /// **'Direktnachricht'**
+  String get chatTypeDirect;
 }
 
 class _AppLocalizationsDelegate

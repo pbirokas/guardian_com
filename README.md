@@ -54,7 +54,9 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 | **Mitglied** | Normales Mitglied, kann Chats anfordern |
 | **Kind** | Eingeschränktes Mitglied, benötigt einen Guardian |
 
-- Rollenänderung auf **Kind** öffnet direkt die Guardian-Auswahl
+- Rollenänderung auf **Kind** öffnet direkt die Guardian-Auswahl (nur möglich wenn das Mitglied kein Guardian eines anderen Kindes ist)
+- Die Rolle eines Kind-Mitglieds ist unveränderlich — „Rolle ändern" wird für Kinder nicht angeboten
+- Guardians eines Kindes können ihre Rolle ändern (z. B. zu Moderator), erhalten aber „Kind" nicht als Zieloption
 
 ### Chat-Modi
 
@@ -66,6 +68,8 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 - Genehmigte Chats sind für den Guardian des Kindes sichtbar
 - **Chat-Übersicht:** „Überwachte Chats" blendet Chats aus, in denen man selbst Mitglied ist (keine Doppeleinträge); Sektion ist ein- und ausklappbar
 - **Chat-Info (ⓘ):** Guardians, Eltern, Admins und Moderatoren können in der Kachel eines überwachten Chats auf ⓘ tippen, um Teilnehmer und Supervisoren des Chats anzuzeigen
+- **Typ-Indikator:** Jede Kachel in der „Überwachte Chats"-Liste zeigt „Gruppe" oder „Direktnachricht", damit Gruppen- und 1-zu-1-Chats auf einen Blick unterscheidbar sind
+- „Chat Starten" aus der Mitgliederliste öffnet immer einen eigenen 1-zu-1-Chat, auch wenn bereits eine Gruppenkonversation mit derselben Person existiert
 
 #### Sheltered-Modus
 - Admin legt vorab fest, wer mit wem kommunizieren darf

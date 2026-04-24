@@ -121,7 +121,9 @@ class ChatService {
 
     for (final doc in existing.docs) {
       final conv = Conversation.fromFirestore(doc);
-      if (conv.orgId == orgId && conv.participantUids.contains(targetUid)) {
+      if (conv.orgId == orgId &&
+          conv.participantUids.contains(targetUid) &&
+          !conv.isGroup) {
         return conv;
       }
     }

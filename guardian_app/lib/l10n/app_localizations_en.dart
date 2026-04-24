@@ -1510,4 +1510,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatSupervisorHint => 'People who can only read this chat';
+
+  @override
+  String get chatTypeGroup => 'Group';
+
+  @override
+  String get chatTypeDirect => 'Direct message';
 }

@@ -2703,34 +2703,60 @@ class _PollBubbleState extends ConsumerState<_PollBubble> {
         final canClose = !effectivelyClosed && poll.createdBy == currentUid;
         final dimColor = (onColor ?? Colors.grey).withAlpha(180);
 
-        void showVoters(String optionText, List<String> voterUids) {
-          final names = voterUids.map((uid) {
-            final m = widget.members?.where((m) => m.uid == uid).firstOrNull;
-            return m?.displayName ?? uid;
-          }).toList()..sort();
+        void showAllVoters() {
           showDialog<void>(
             context: context,
             builder: (ctx) {
               final ld = AppLocalizations.of(ctx);
               return AlertDialog(
                 title: Text(ld.pollVotersTitle),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(optionText,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 13)),
-                    const SizedBox(height: 8),
-                    if (names.isEmpty)
-                      Text('—',
-                          style: TextStyle(color: Colors.grey[600]))
-                    else
-                      ...names.map((n) => Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 2),
-                            child: Text(n, style: const TextStyle(fontSize: 14)),
-                          )),
-                  ],
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: poll.options.map((opt) {
+                      final voterUids = poll.votesFor(opt.id);
+                      final names = voterUids.map((uid) {
+                        final m = widget.members
+                            ?.where((m) => m.uid == uid)
+                            .firstOrNull;
+                        return m?.displayName ?? uid;
+                      }).toList()..sort();
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              Expanded(
+                                child: Text(opt.text,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13)),
+                              ),
+                              Text('${voterUids.length}',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600])),
+                            ]),
+                            const SizedBox(height: 4),
+                            if (names.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 8),
+                                child: Text('—',
+                                    style: TextStyle(color: Colors.grey[500])),
+                              )
+                            else
+                              ...names.map((n) => Padding(
+                                    padding: const EdgeInsets.fromLTRB(8, 1, 0, 1),
+                                    child: Text(n,
+                                        style: const TextStyle(fontSize: 13)),
+                                  )),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
                 ),
                 actions: [
                   TextButton(
@@ -2792,14 +2818,36 @@ class _PollBubbleState extends ConsumerState<_PollBubble> {
                       fontSize: 14,
                       color: labelColor)),
               const SizedBox(height: 8),
+              if (!poll.isAnonymous && poll.totalVoters > 0) ...[
+                Center(
+                  child: GestureDetector(
+                    onTap: showAllVoters,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.people_outline, size: 13, color: barColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          l.pollDetailsButton,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: barColor,
+                            decoration: TextDecoration.underline,
+                            decorationColor: barColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+              ],
               ...poll.options.map((opt) {
                 final voterUids = poll.votesFor(opt.id);
                 final count = voterUids.length;
                 final total = poll.totalVoters;
                 final pct = total > 0 ? count / total : 0.0;
                 final myVote = poll.hasVotedFor(currentUid, opt.id);
-                final canShowVoters =
-                    showResults && !poll.isAnonymous && count > 0;
 
                 return GestureDetector(
                   onTap: (!effectivelyClosed && !_voting) ? () => _vote(opt.id) : null,
@@ -2822,29 +2870,11 @@ class _PollBubbleState extends ConsumerState<_PollBubble> {
                                   style: TextStyle(
                                       fontSize: 13, color: labelColor))),
                           if (showResults)
-                            InkWell(
-                              onTap: canShowVoters
-                                  ? () => showVoters(opt.text, voterUids)
-                                  : null,
-                              borderRadius: BorderRadius.circular(6),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
-                                child: Text(
-                                  '$count',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: canShowVoters
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                    color: canShowVoters ? barColor : dimColor,
-                                    decoration: canShowVoters
-                                        ? TextDecoration.underline
-                                        : null,
-                                    decorationColor:
-                                        canShowVoters ? barColor : null,
-                                  ),
-                                ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 6),
+                              child: Text(
+                                '$count',
+                                style: TextStyle(fontSize: 13, color: dimColor),
                               ),
                             ),
                         ]),

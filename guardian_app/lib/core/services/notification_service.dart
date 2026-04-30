@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 /// Muss top-level sein (außerhalb jeder Klasse) für Background-Handler.
@@ -32,6 +33,19 @@ class NotificationService {
       _router?.push('/chat/$convId',
           extra: message.data['chatTitle'] as String?);
     }
+  }
+
+  static const _channel = MethodChannel('com.guardianapp.guardian_app/battery');
+
+  /// Entfernt alle offenen App-Benachrichtigungen aus der Statusleiste.
+  /// Wird aufgerufen wenn die App in den Vordergrund kommt.
+  static Future<void> clearAll() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+      return;
+    }
+    try {
+      await _channel.invokeMethod('clearAllNotifications');
+    } catch (_) {}
   }
 
   static bool _initialized = false;

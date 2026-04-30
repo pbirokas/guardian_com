@@ -1518,6 +1518,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatTypeDirect => 'Direct message';
 
   @override
+  String get pollDetailsButton => 'Poll details';
+
+  @override
   String get renameGroup => 'Rename group';
 
   @override

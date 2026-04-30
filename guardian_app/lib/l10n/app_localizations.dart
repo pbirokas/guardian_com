@@ -2780,6 +2780,12 @@ abstract class AppLocalizations {
   /// **'Direktnachricht'**
   String get chatTypeDirect;
 
+  /// No description provided for @pollDetailsButton.
+  ///
+  /// In de, this message translates to:
+  /// **'Abstimmungs-Details'**
+  String get pollDetailsButton;
+
   /// No description provided for @renameGroup.
   ///
   /// In de, this message translates to:

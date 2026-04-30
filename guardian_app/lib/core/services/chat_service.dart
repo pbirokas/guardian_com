@@ -817,14 +817,22 @@ class ChatService {
         updates['votes.$optionId'] = FieldValue.arrayUnion([_uid]);
       }
     } else {
-      // Remove from whichever option the user previously voted for
-      for (final id in optionIds) {
+      // Find which option (if any) the user previously voted for
+      final previousOptionId = optionIds.where((id) {
         final voters = List<String>.from(rawVotes[id] as List? ?? []);
-        if (voters.contains(_uid)) {
-          updates['votes.$id'] = FieldValue.arrayRemove([_uid]);
+        return voters.contains(_uid);
+      }).firstOrNull;
+
+      if (previousOptionId == optionId) {
+        // Same option tapped again → toggle off (remove vote)
+        updates['votes.$optionId'] = FieldValue.arrayRemove([_uid]);
+      } else {
+        // Different option → move vote
+        if (previousOptionId != null) {
+          updates['votes.$previousOptionId'] = FieldValue.arrayRemove([_uid]);
         }
+        updates['votes.$optionId'] = FieldValue.arrayUnion([_uid]);
       }
-      updates['votes.$optionId'] = FieldValue.arrayUnion([_uid]);
     }
 
     if (updates.isNotEmpty) await pollRef.update(updates);

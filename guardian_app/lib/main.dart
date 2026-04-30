@@ -92,13 +92,15 @@ class GuardianApp extends ConsumerStatefulWidget {
   ConsumerState<GuardianApp> createState() => _GuardianAppState();
 }
 
-class _GuardianAppState extends ConsumerState<GuardianApp> {
+class _GuardianAppState extends ConsumerState<GuardianApp>
+    with WidgetsBindingObserver {
   AppLinks? _appLinks;
   StreamSubscription? _linkSub;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // App Links nur auf Plattformen mit Deep-Link-Support
     if (defaultTargetPlatform != TargetPlatform.windows &&
         defaultTargetPlatform != TargetPlatform.linux) {
@@ -109,8 +111,16 @@ class _GuardianAppState extends ConsumerState<GuardianApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _linkSub?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      NotificationService.clearAll();
+    }
   }
 
   void _handleIncomingLinks() {

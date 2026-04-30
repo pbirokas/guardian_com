@@ -1,5 +1,6 @@
 package com.guardianapp.guardian_app
 
+import android.app.NotificationManager
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -36,6 +37,11 @@ class MainActivity : FlutterActivity() {
                         } else {
                             result.success(null)
                         }
+                    }
+                    "clearAllNotifications" -> {
+                        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+                        nm.cancelAll()
+                        result.success(null)
                     }
                     else -> result.notImplemented()
                 }

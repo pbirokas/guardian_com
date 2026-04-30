@@ -1526,6 +1526,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatTypeDirect => 'Direktnachricht';
 
   @override
+  String get pollDetailsButton => 'Abstimmungs-Details';
+
+  @override
   String get renameGroup => 'Gruppe umbenennen';
 
   @override

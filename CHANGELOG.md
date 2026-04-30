@@ -4,6 +4,23 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+### 2026-04-30 — Abstimmungs-Verbesserungen & Benachrichtigungen aufräumen
+
+#### Neue Funktionen
+
+**Abstimmungs-Details für alle sichtbar**
+- Der „Abstimmungs-Details"-Button wird jetzt für alle Teilnehmer angezeigt, unabhängig davon ob sie bereits abgestimmt haben
+- Zuvor war der Button nur nach eigener Stimmabgabe sichtbar
+
+**Einfachauswahl: Stimme wieder entfernbar**
+- Bei Umfragen mit Einfachauswahl kann die eigene Stimme durch erneutes Antippen der gewählten Option wieder zurückgezogen werden — gleiches Verhalten wie bei Mehrfachauswahl
+
+**Benachrichtigungen beim App-Start automatisch schließen (Android)**
+- Wechselt der Nutzer in die App, werden alle noch offenen Push-Benachrichtigungen der App automatisch aus der Statusleiste entfernt
+- Technisch: `WidgetsBindingObserver` in `main.dart` ruft bei `AppLifecycleState.resumed` eine neue `NotificationService.clearAll()`-Methode auf, die per Method-Channel `NotificationManager.cancelAll()` auf Android aufruft
+
+---
+
 ### 2026-04-24 — Chat umbenennen, Chat-Start-Logik, Mitglieder-Aktionen & Rollensperre
 
 #### Neue Funktionen

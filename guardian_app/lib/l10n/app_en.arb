@@ -656,6 +656,7 @@
   "chatSupervisorHint": "People who can only read this chat",
   "chatTypeGroup": "Group",
   "chatTypeDirect": "Direct message",
+  "pollDetailsButton": "Poll details",
   "renameGroup": "Rename group",
   "personalChatName": "Personal chat name",
   "chatNameHint": "Group name",

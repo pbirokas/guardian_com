@@ -656,6 +656,7 @@
   "chatSupervisorHint": "Personen, die diesen Chat nur lesen können",
   "chatTypeGroup": "Gruppe",
   "chatTypeDirect": "Direktnachricht",
+  "pollDetailsButton": "Abstimmungs-Details",
   "renameGroup": "Gruppe umbenennen",
   "personalChatName": "Eigener Chatname",
   "chatNameHint": "Gruppenname",

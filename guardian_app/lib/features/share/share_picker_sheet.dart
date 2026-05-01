@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/models/conversation.dart';
+import '../../core/models/organization.dart';
 import '../../core/providers/share_provider.dart';
 import '../../core/services/share_service.dart';
 import '../../l10n/app_localizations.dart';
@@ -72,6 +73,19 @@ class _SharePickerSheetState extends ConsumerState<SharePickerSheet> {
     final myOrgs = ref.watch(myOrganizationsProvider);
     final myOrgIds = myOrgs.value?.map((o) => o.id).toSet() ?? {};
 
+    // Konversationen → nach Org filtern & gruppieren
+    final grouped = <Organization, List<Conversation>>{};
+    if (conversations.value != null && myOrgs.value != null) {
+      for (final org in myOrgs.value!) {
+        final convs = conversations.value!
+            .where((c) => c.orgId == org.id)
+            .toList();
+        if (convs.isNotEmpty) grouped[org] = convs;
+      }
+    }
+
+    final isLoading = conversations.isLoading || myOrgs.isLoading;
+
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
       minChildSize: 0.4,
@@ -103,43 +117,87 @@ class _SharePickerSheetState extends ConsumerState<SharePickerSheet> {
             _SharePreview(shareData: widget.shareData),
             const Divider(height: 1),
             Expanded(
-              child: conversations.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Center(child: Text(e.toString())),
-                data: (convs) {
-                  final filtered = myOrgIds.isEmpty
-                      ? convs
-                      : convs.where((c) => myOrgIds.contains(c.orgId)).toList();
-                  if (filtered.isEmpty) {
-                    return Center(child: Text(l.noConversations));
-                  }
-                  return ListView.builder(
-                    controller: scrollController,
-                    itemCount: filtered.length,
-                    itemBuilder: (context, i) {
-                      final conv = filtered[i];
-                      return _ShareConvTile(
-                        conv: conv,
-                        partnerUid: conv.isGroup ? null : _partnerUid(conv),
-                        isSending: _sendingConvId == conv.id,
-                        isBlocked: _sendingConvId != null && _sendingConvId != conv.id,
-                        onSend: _send,
-                      );
-                    },
-                  );
-                },
-              ),
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : grouped.isEmpty
+                      ? Center(child: Text(l.noConversations))
+                      : ListView.builder(
+                          controller: scrollController,
+                          itemCount: _itemCount(grouped),
+                          itemBuilder: (context, index) =>
+                              _buildItem(context, grouped, index, myOrgIds),
+                        ),
             ),
           ],
         );
       },
     );
   }
+
+  // Gesamtzahl der Listeneinträge: pro Org 1 Header + N Chats
+  int _itemCount(Map<Organization, List<Conversation>> grouped) {
+    return grouped.entries.fold(0, (sum, e) => sum + 1 + e.value.length);
+  }
+
+  Widget _buildItem(
+    BuildContext context,
+    Map<Organization, List<Conversation>> grouped,
+    int index,
+    Set<String> myOrgIds,
+  ) {
+    var cursor = 0;
+    for (final entry in grouped.entries) {
+      if (index == cursor) {
+        // Org-Header
+        return _OrgHeader(org: entry.key);
+      }
+      cursor++;
+      final convIndex = index - cursor;
+      if (convIndex < entry.value.length) {
+        final conv = entry.value[convIndex];
+        return _ShareConvTile(
+          conv: conv,
+          partnerUid: conv.isGroup ? null : _partnerUid(conv),
+          isSending: _sendingConvId == conv.id,
+          isBlocked: _sendingConvId != null && _sendingConvId != conv.id,
+          onSend: _send,
+        );
+      }
+      cursor += entry.value.length;
+    }
+    return const SizedBox.shrink();
+  }
 }
 
-/// Einzelner Eintrag in der Konversationsliste.
-/// Ist ein eigenes ConsumerWidget, damit der userDisplayNameProvider
-/// per UID gecacht und unabhängig vom Parent rebuildet werden kann.
+class _OrgHeader extends StatelessWidget {
+  final Organization org;
+
+  const _OrgHeader({required this.org});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Row(
+        children: [
+          Icon(org.tag.icon, size: 14, color: colorScheme.primary),
+          const SizedBox(width: 6),
+          Text(
+            org.name,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: colorScheme.primary,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ShareConvTile extends ConsumerWidget {
   final Conversation conv;
   final String? partnerUid;
@@ -157,12 +215,9 @@ class _ShareConvTile extends ConsumerWidget {
 
   String _resolveTitle(WidgetRef ref) {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-    // Persönlicher Name hat höchste Priorität
     final personal = conv.personalNames[uid];
     if (personal != null && personal.isNotEmpty) return personal;
-    // Gruppenname
     if (conv.isGroup) return conv.name ?? '';
-    // Direktchat: Display-Name des Partners
     if (partnerUid != null) {
       final nameAsync = ref.watch(userDisplayNameProvider(partnerUid!));
       return nameAsync.value ?? conv.name ?? partnerUid!;
@@ -176,6 +231,7 @@ class _ShareConvTile extends ConsumerWidget {
     final title = _resolveTitle(ref);
 
     return ListTile(
+      contentPadding: const EdgeInsets.fromLTRB(24, 0, 16, 0),
       leading: CircleAvatar(
         backgroundColor: colorScheme.primaryContainer,
         child: Icon(

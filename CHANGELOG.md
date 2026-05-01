@@ -4,6 +4,27 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+### 2026-05-01 — Share-Target: Org-Gruppierung, Chat-Direktsenden & Tastatur-GIF
+
+#### Neue Funktionen
+
+**GIF-Einfügen über die Tastatur**
+- Das Chat-Textfeld deklariert jetzt via `ContentInsertionConfiguration` die unterstützten MIME-Typen (`image/gif`, `image/png`, `image/jpeg`, `image/webp`) gegenüber Android
+- Gboard und andere Tastaturen können GIFs direkt in den Chat einfügen, ohne den Share-Dialog zu öffnen
+- Die Bytes kommen entweder direkt aus dem Tastatur-Callback oder werden via `ShareService.readUri()` nachgeladen
+
+#### Fehlerbehebungen & Verbesserungen
+
+**Share-Target: Direktsenden bei offenem Chat**
+- Wird ein Inhalt geteilt (z. B. GIF per Tastatur) während ein Chat bereits geöffnet ist, wird er direkt in diesen Chat gesendet — der Picker erscheint nicht
+- Implementiert via `router.routeInformationProvider.value.uri.path`-Prüfung in `_ShareListener`
+
+**Share-Picker: Chats nach Organisation gruppiert**
+- Konversationen werden jetzt nach Org unterteilt: ein farbiger Org-Header (Icon + Name) gefolgt von den zugehörigen Chats mit leichtem Einzug
+- Orgs ohne genehmigte Chats erscheinen nicht in der Liste
+
+---
+
 ### 2026-05-01 — Emoji-Picker, GIF-Rendering, AppBar-Vereinfachung & Share-Target
 
 #### Neue Funktionen

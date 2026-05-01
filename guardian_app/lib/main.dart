@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/providers/connectivity_provider.dart';
 import 'core/providers/share_provider.dart';
 import 'core/services/share_service.dart';
+import 'features/chat/providers/chat_provider.dart';
 import 'features/share/share_picker_sheet.dart';
 import 'core/providers/locale_provider.dart' show localeProvider;
 import 'core/providers/chat_font_size_provider.dart';
@@ -286,16 +287,60 @@ class _ShareListener extends ConsumerWidget {
 
   const _ShareListener({required this.child});
 
+  static final _chatRoutePattern = RegExp(r'^/chat/(.+)$');
+
+  Future<void> _sendDirectToChat(
+    WidgetRef ref,
+    ShareData shareData,
+    String chatId,
+    BuildContext navContext,
+  ) async {
+    final chatService = ref.read(chatServiceProvider);
+    final shareService = ref.read(shareServiceProvider);
+    try {
+      if (shareData.isText) {
+        await chatService.sendMessage(chatId, shareData.text!);
+      } else {
+        for (var i = 0; i < shareData.uris.length; i++) {
+          final bytes = await shareService.readUri(shareData.uris[i]);
+          if (bytes == null) continue;
+          final fileName =
+              shareData.fileNames.length > i ? shareData.fileNames[i] : 'file';
+          if (shareData.isImage) {
+            await chatService.sendImage(chatId, bytes);
+          } else {
+            await chatService.sendFile(chatId, bytes, fileName, bytes.length);
+          }
+        }
+      }
+    } catch (e) {
+      if (navContext.mounted) {
+        ScaffoldMessenger.of(navContext).showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.read(routerProvider);
     ref.listen<ShareData?>(pendingShareProvider, (_, shareData) {
       if (shareData == null) return;
-      // router.routerDelegate.navigatorKey zeigt auf den vom GoRouter
-      // verwalteten Navigator — dieser hat sowohl MaterialLocalizations
-      // als auch einen echten Navigator-Ancestor.
+      ref.read(pendingShareProvider.notifier).clear();
+
       final navContext = router.routerDelegate.navigatorKey.currentContext;
       if (navContext == null) return;
+
+      // Wenn der User gerade in einem Chat ist: direkt dorthin senden,
+      // kein Picker zeigen (z. B. GIF-Einfügen über die Tastatur).
+      final currentPath = router.routeInformationProvider.value.uri.path;
+      final chatMatch = _chatRoutePattern.firstMatch(currentPath);
+      if (chatMatch != null) {
+        _sendDirectToChat(ref, shareData, chatMatch.group(1)!, navContext);
+        return;
+      }
+
       showModalBottomSheet(
         context: navContext,
         isScrollControlled: true,

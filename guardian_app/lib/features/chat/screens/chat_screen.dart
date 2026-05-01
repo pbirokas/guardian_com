@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
@@ -8,7 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, KeyboardInsertedContent;
 import 'package:guardian_app/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
@@ -24,6 +25,7 @@ import '../../../core/providers/chat_font_size_provider.dart';
 import '../../../core/models/org_member.dart';
 import '../../../core/models/organization.dart';
 import '../../../core/models/scheduled_message.dart';
+import '../../../core/providers/share_provider.dart';
 import '../../../features/organizations/providers/organizations_provider.dart';
 import '../providers/chat_provider.dart';
 
@@ -98,6 +100,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     } else {
       FocusScope.of(context).unfocus();
       setState(() => _showEmojiPicker = true);
+    }
+  }
+
+  Future<void> _onKeyboardContentInserted(KeyboardInsertedContent content) async {
+    try {
+      Uint8List? bytes = content.data;
+      if (bytes == null && content.uri.isNotEmpty) {
+        bytes = await ref.read(shareServiceProvider).readUri(content.uri);
+      }
+      if (bytes == null || !mounted) return;
+      await ref.read(chatServiceProvider).sendImage(widget.chatId, bytes);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -1355,6 +1374,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               onCancelReply: () => setState(() => _replyingTo = null),
               onToggleEmoji: _toggleEmojiPicker,
               showEmojiIcon: _showEmojiPicker,
+              onContentInserted: _onKeyboardContentInserted,
             ),
             if (_showEmojiPicker && !isArchived)
               SizedBox(
@@ -2352,6 +2372,7 @@ class _InputBar extends StatelessWidget {
   final VoidCallback? onCancelReply;
   final VoidCallback onToggleEmoji;
   final bool showEmojiIcon;
+  final ValueChanged<KeyboardInsertedContent>? onContentInserted;
 
   const _InputBar({
     required this.controller,
@@ -2370,6 +2391,7 @@ class _InputBar extends StatelessWidget {
     this.onCancelReply,
     required this.onToggleEmoji,
     required this.showEmojiIcon,
+    this.onContentInserted,
   });
 
   String _formatDuration(Duration d) {
@@ -2568,6 +2590,17 @@ class _InputBar extends StatelessWidget {
             focusNode: focusNode,
             textCapitalization: TextCapitalization.sentences,
             maxLines: null,
+            contentInsertionConfiguration: onContentInserted != null
+                ? ContentInsertionConfiguration(
+                    allowedMimeTypes: const [
+                      'image/gif',
+                      'image/png',
+                      'image/jpeg',
+                      'image/webp',
+                    ],
+                    onContentInserted: onContentInserted!,
+                  )
+                : null,
             decoration: InputDecoration(
               hintText: l.messageHint,
               filled: true,

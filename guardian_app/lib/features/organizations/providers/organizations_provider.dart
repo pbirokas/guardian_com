@@ -120,3 +120,10 @@ final announcementsProvider =
   ref.watch(authStateProvider);
   return ref.watch(organizationServiceProvider).watchAnnouncements(orgId);
 });
+
+/// Display-Name eines beliebigen Nutzers (gecacht pro UID durch Riverpod)
+final userDisplayNameProvider =
+    FutureProvider.family<String, String>((ref, uid) async {
+  final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+  return doc.data()?['displayName'] as String? ?? uid;
+});

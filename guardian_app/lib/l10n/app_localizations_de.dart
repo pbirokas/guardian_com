@@ -18,6 +18,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get noConnection => 'Keine Verbindung';
 
   @override
+  String get sharePickerTitle => 'Teilen in Chat';
+
+  @override
+  String get noConversations => 'Keine Chats vorhanden';
+
+  @override
   String get cancel => 'Abbrechen';
 
   @override

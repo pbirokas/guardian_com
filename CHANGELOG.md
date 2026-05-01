@@ -4,6 +4,39 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+### 2026-05-01 — Emoji-Picker, GIF-Rendering, AppBar-Vereinfachung & Share-Target
+
+#### Neue Funktionen
+
+**Emoji-Picker im Chat**
+- Neuer 😊-Button in der Chat-Eingabeleiste öffnet einen Emoji-Picker direkt unterhalb der Eingabe
+- Wechselt automatisch zwischen System-Tastatur (⌨️) und Emoji-Picker
+- Schließt sich beim Tippen in das Textfeld automatisch
+
+**GIF-Rendering**
+- Geteilte oder eingefügte GIF-URLs werden im Chat direkt als animiertes Bild angezeigt (via `CachedNetworkImage`)
+- Fehlerhafte oder nicht ladbare URLs fallen auf anklickbaren Linktext zurück
+
+**AppBar-Vereinfachung im Chat**
+- Alle Chat-Aktionen (Suche, Umbenennen, Mitglieder, Mitglied hinzufügen) wurden in ein einziges `⋮`-Menü zusammengefasst
+- Die AppBar zeigt nun nur noch `?` (Hilfe) und `⋮` (Aktionen) statt mehrerer Einzelicons
+
+**Share-Target (Android)**
+- Die App registriert sich als Share-Ziel für Text, Bilder und Dateien
+- Beim Teilen aus einer anderen App öffnet sich ein Bottom Sheet mit der Liste aller eigenen genehmigten Chats
+- Direktchats zeigen den Display-Namen des Gesprächspartners (Firestore-Lookup, gecacht)
+- Nach dem Senden wird direkt in den Ziel-Chat navigiert
+- Unterstützte Typen: `text/plain`, `image/*`, `*/*` (Einzel- und Mehrfachauswahl)
+- Nur Chats aus Organisationen, in denen der Nutzer aktuell Mitglied ist, werden angezeigt
+
+#### Technische Details
+- Neues `MethodChannel com.guardianapp.guardian_app/share` in `MainActivity.kt`: `getSharedData()` und `readUri()` für nativen Datei-Zugriff
+- `ShareService`, `pendingShareProvider`, `SharePickerSheet` als neue Flutter-Schicht
+- `_ShareListener`-Widget innerhalb des `MaterialApp.router`-Builders löst Navigator-Kontext-Fehler
+- `userDisplayNameProvider` (FutureProvider.family) für gecachte UID→Name-Auflösung
+
+---
+
 ### 2026-04-30 — Abstimmungs-Verbesserungen & Benachrichtigungen aufräumen
 
 #### Neue Funktionen

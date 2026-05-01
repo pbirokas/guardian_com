@@ -18,6 +18,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noConnection => 'No connection';
 
   @override
+  String get sharePickerTitle => 'Share to chat';
+
+  @override
+  String get noConversations => 'No chats available';
+
+  @override
   String get cancel => 'Cancel';
 
   @override

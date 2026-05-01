@@ -4,6 +4,8 @@
   "appTitle": "Guardian Com",
   "appSubtitle": "Sichere Kommunikation für Organisationen",
   "noConnection": "Keine Verbindung",
+  "sharePickerTitle": "Teilen in Chat",
+  "noConversations": "Keine Chats vorhanden",
 
   "cancel": "Abbrechen",
   "close": "Schliessen",

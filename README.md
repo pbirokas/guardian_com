@@ -131,6 +131,8 @@ Erreichbar über **Profil → Meine Verknüpfungen**. Der Screen vereint alle As
 
 ### Chat-Funktionen
 - Textnachrichten senden
+- **Emoji-Picker** — 😊-Button in der Eingabeleiste öffnet einen Emoji-Picker; wechselt per ⌨️ zurück zur System-Tastatur
+- **GIF-Rendering** — GIF-URLs werden direkt als animiertes Bild im Chat angezeigt
 - **URLs und E-Mail-Adressen** in Nachrichten sind anklickbar
 - **Eigene Nachrichten bearbeiten** (per Langer Druck → Bearbeiten)
 - **Text in Zwischenablage kopieren** (per Langer Druck → Kopieren)
@@ -248,6 +250,12 @@ Die Schritt-für-Schritt-Tour auf der Organisations-Übersicht hebt die wichtigs
   - Admin-Rolle übertragen
   - Schlüsselwörter aktualisiert
 - Einträge sind unveränderlich (kein Update/Delete über Sicherheitsregeln)
+
+### Share-Target (Android)
+- Die App erscheint im Teilen-Menü anderer Apps für Text, Bilder und Dateien
+- Ein Bottom Sheet zeigt alle eigenen genehmigten Chats (nur aus aktiven Orgs)
+- Direktchats zeigen den Display-Namen des Partners, nicht die Firestore-ID
+- Nach dem Senden wird direkt in den Ziel-Chat navigiert
 
 ### Sonstiges
 - Dark / Light Mode

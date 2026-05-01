@@ -76,6 +76,11 @@ final unreadOrgCountProvider = Provider.family<int, String>((ref, orgId) {
       .length;
 });
 
+final allMyConversationsProvider = StreamProvider<List<Conversation>>((ref) {
+  ref.watch(authStateProvider);
+  return ref.watch(chatServiceProvider).watchAllMyApprovedConversations();
+});
+
 final conversationProvider =
     StreamProvider.family<Conversation?, String>((ref, convId) {
   ref.watch(authStateProvider);

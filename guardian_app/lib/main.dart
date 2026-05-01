@@ -11,6 +11,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/providers/connectivity_provider.dart';
+import 'core/providers/share_provider.dart';
+import 'core/services/share_service.dart';
+import 'features/share/share_picker_sheet.dart';
 import 'core/providers/locale_provider.dart' show localeProvider;
 import 'core/providers/chat_font_size_provider.dart';
 import 'core/providers/scale_provider.dart';
@@ -107,6 +110,8 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
       _appLinks = AppLinks();
       _handleIncomingLinks();
     }
+    // Kalt-Start: ggf. geteilten Inhalt aus dem Share-Intent lesen
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForSharedData());
   }
 
   @override
@@ -120,6 +125,16 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       NotificationService.clearAll();
+      // Warm-Start via onNewIntent (Share aus anderer App)
+      _checkForSharedData();
+    }
+  }
+
+  Future<void> _checkForSharedData() async {
+    if (FirebaseAuth.instance.currentUser == null) return;
+    final data = await ShareService().getSharedData();
+    if (data != null && mounted) {
+      ref.read(pendingShareProvider.notifier).set(data);
     }
   }
 
@@ -221,6 +236,8 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
           ],
         );
 
+        content = _ShareListener(child: content);
+
         if (scale == 1.0) return content;
 
         // Apply UI scaling.
@@ -261,5 +278,31 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
         );
       },
     );
+  }
+}
+
+class _ShareListener extends ConsumerWidget {
+  final Widget child;
+
+  const _ShareListener({required this.child});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.read(routerProvider);
+    ref.listen<ShareData?>(pendingShareProvider, (_, shareData) {
+      if (shareData == null) return;
+      // router.routerDelegate.navigatorKey zeigt auf den vom GoRouter
+      // verwalteten Navigator — dieser hat sowohl MaterialLocalizations
+      // als auch einen echten Navigator-Ancestor.
+      final navContext = router.routerDelegate.navigatorKey.currentContext;
+      if (navContext == null) return;
+      showModalBottomSheet(
+        context: navContext,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (_) => SharePickerSheet(shareData: shareData),
+      );
+    });
+    return child;
   }
 }

@@ -65,11 +65,12 @@ cd functions && npm install
 - `chat/` — Full chat screen (messages, polls, scheduled messages, file/image/voice)
 - `profile/` — Settings, notification preferences, privacy
 - `relationships/` — Cross-account parent-child claim flow
+- `share/` — Share-Target: `SharePickerSheet` (bottom sheet, shown via `_ShareListener` in `main.dart`)
 
 **Core layer** (`core/`):
 - `models/` — Plain Dart classes with `fromFirestore`/`toFirestore`. No logic beyond serialization.
-- `services/` — All Firestore and FCM calls. Key services: `OrganizationService`, `ChatService`, `NotificationService`, `ParentClaimService`.
-- `providers/` — UI-state providers (theme, locale, font size, connectivity).
+- `services/` — All Firestore and FCM calls. Key services: `OrganizationService`, `ChatService`, `NotificationService`, `ParentClaimService`, `ShareService`.
+- `providers/` — UI-state providers (theme, locale, font size, connectivity, `pendingShareProvider`).
 - `widgets/` — Shared widgets used across features.
 
 **Localization:** Two ARB files — `lib/l10n/app_de.arb` (template) and `app_en.arb`. Always add strings to **both** files. Run `flutter gen-l10n` after every ARB change. The generated `app_localizations*.dart` files are committed.
@@ -104,6 +105,16 @@ All functions deploy to `europe-west3` (same region as Firestore). Key functions
 - `processClaimRequest` (onDocumentUpdated) — handles parent-child link confirmation
 
 FCM messages always set `android.priority: 'high'` at the message level to bypass Doze mode.
+
+### Share-Target (Android)
+
+`AndroidManifest.xml` registers `ACTION_SEND` / `ACTION_SEND_MULTIPLE` intent filters for `text/plain`, `image/*`, `*/*`. `MainActivity.kt` exposes a `com.guardianapp.guardian_app/share` MethodChannel with two methods:
+- `getSharedData()` — returns type/text/uris/fileNames/mimeType from the pending intent (cold-start or `onNewIntent`), then clears it
+- `readUri(uri)` — reads a content URI as raw bytes (ByteArray → Uint8List)
+
+Flutter side: `ShareService` wraps the channel; `pendingShareProvider` (Notifier) holds the pending share; `_ShareListener` (ConsumerWidget inside `MaterialApp.router`'s builder) listens and opens `SharePickerSheet`. The sheet uses `router.routerDelegate.navigatorKey.currentContext` for `showModalBottomSheet` to avoid the "no Navigator" error that occurs when showing from above `MaterialApp`.
+
+Conversations in the picker are filtered to the user's current orgs (`myOrganizationsProvider`). Direct-chat titles resolve via `userDisplayNameProvider(uid)` (FutureProvider.family, cached per UID).
 
 ### Desktop (Windows)
 

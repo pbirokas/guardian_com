@@ -438,6 +438,26 @@ class ChatService {
     });
   }
 
+  /// Alle genehmigten Konversationen des aktuellen Nutzers (org-übergreifend, für Share-Target)
+  Stream<List<Conversation>> watchAllMyApprovedConversations() {
+    return _db
+        .collection('conversations')
+        .where('participantUids', arrayContains: _uid)
+        .snapshots()
+        .map((s) {
+      final all = s.docs.map(Conversation.fromFirestore).toList();
+      final filtered = all
+          .where((c) => c.status == ConversationStatus.approved)
+          .toList()
+        ..sort((a, b) {
+          if (a.lastMessageAt == null) return 1;
+          if (b.lastMessageAt == null) return -1;
+          return b.lastMessageAt!.compareTo(a.lastMessageAt!);
+        });
+      return filtered;
+    });
+  }
+
   /// Alle Konversationen einer Org — nur für Admins (query by orgAdminUid)
   Stream<List<Conversation>> watchAdminConversations(String orgId) {
     return _db

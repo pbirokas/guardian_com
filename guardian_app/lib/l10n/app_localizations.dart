@@ -116,6 +116,18 @@ abstract class AppLocalizations {
   /// **'Keine Verbindung'**
   String get noConnection;
 
+  /// No description provided for @sharePickerTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Teilen in Chat'**
+  String get sharePickerTitle;
+
+  /// No description provided for @noConversations.
+  ///
+  /// In de, this message translates to:
+  /// **'Keine Chats vorhanden'**
+  String get noConversations;
+
   /// No description provided for @cancel.
   ///
   /// In de, this message translates to:

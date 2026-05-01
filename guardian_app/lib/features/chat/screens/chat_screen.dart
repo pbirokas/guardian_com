@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
@@ -62,6 +63,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   String _searchQuery = '';
   final _searchController = TextEditingController();
 
+  // ── Emoji picker ───────────────────────────────────────────────────────────
+  bool _showEmojiPicker = false;
+  final _inputFocusNode = FocusNode();
+
   // ── Voice recording ────────────────────────────────────────────────────────
   final _recorder = AudioRecorder();
   bool _isRecording = false;
@@ -74,11 +79,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _markRead();
     _scrollController.addListener(_onScroll);
     _controller.addListener(_onTextChanged);
+    _inputFocusNode.addListener(() {
+      if (_inputFocusNode.hasFocus && _showEmojiPicker) {
+        setState(() => _showEmojiPicker = false);
+      }
+    });
     // Jede Minute prüfen ob eine geplante Nachricht fällig ist
     _scheduleTimer = Timer.periodic(
       const Duration(minutes: 1),
       (_) => _checkScheduledMessages(),
     );
+  }
+
+  void _toggleEmojiPicker() {
+    if (_showEmojiPicker) {
+      FocusScope.of(context).requestFocus(_inputFocusNode);
+      setState(() => _showEmojiPicker = false);
+    } else {
+      FocusScope.of(context).unfocus();
+      setState(() => _showEmojiPicker = true);
+    }
   }
 
   void _onTextChanged() {
@@ -198,6 +218,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _controller.dispose();
     _scrollController.dispose();
     _searchController.dispose();
+    _inputFocusNode.dispose();
     _scheduleTimer?.cancel();
     _recordingTimer?.cancel();
     _recorder.dispose();
@@ -1020,41 +1041,63 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     );
                   },
                 ),
-                if (conv != null && conv.isGroup && isModeratorOrAdmin)
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined),
-                    tooltip: l.renameGroup,
-                    onPressed: () => _showRenameDialog(conv, isGroup: true),
-                  ),
-                if (conv != null && !conv.isGroup && _isParticipant)
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined),
-                    tooltip: l.personalChatName,
-                    onPressed: () => _showRenameDialog(conv, isGroup: false),
-                  ),
-                IconButton(
-                  icon: const Icon(Icons.search),
-                  tooltip: l.searchMessages,
-                  onPressed: () => setState(() => _isSearching = true),
-                ),
-                if (conv != null && conv.isGroup)
-                  IconButton(
-                    icon: const Icon(Icons.group_outlined),
-                    tooltip: l.membersTooltip,
-                    onPressed: () => _showMembersDialog(
-                      conv,
-                      members ?? [],
-                      canManage: isModeratorOrAdmin,
+                PopupMenuButton<String>(
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'search':
+                        setState(() => _isSearching = true);
+                      case 'rename_group':
+                        if (conv != null) { _showRenameDialog(conv, isGroup: true); }
+                      case 'rename_personal':
+                        if (conv != null) { _showRenameDialog(conv, isGroup: false); }
+                      case 'members':
+                        if (conv != null) {
+                          _showMembersDialog(conv, members ?? [],
+                              canManage: isModeratorOrAdmin);
+                        }
+                      case 'add_member':
+                        if (conv != null) {
+                          _showAddMemberDialog(context, conv, members ?? []);
+                        }
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'search',
+                      child: ListTile(
+                        leading: const Icon(Icons.search),
+                        title: Text(l.searchMessages),
+                        contentPadding: EdgeInsets.zero,
+                      ),
                     ),
-                  ),
-                if (isModeratorOrAdmin && !isArchived)
-                  PopupMenuButton<String>(
-                    onSelected: (value) {
-                      if (value == 'add_member') {
-                        _showAddMemberDialog(context, conv, members ?? []);
-                      }
-                    },
-                    itemBuilder: (_) => [
+                    if (conv != null && conv.isGroup && isModeratorOrAdmin && !isArchived)
+                      PopupMenuItem(
+                        value: 'rename_group',
+                        child: ListTile(
+                          leading: const Icon(Icons.edit_outlined),
+                          title: Text(l.renameGroup),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    if (conv != null && !conv.isGroup && _isParticipant)
+                      PopupMenuItem(
+                        value: 'rename_personal',
+                        child: ListTile(
+                          leading: const Icon(Icons.edit_outlined),
+                          title: Text(l.personalChatName),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    if (conv != null && conv.isGroup)
+                      PopupMenuItem(
+                        value: 'members',
+                        child: ListTile(
+                          leading: const Icon(Icons.group_outlined),
+                          title: Text(l.membersTooltip),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    if (isModeratorOrAdmin && !isArchived && conv.isGroup)
                       PopupMenuItem(
                         value: 'add_member',
                         child: ListTile(
@@ -1063,8 +1106,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           contentPadding: EdgeInsets.zero,
                         ),
                       ),
-                    ],
-                  ),
+                  ],
+                ),
               ],
             ),
       body: Column(
@@ -1297,6 +1340,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
             _InputBar(
               controller: _controller,
+              focusNode: _inputFocusNode,
               onSend: _send,
               onSendImage: _pickingImage ? null : _sendImage,
               onSendFile: _pickingImage ? null : _sendFile,
@@ -1309,7 +1353,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               onSchedule: _showScheduleDialog,
               replyMessage: _replyingTo,
               onCancelReply: () => setState(() => _replyingTo = null),
+              onToggleEmoji: _toggleEmojiPicker,
+              showEmojiIcon: _showEmojiPicker,
             ),
+            if (_showEmojiPicker && !isArchived)
+              SizedBox(
+                height: 256,
+                child: EmojiPicker(
+                  textEditingController: _controller,
+                  config: const Config(
+                    height: 256,
+                    checkPlatformCompatibility: true,
+                  ),
+                ),
+              ),
           ],
         ],
       ),
@@ -1495,6 +1552,16 @@ class _MessageBubble extends ConsumerWidget {
     this.readStatus,
     this.members,
   });
+
+  static bool _isGifUrl(String text) {
+    final t = text.trim();
+    if (!t.startsWith('http')) return false;
+    final lower = t.toLowerCase();
+    return lower.endsWith('.gif') ||
+        lower.contains('giphy.com') ||
+        lower.contains('tenor.com') ||
+        lower.contains('klipy.com');
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1724,6 +1791,30 @@ class _MessageBubble extends ConsumerWidget {
               )
             else if (message.fileUrl != null)
               _FileBubble(message: message, isMe: isMe)
+            else if (_isGifUrl(message.text))
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: CachedNetworkImage(
+                  imageUrl: message.text.trim(),
+                  width: 220,
+                  fit: BoxFit.fitWidth,
+                  placeholder: (_, _) => const SizedBox(
+                    width: 220,
+                    height: 120,
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                  errorWidget: (_, _, _) => _LinkText(
+                    text: message.text,
+                    style: TextStyle(
+                      fontSize: chatFontSize,
+                      color: isMe
+                          ? colorScheme.onPrimary
+                          : colorScheme.onSecondaryContainer,
+                    ),
+                    linkColor: isMe ? colorScheme.onPrimary : colorScheme.primary,
+                  ),
+                ),
+              )
             else
               _LinkText(
                 text: message.text,
@@ -2246,6 +2337,7 @@ class _ReactionChips extends StatelessWidget {
 
 class _InputBar extends StatelessWidget {
   final TextEditingController controller;
+  final FocusNode focusNode;
   final VoidCallback onSend;
   final VoidCallback? onSendImage;
   final VoidCallback? onSendFile;
@@ -2258,9 +2350,12 @@ class _InputBar extends StatelessWidget {
   final VoidCallback? onSchedule;
   final Message? replyMessage;
   final VoidCallback? onCancelReply;
+  final VoidCallback onToggleEmoji;
+  final bool showEmojiIcon;
 
   const _InputBar({
     required this.controller,
+    required this.focusNode,
     required this.onSend,
     this.onSendImage,
     this.onSendFile,
@@ -2273,6 +2368,8 @@ class _InputBar extends StatelessWidget {
     this.onSchedule,
     this.replyMessage,
     this.onCancelReply,
+    required this.onToggleEmoji,
+    required this.showEmojiIcon,
   });
 
   String _formatDuration(Duration d) {
@@ -2468,6 +2565,7 @@ class _InputBar extends StatelessWidget {
         Expanded(
           child: TextField(
             controller: controller,
+            focusNode: focusNode,
             textCapitalization: TextCapitalization.sentences,
             maxLines: null,
             decoration: InputDecoration(
@@ -2482,6 +2580,10 @@ class _InputBar extends StatelessWidget {
             ),
             onSubmitted: (_) => onSend(),
           ),
+        ),
+        IconButton(
+          icon: Icon(showEmojiIcon ? Icons.keyboard : Icons.emoji_emotions_outlined),
+          onPressed: onToggleEmoji,
         ),
         FilledButton(
           onPressed: onSend,

@@ -44,6 +44,9 @@ class AppUser {
   /// UIDs der verifizierten Kinder (Gegenstück zu verifiedParentUids).
   final List<String> verifiedChildUids;
 
+  /// E-Mail vor anderen Mitgliedern verstecken (nur UI-Ebene).
+  final bool hideEmail;
+
   const AppUser({
     required this.uid,
     required this.email,
@@ -54,6 +57,7 @@ class AppUser {
     this.isChild = false,
     this.verifiedParentUids = const [],
     this.verifiedChildUids = const [],
+    this.hideEmail = false,
   });
 
   bool get hasVerifiedParents => verifiedParentUids.isNotEmpty;
@@ -75,6 +79,7 @@ class AppUser {
           data['verifiedParentUids'] as List? ?? []),
       verifiedChildUids: List<String>.from(
           data['verifiedChildUids'] as List? ?? []),
+      hideEmail: data['hideEmail'] as bool? ?? false,
     );
   }
 
@@ -87,6 +92,7 @@ class AppUser {
         'isChild': isChild,
         'verifiedParentUids': verifiedParentUids,
         'verifiedChildUids': verifiedChildUids,
+        'hideEmail': hideEmail,
       };
 
   OrgRole? roleInOrg(String orgId) {

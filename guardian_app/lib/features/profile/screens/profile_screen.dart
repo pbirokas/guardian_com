@@ -274,6 +274,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/relationships'),
           ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.privacy_tip_outlined),
+            title: Text(l.privacyTitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/privacy'),
+          ),
           const SizedBox(height: 8),
           const Divider(),
           const SizedBox(height: 8),

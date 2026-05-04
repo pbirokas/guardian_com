@@ -269,10 +269,15 @@ class AuthService {
         if (data['status'] != 'pending') continue;
 
         final orgId = data['orgId'] as String;
-        final role = OrgRole.values.byName(data['role'] as String);
+        var role = OrgRole.values.byName(data['role'] as String);
         final guardianUids = (data['guardianUids'] as List? ?? [])
             .map((e) => e as String)
             .toList();
+
+        // Kind-Konten bekommen immer Rolle 'child', egal was in der Einladung steht
+        final userSnap = await _db.collection('users').doc(uid).get();
+        final isChildAccount = userSnap.data()?['isChild'] as bool? ?? false;
+        if (isChildAccount) role = OrgRole.child;
         final isChild = role == OrgRole.child;
 
         final user = _auth.currentUser!;

@@ -381,9 +381,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get orgTagSonstiges => 'Sonstiges';
 
   @override
-  String get chatMode => 'Chat-Modus';
-
-  @override
   String get keywordsHelpTitle => 'Schlüsselwörter – Hilfe';
 
   @override
@@ -493,10 +490,6 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get noChatsGuardian =>
       'Noch keine Chats.\nStelle eine Anfrage um zu starten.';
-
-  @override
-  String get noChatsSheltered =>
-      'Noch keine Chats.\nDer Admin legt Verbindungen fest.';
 
   @override
   String get createGroup => 'Gruppe erstellen';
@@ -1209,18 +1202,11 @@ class AppLocalizationsDe extends AppLocalizations {
       'Admin – Volle Kontrolle, verwaltet alle Mitglieder und Einstellungen.\nModerator – Kann Chats einsehen und genehmigen.\nMitglied – Kann Chats anfordern und kommunizieren.\nKind – Eingeschränkt, benötigt einen Guardian und Eltern-Zustimmung bei Einladungen.';
 
   @override
-  String get helpOrgTopicChatModesTitle => 'Chat-Modi';
-
-  @override
-  String get helpOrgTopicChatModesBody =>
-      'Guardian-Modus – Mitglieder beantragen Chats, Admins oder Moderatoren genehmigen sie.\nSheltered-Modus – Der Admin legt vorab fest, wer mit wem kommunizieren darf. Gruppen-Chats sind möglich.';
-
-  @override
   String get helpOrgTopicInviteTitle => 'Mitglieder einladen';
 
   @override
   String get helpOrgTopicInviteBody =>
-      'Öffne eine Organisation → tippe auf das Personen-Symbol → E-Mail eingeben und Rolle wählen. Als Admin kannst du in Sheltered-Orgs auch mehrere Mitglieder per CSV-Datei importieren.';
+      'Öffne eine Organisation → tippe auf das Personen-Symbol → E-Mail eingeben und Rolle wählen. Als Admin kannst du mehrere Mitglieder per CSV-Datei importieren.';
 
   @override
   String get helpOrgTopicFamilyTitle => 'Eltern-Kind-Verknüpfung';
@@ -1535,6 +1521,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get pollDetailsButton => 'Abstimmungs-Details';
 
   @override
+  String get errorChildAccountRoleLocked =>
+      'Dieses Konto ist als Kind-Konto registriert. Bitte wähle die Rolle \'Kind\' und weise mindestens einen Guardian zu.';
+
+  @override
   String get renameGroup => 'Gruppe umbenennen';
 
   @override
@@ -1545,4 +1535,27 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get personalNameHint => 'Name nur für dich sichtbar';
+
+  @override
+  String get emailTab => 'Per E-Mail';
+
+  @override
+  String get addressBookTab => 'Aus Adressbuch';
+
+  @override
+  String get addressBookEmpty =>
+      'Keine Kontakte aus anderen Organisationen verfügbar.';
+
+  @override
+  String get emailHidden => 'E-Mail versteckt';
+
+  @override
+  String get hideEmail => 'E-Mail-Adresse verstecken';
+
+  @override
+  String get hideEmailSubtitle =>
+      'Deine E-Mail-Adresse wird anderen Mitgliedern nicht angezeigt';
+
+  @override
+  String get privacySettings => 'Datenschutz-Einstellungen';
 }

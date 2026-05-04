@@ -148,7 +148,7 @@ service cloud.firestore {
             request.resource.data.status == 'active') ||
           (memberId == request.auth.uid &&
             request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['childAlertInterval', 'lastChildAlertAt', 'displayName', 'photoUrl', 'notificationsEnabled', 'messageAlertInterval']))
+              .hasOnly(['childAlertInterval', 'lastChildAlertAt', 'displayName', 'photoUrl', 'notificationsEnabled', 'messageAlertInterval', 'hideEmail']))
         );
 
         allow delete: if isAdmin(orgId) || memberId == request.auth.uid;

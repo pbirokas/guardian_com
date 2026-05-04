@@ -160,7 +160,6 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
     final l = AppLocalizations.of(context);
     final nameController = TextEditingController();
     OrgTag selectedTag = OrgTag.sonstiges;
-    ChatMode selectedMode = ChatMode.guardian;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -204,15 +203,6 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                     );
                   }).toList(),
                 ),
-                const SizedBox(height: 16),
-                Text(l.chatMode,
-                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                const SizedBox(height: 8),
-                ...ChatMode.values.map((mode) => _ChatModeOption(
-                      mode: mode,
-                      selected: selectedMode == mode,
-                      onTap: () => setState(() => selectedMode = mode),
-                    )),
               ],
             ),
           ),
@@ -234,8 +224,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
       try {
         await ref
             .read(organizationServiceProvider)
-            .createOrganization(
-                nameController.text.trim(), selectedTag, selectedMode);
+            .createOrganization(nameController.text.trim(), selectedTag);
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -439,11 +428,6 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                   icon: Icons.badge_outlined,
                   title: l.helpOrgTopicRolesTitle,
                   body: l.helpOrgTopicRolesBody,
-                ),
-                HelpTopic(
-                  icon: Icons.chat_bubble_outline,
-                  title: l.helpOrgTopicChatModesTitle,
-                  body: l.helpOrgTopicChatModesBody,
                 ),
                 HelpTopic(
                   icon: Icons.person_add_outlined,
@@ -665,13 +649,6 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                               style: TextStyle(
                                   fontSize: 11, color: org.tag.color)),
                         ),
-                        const SizedBox(width: 6),
-                        Icon(org.chatMode.icon,
-                            size: 13, color: Colors.grey[600]),
-                        const SizedBox(width: 3),
-                        Text(org.chatMode.label,
-                            style:
-                                TextStyle(fontSize: 11, color: Colors.grey[600])),
                       ],
                     ],
                   ),
@@ -814,63 +791,6 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
         ); // Scaffold
       },   // ShowCaseWidget.builder
     );     // ShowCaseWidget
-  }
-}
-
-class _ChatModeOption extends StatelessWidget {
-  final ChatMode mode;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _ChatModeOption({
-    required this.mode,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.primary;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: selected ? color : Colors.grey.shade300,
-            width: selected ? 2 : 1,
-          ),
-          borderRadius: BorderRadius.circular(12),
-          color: selected ? color.withAlpha(15) : null,
-        ),
-        child: Row(
-          children: [
-            Icon(mode.icon,
-                color: selected ? color : Colors.grey, size: 22),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(mode.label,
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: selected ? color : null)),
-                  const SizedBox(height: 2),
-                  Text(mode.description,
-                      style: const TextStyle(
-                          fontSize: 12, color: Colors.grey)),
-                ],
-              ),
-            ),
-            if (selected)
-              Icon(Icons.check_circle, color: color, size: 20),
-          ],
-        ),
-      ),
-    );
   }
 }
 

@@ -794,12 +794,6 @@ abstract class AppLocalizations {
   /// **'Sonstiges'**
   String get orgTagSonstiges;
 
-  /// No description provided for @chatMode.
-  ///
-  /// In de, this message translates to:
-  /// **'Chat-Modus'**
-  String get chatMode;
-
   /// No description provided for @keywordsHelpTitle.
   ///
   /// In de, this message translates to:
@@ -979,12 +973,6 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Noch keine Chats.\nStelle eine Anfrage um zu starten.'**
   String get noChatsGuardian;
-
-  /// No description provided for @noChatsSheltered.
-  ///
-  /// In de, this message translates to:
-  /// **'Noch keine Chats.\nDer Admin legt Verbindungen fest.'**
-  String get noChatsSheltered;
 
   /// No description provided for @createGroup.
   ///
@@ -2228,18 +2216,6 @@ abstract class AppLocalizations {
   /// **'Admin – Volle Kontrolle, verwaltet alle Mitglieder und Einstellungen.\nModerator – Kann Chats einsehen und genehmigen.\nMitglied – Kann Chats anfordern und kommunizieren.\nKind – Eingeschränkt, benötigt einen Guardian und Eltern-Zustimmung bei Einladungen.'**
   String get helpOrgTopicRolesBody;
 
-  /// No description provided for @helpOrgTopicChatModesTitle.
-  ///
-  /// In de, this message translates to:
-  /// **'Chat-Modi'**
-  String get helpOrgTopicChatModesTitle;
-
-  /// No description provided for @helpOrgTopicChatModesBody.
-  ///
-  /// In de, this message translates to:
-  /// **'Guardian-Modus – Mitglieder beantragen Chats, Admins oder Moderatoren genehmigen sie.\nSheltered-Modus – Der Admin legt vorab fest, wer mit wem kommunizieren darf. Gruppen-Chats sind möglich.'**
-  String get helpOrgTopicChatModesBody;
-
   /// No description provided for @helpOrgTopicInviteTitle.
   ///
   /// In de, this message translates to:
@@ -2249,7 +2225,7 @@ abstract class AppLocalizations {
   /// No description provided for @helpOrgTopicInviteBody.
   ///
   /// In de, this message translates to:
-  /// **'Öffne eine Organisation → tippe auf das Personen-Symbol → E-Mail eingeben und Rolle wählen. Als Admin kannst du in Sheltered-Orgs auch mehrere Mitglieder per CSV-Datei importieren.'**
+  /// **'Öffne eine Organisation → tippe auf das Personen-Symbol → E-Mail eingeben und Rolle wählen. Als Admin kannst du mehrere Mitglieder per CSV-Datei importieren.'**
   String get helpOrgTopicInviteBody;
 
   /// No description provided for @helpOrgTopicFamilyTitle.
@@ -2798,6 +2774,12 @@ abstract class AppLocalizations {
   /// **'Abstimmungs-Details'**
   String get pollDetailsButton;
 
+  /// No description provided for @errorChildAccountRoleLocked.
+  ///
+  /// In de, this message translates to:
+  /// **'Dieses Konto ist als Kind-Konto registriert. Bitte wähle die Rolle \'Kind\' und weise mindestens einen Guardian zu.'**
+  String get errorChildAccountRoleLocked;
+
   /// No description provided for @renameGroup.
   ///
   /// In de, this message translates to:
@@ -2821,6 +2803,48 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Name nur für dich sichtbar'**
   String get personalNameHint;
+
+  /// No description provided for @emailTab.
+  ///
+  /// In de, this message translates to:
+  /// **'Per E-Mail'**
+  String get emailTab;
+
+  /// No description provided for @addressBookTab.
+  ///
+  /// In de, this message translates to:
+  /// **'Aus Adressbuch'**
+  String get addressBookTab;
+
+  /// No description provided for @addressBookEmpty.
+  ///
+  /// In de, this message translates to:
+  /// **'Keine Kontakte aus anderen Organisationen verfügbar.'**
+  String get addressBookEmpty;
+
+  /// No description provided for @emailHidden.
+  ///
+  /// In de, this message translates to:
+  /// **'E-Mail versteckt'**
+  String get emailHidden;
+
+  /// No description provided for @hideEmail.
+  ///
+  /// In de, this message translates to:
+  /// **'E-Mail-Adresse verstecken'**
+  String get hideEmail;
+
+  /// No description provided for @hideEmailSubtitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Deine E-Mail-Adresse wird anderen Mitgliedern nicht angezeigt'**
+  String get hideEmailSubtitle;
+
+  /// No description provided for @privacySettings.
+  ///
+  /// In de, this message translates to:
+  /// **'Datenschutz-Einstellungen'**
+  String get privacySettings;
 }
 
 class _AppLocalizationsDelegate

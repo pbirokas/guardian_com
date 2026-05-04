@@ -69,17 +69,6 @@ class OrganizationDetailScreen extends ConsumerWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Icon(org.chatMode.icon, size: 12, color: Colors.grey),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          org.chatMode.label,
-                          style: const TextStyle(
-                              fontSize: 12, color: Colors.grey),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
                     ],
                   ),
                 ],
@@ -581,8 +570,7 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
         ref.watch(supervisorConversationsProvider(org.id));
     final guardianSupervisorConvsAsync =
         ref.watch(guardianSupervisorConversationsProvider(org.id));
-    final shelteredModConvsAsync = (isModerator &&
-            org.chatMode == ChatMode.sheltered)
+    final shelteredModConvsAsync = isModerator
         ? ref.watch(shelteredModeratorConversationsProvider(
             (orgId: org.id, adminUid: org.adminUid)))
         : const AsyncData(<Conversation>[]);
@@ -808,9 +796,7 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                               size: 56, color: Colors.grey[400]),
                           const SizedBox(height: 12),
                           Text(
-                            org.chatMode == ChatMode.guardian
-                                ? l.noChatsGuardian
-                                : l.noChatsSheltered,
+                            l.noChatsGuardian,
                             textAlign: TextAlign.center,
                             style: const TextStyle(color: Colors.grey),
                           ),
@@ -944,8 +930,8 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                 ],
               ],
             ),
-            // FAB für Admin im Sheltered-Modus: Gruppe erstellen
-            if (isAdmin && org.chatMode == ChatMode.sheltered)
+            // FAB für Admin: Gruppe erstellen
+            if (isAdmin)
               Positioned(
                 bottom: 16,
                 right: 16,
@@ -1255,7 +1241,7 @@ class _MembersTab extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  if (isAdmin && org.chatMode == ChatMode.sheltered)
+                  if (isAdmin)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: FloatingActionButton.extended(
@@ -1299,7 +1285,7 @@ class _MembersTab extends ConsumerWidget {
                 label: Text(l.suggestMember),
               ),
             ),
-          if (org.chatMode == ChatMode.guardian && !isAdmin && !isModerator && !isRegularMember)
+          if (!isAdmin && !isModerator && !isRegularMember)
             Positioned(
               bottom: 16,
               right: 16,
@@ -1326,11 +1312,16 @@ class _MembersTab extends ConsumerWidget {
     final selectedGuardians = <OrgMember>{};
     bool emailValid = false;
 
-    // Mögliche Guardians: aktive Mitglieder und Moderatoren (keine Kinder)
+    // Address book state
+    int tabIndex = 0;
+    Future<List<OrgMember>>? addressBookFuture;
+    List<OrgMember> addressBookEntries = [];
+    final Set<String> abSelected = {};
+    final Map<String, OrgRole> abRoles = {};
+    final Map<String, Set<String>> abGuardians = {};
+
     final possibleGuardians = members
-        .where((m) =>
-            m.role != OrgRole.child &&
-            m.status == MemberStatus.active)
+        .where((m) => m.role != OrgRole.child && m.status == MemberStatus.active)
         .toList();
 
     final confirmed = await showDialog<bool>(
@@ -1338,112 +1329,310 @@ class _MembersTab extends ConsumerWidget {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) {
           final ld = AppLocalizations.of(ctx);
-          // Moderatoren dürfen keine weiteren Moderatoren einladen
           final roleLabels = {
             if (isAdmin) OrgRole.moderator: ld.roleModerator,
             OrgRole.member: ld.roleMember,
             OrgRole.child: ld.roleChild,
           };
-          return AlertDialog(
-            title: Text(ld.inviteMember),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: emailController,
-                    autofocus: true,
-                    keyboardType: TextInputType.emailAddress,
-                    onChanged: (v) => setState(() {
-                      emailValid = RegExp(
-                        r'^[\w.+\-]+@[\w\-]+\.[\w.\-]+$',
-                      ).hasMatch(v.trim());
-                    }),
-                    decoration: InputDecoration(
-                      labelText: ld.emailAddress,
-                      border: const OutlineInputBorder(),
-                      prefixIcon: const Icon(Icons.email_outlined),
-                      errorText: emailController.text.isNotEmpty && !emailValid
-                          ? ld.invalidEmailAddress
-                          : null,
+
+          // ── Tab selector ────────────────────────────────────────────────
+          Widget tabSelector() {
+            final primary = Theme.of(ctx).colorScheme.primary;
+            return Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => tabIndex = 0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(
+                            color: tabIndex == 0 ? primary : Colors.grey.shade300,
+                            width: tabIndex == 0 ? 2 : 1,
+                          ),
+                        ),
+                      ),
+                      child: Text(ld.emailTab,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: tabIndex == 0 ? FontWeight.bold : FontWeight.normal,
+                            color: tabIndex == 0 ? primary : null,
+                          )),
                     ),
                   ),
+                ),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() {
+                      tabIndex = 1;
+                      addressBookFuture ??= ref
+                          .read(organizationServiceProvider)
+                          .getAddressBook(org.id);
+                    }),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(
+                            color: tabIndex == 1 ? primary : Colors.grey.shade300,
+                            width: tabIndex == 1 ? 2 : 1,
+                          ),
+                        ),
+                      ),
+                      child: Text(ld.addressBookTab,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: tabIndex == 1 ? FontWeight.bold : FontWeight.normal,
+                            color: tabIndex == 1 ? primary : null,
+                          )),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
+
+          // ── Email tab content ────────────────────────────────────────────
+          final emailContent = SingleChildScrollView(
+            padding: const EdgeInsets.only(top: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: emailController,
+                  autofocus: tabIndex == 0,
+                  keyboardType: TextInputType.emailAddress,
+                  onChanged: (v) => setState(() {
+                    emailValid = RegExp(
+                      r'^[\w.+\-]+@[\w\-]+\.[\w.\-]+$',
+                    ).hasMatch(v.trim());
+                  }),
+                  decoration: InputDecoration(
+                    labelText: ld.emailAddress,
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.email_outlined),
+                    errorText: emailController.text.isNotEmpty && !emailValid
+                        ? ld.invalidEmailAddress
+                        : null,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(ld.role,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 8),
+                SegmentedButton<OrgRole>(
+                  segments: roleLabels.entries
+                      .map((e) => ButtonSegment(value: e.key, label: Text(e.value)))
+                      .toList(),
+                  selected: {selectedRole},
+                  onSelectionChanged: (s) => setState(() {
+                    selectedRole = s.first;
+                    if (selectedRole != OrgRole.child) selectedGuardians.clear();
+                  }),
+                ),
+                if (selectedRole == OrgRole.child) ...[
                   const SizedBox(height: 16),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(ld.role,
-                        style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  Text(ld.guardians,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withAlpha(20),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.amber.shade300),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, size: 14, color: Colors.amber[800]),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(ld.childGuardianHint,
+                              style: TextStyle(fontSize: 11, color: Colors.amber[900])),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 8),
-                  SegmentedButton<OrgRole>(
-                    segments: roleLabels.entries
-                        .map((e) => ButtonSegment(
-                              value: e.key,
-                              label: Text(e.value),
-                            ))
-                        .toList(),
-                    selected: {selectedRole},
-                    onSelectionChanged: (s) => setState(() {
-                      selectedRole = s.first;
-                      if (selectedRole != OrgRole.child) selectedGuardians.clear();
-                    }),
-                  ),
-                  if (selectedRole == OrgRole.child) ...[
-                    const SizedBox(height: 16),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(ld.guardians,
-                          style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  if (possibleGuardians.isEmpty)
+                    Text(ld.noGuardiansAvailable,
+                        style: const TextStyle(fontSize: 12, color: Colors.red))
+                  else
+                    ...possibleGuardians.map((m) => CheckboxListTile(
+                          value: selectedGuardians.contains(m),
+                          title: Text(m.displayName),
+                          subtitle: Text(m.email,
+                              style: const TextStyle(fontSize: 11)),
+                          secondary: const Icon(Icons.shield_outlined),
+                          contentPadding: EdgeInsets.zero,
+                          onChanged: (checked) => setState(() {
+                            if (checked == true) {
+                              selectedGuardians.add(m);
+                            } else {
+                              selectedGuardians.remove(m);
+                            }
+                          }),
+                        )),
+                ],
+              ],
+            ),
+          );
+
+          // ── Address book tab content ─────────────────────────────────────
+          Widget addressBookContent() {
+            if (addressBookFuture == null) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            return FutureBuilder<List<OrgMember>>(
+              future: addressBookFuture,
+              builder: (ctx, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snap.hasError) {
+                  return Center(child: Text(ld.errorMessage(snap.error.toString())));
+                }
+                final entries = snap.data ?? [];
+                addressBookEntries = entries;
+                if (entries.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(ld.addressBookEmpty,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.grey)),
                     ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.withAlpha(20),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.amber.shade300),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.info_outline,
-                              size: 14, color: Colors.amber[800]),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              ld.childGuardianHint,
-                              style: TextStyle(
-                                  fontSize: 11, color: Colors.amber[900]),
+                  );
+                }
+                return ListView.builder(
+                  itemCount: entries.length,
+                  itemBuilder: (ctx, i) {
+                    final entry = entries[i];
+                    final isSelected = abSelected.contains(entry.uid);
+                    final entryRole = abRoles[entry.uid] ?? OrgRole.member;
+                    final entryGuardians = abGuardians.putIfAbsent(entry.uid, () => {});
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CheckboxListTile(
+                          value: isSelected,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                          title: Text(entry.displayName),
+                          subtitle: entry.hideEmail
+                              ? Row(children: [
+                                  Icon(Icons.no_accounts_outlined,
+                                      size: 12, color: Colors.grey[500]),
+                                  const SizedBox(width: 4),
+                                  Text(ld.emailHidden,
+                                      style: TextStyle(
+                                          fontSize: 11, color: Colors.grey[500])),
+                                ])
+                              : Text(entry.email,
+                                  style: const TextStyle(fontSize: 11)),
+                          onChanged: (v) => setState(() {
+                            if (v == true) {
+                              abSelected.add(entry.uid);
+                            } else {
+                              abSelected.remove(entry.uid);
+                              abRoles.remove(entry.uid);
+                              abGuardians.remove(entry.uid);
+                            }
+                          }),
+                        ),
+                        if (isSelected) ...[
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
+                            child: SegmentedButton<OrgRole>(
+                              style: SegmentedButton.styleFrom(
+                                  textStyle: const TextStyle(fontSize: 11)),
+                              segments: roleLabels.entries
+                                  .map((e) => ButtonSegment(
+                                        value: e.key,
+                                        label: Text(e.value),
+                                      ))
+                                  .toList(),
+                              selected: {entryRole},
+                              onSelectionChanged: (s) => setState(() {
+                                abRoles[entry.uid] = s.first;
+                                if (s.first != OrgRole.child) {
+                                  abGuardians[entry.uid]?.clear();
+                                }
+                              }),
                             ),
                           ),
+                          if (entryRole == OrgRole.child) ...[
+                            if (possibleGuardians.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                child: Text(ld.noGuardiansAvailable,
+                                    style: const TextStyle(
+                                        fontSize: 11, color: Colors.red)),
+                              )
+                            else
+                              ...possibleGuardians.map((g) => CheckboxListTile(
+                                    value: entryGuardians.contains(g.uid),
+                                    title: Text(g.displayName,
+                                        style: const TextStyle(fontSize: 12)),
+                                    secondary: const Icon(Icons.shield_outlined,
+                                        size: 18),
+                                    contentPadding:
+                                        const EdgeInsets.symmetric(horizontal: 8),
+                                    dense: true,
+                                    onChanged: (v) => setState(() {
+                                      if (v == true) {
+                                        entryGuardians.add(g.uid);
+                                      } else {
+                                        entryGuardians.remove(g.uid);
+                                      }
+                                    }),
+                                  )),
+                          ],
+                          const Divider(height: 8),
                         ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    if (possibleGuardians.isEmpty)
-                      Text(
-                        ld.noGuardiansAvailable,
-                        style: const TextStyle(fontSize: 12, color: Colors.red),
-                      )
-                    else
-                      ...possibleGuardians.map((m) => CheckboxListTile(
-                            value: selectedGuardians.contains(m),
-                            title: Text(m.displayName),
-                            subtitle: Text(m.email,
-                                style: const TextStyle(fontSize: 11)),
-                            secondary: const Icon(Icons.shield_outlined),
-                            contentPadding: EdgeInsets.zero,
-                            onChanged: (checked) => setState(() {
-                              if (checked == true) {
-                                selectedGuardians.add(m);
-                              } else {
-                                selectedGuardians.remove(m);
-                              }
-                            }),
-                          )),
-                  ],
-                ],
-              ),
+                      ],
+                    );
+                  },
+                );
+              },
+            );
+          }
+
+          // ── Can confirm? ─────────────────────────────────────────────────
+          bool canConfirm() {
+            if (tabIndex == 0) {
+              return emailValid &&
+                  (selectedRole != OrgRole.child || selectedGuardians.isNotEmpty);
+            }
+            if (abSelected.isEmpty) return false;
+            for (final uid in abSelected) {
+              final role = abRoles[uid] ?? OrgRole.member;
+              if (role == OrgRole.child &&
+                  (abGuardians[uid]?.isEmpty ?? true)) { return false; }
+            }
+            return true;
+          }
+
+          return AlertDialog(
+            titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+            title: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(ld.inviteMemberTitle),
+                const SizedBox(height: 12),
+                tabSelector(),
+              ],
+            ),
+            contentPadding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 360,
+              child: tabIndex == 0 ? emailContent : addressBookContent(),
             ),
             actions: [
               TextButton(
@@ -1451,11 +1640,7 @@ class _MembersTab extends ConsumerWidget {
                 child: Text(ld.cancel),
               ),
               FilledButton(
-                onPressed: (!emailValid ||
-                        (selectedRole == OrgRole.child &&
-                            selectedGuardians.isEmpty))
-                    ? null
-                    : () => Navigator.pop(ctx, true),
+                onPressed: canConfirm() ? () => Navigator.pop(ctx, true) : null,
                 child: Text(ld.invite),
               ),
             ],
@@ -1464,7 +1649,11 @@ class _MembersTab extends ConsumerWidget {
       ),
     );
 
-    if (confirmed == true && emailController.text.trim().isNotEmpty) {
+    if (confirmed != true) return;
+
+    if (tabIndex == 0) {
+      // Email invite
+      if (emailController.text.trim().isEmpty) return;
       try {
         await ref.read(organizationServiceProvider).inviteMember(
               org.id,
@@ -1475,20 +1664,45 @@ class _MembersTab extends ConsumerWidget {
                   : [],
             );
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(selectedRole == OrgRole.child
-                  ? l.inviteSentChild
-                  : l.inviteSent),
-            ),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(selectedRole == OrgRole.child
+                ? l.inviteSentChild
+                : l.inviteSent),
+          ));
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l.errorMessage(e.toString()))),
-          );
+          final msg = e.toString().contains('child_account_role_locked')
+              ? l.errorChildAccountRoleLocked
+              : l.errorMessage(e.toString());
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(msg)));
         }
+      }
+    } else {
+      // Address book multi-invite
+      final errors = <String>[];
+      for (final uid in abSelected) {
+        final entry = addressBookEntries.firstWhere((m) => m.uid == uid);
+        final role = abRoles[uid] ?? OrgRole.member;
+        final guardianUids = abGuardians[uid]?.toList() ?? [];
+        try {
+          await ref.read(organizationServiceProvider).inviteMember(
+                org.id,
+                entry.email,
+                role,
+                guardianUids: role == OrgRole.child ? guardianUids : [],
+              );
+        } catch (e) {
+          errors.add(entry.displayName);
+        }
+      }
+      if (context.mounted) {
+        final msg = errors.isEmpty
+            ? l.inviteSent
+            : l.errorMessage(errors.join(', '));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(msg)));
       }
     }
   }
@@ -2456,7 +2670,7 @@ class _MemberTile extends StatelessWidget {
             OrgRole.moderator;
     if ((isMod || isAdmin) && member.role == OrgRole.child) return true;
     if (!isAdmin && isGuardian) return true;
-    if (!isAdmin && !isGuardian && org.chatMode == ChatMode.guardian) return true;
+    if (!isAdmin && !isGuardian) return true;
     if (isAdmin && member.role != OrgRole.admin) return true;
     return false;
   }
@@ -2531,8 +2745,8 @@ class _MemberTile extends StatelessWidget {
                   _startAdminChat(context);
                 },
               ),
-            // Nicht-Admin im Guardian-Modus: Chat anfragen (für andere Mitglieder)
-            if (!isAdmin && !isOwnTile && !isGuardian && org.chatMode == ChatMode.guardian)
+            // Nicht-Admin: Chat anfragen (für andere Mitglieder)
+            if (!isAdmin && !isOwnTile && !isGuardian)
               ListTile(
                 leading: const Icon(Icons.chat_outlined),
                 title: Text(l.requestChat),
@@ -2914,7 +3128,15 @@ class _MemberTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(member.email, style: const TextStyle(fontSize: 12)),
+          if (member.hideEmail)
+            Row(children: [
+              Icon(Icons.no_accounts_outlined, size: 12, color: Colors.grey[500]),
+              const SizedBox(width: 4),
+              Text(AppLocalizations.of(context).emailHidden,
+                  style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+            ])
+          else
+            Text(member.email, style: const TextStyle(fontSize: 12)),
           if (guardians.isNotEmpty)
             Row(
               children: [

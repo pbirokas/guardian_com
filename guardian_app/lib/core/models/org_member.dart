@@ -31,6 +31,7 @@ class OrgMember {
   final Map<String, DateTime> lastChildAlertAt; // childUid -> last alert time
   final bool notificationsEnabled; // false = diese Org stummgeschaltet
   final MessageAlertInterval messageAlertInterval; // Nachrichtenintervall für diese Org
+  final bool hideEmail; // E-Mail vor Mitgliedern verstecken
 
   const OrgMember({
     required this.uid,
@@ -45,6 +46,7 @@ class OrgMember {
     this.lastChildAlertAt = const {},
     this.notificationsEnabled = true,
     this.messageAlertInterval = MessageAlertInterval.always,
+    this.hideEmail = false,
   });
 
   factory OrgMember.fromFirestore(DocumentSnapshot doc) {
@@ -75,6 +77,7 @@ class OrgMember {
       messageAlertInterval: MessageAlertInterval.values
           .where((e) => e.name == (data['messageAlertInterval'] as String?))
           .firstOrNull ?? MessageAlertInterval.always,
+      hideEmail: data['hideEmail'] as bool? ?? false,
     );
   }
 
@@ -89,5 +92,6 @@ class OrgMember {
         'childAlertInterval': childAlertInterval.name,
         'notificationsEnabled': notificationsEnabled,
         'messageAlertInterval': messageAlertInterval.name,
+        'hideEmail': hideEmail,
       };
 }

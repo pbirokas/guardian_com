@@ -138,7 +138,6 @@
   "orgTagSchule": "School",
   "orgTagVereine": "Clubs",
   "orgTagSonstiges": "Other",
-  "chatMode": "Chat mode",
   "keywordsHelpTitle": "Keywords – Help",
   "keywordsHelpBody": "What are keywords for?\nGuardians and moderators are notified whenever one of these words appears in a chat message. This helps detect sensitive topics or risk terms early.\n\nAdding words\nType a word in the text field and tap '+' or press Enter. Case is ignored – everything is stored in lowercase.\n\nRemoving words\nTap the '×' on a chip.\n\nCSV import / export\n• Import (upload arrow): Load a text file with one word per line or comma-separated.\n• Export (download arrow): Save all words as a CSV file.\n\nChanges only take effect after tapping 'Save'.",
   "keywordsTitle": "Keywords",
@@ -181,7 +180,6 @@
     "placeholders": { "count": { "type": "int" } }
   },
   "noChatsGuardian": "No chats yet.\nSend a request to get started.",
-  "noChatsSheltered": "No chats yet.\nThe admin sets up connections.",
   "createGroup": "Create group",
   "groupName": "Group name",
   "addMembers": "Add members",
@@ -511,10 +509,8 @@
   "helpOrgTopicOrgsBody": "Organizations are groups for secure communication – e.g. family, school, or club. You can create organizations yourself or join via invitation.",
   "helpOrgTopicRolesTitle": "Roles",
   "helpOrgTopicRolesBody": "Admin – Full control, manages all members and settings.\nModerator – Can view and approve chats.\nMember – Can request chats and communicate.\nChild – Restricted, requires a Guardian and parental consent for invitations.",
-  "helpOrgTopicChatModesTitle": "Chat Modes",
-  "helpOrgTopicChatModesBody": "Guardian Mode – Members request chats, admins or moderators approve them.\nSheltered Mode – The admin determines in advance who can communicate with whom. Group chats are possible.",
   "helpOrgTopicInviteTitle": "Invite Members",
-  "helpOrgTopicInviteBody": "Open an organization → tap the people icon → enter email and choose a role. As an admin you can also import multiple members via CSV file in Sheltered orgs.",
+  "helpOrgTopicInviteBody": "Open an organization → tap the people icon → enter email and choose a role. As an admin you can also import multiple members via CSV file.",
   "helpOrgTopicFamilyTitle": "Parent-Child Connection",
   "helpOrgTopicFamilyBody": "Child accounts are globally locked to the 'Child' role. When a child is invited to an org, parents must consent first. The tree button above opens your family overview.",
   "tourStepProfileTitle": "Profile & Settings",
@@ -659,8 +655,17 @@
   "chatTypeGroup": "Group",
   "chatTypeDirect": "Direct message",
   "pollDetailsButton": "Poll details",
+  "errorChildAccountRoleLocked": "This account is registered as a child account. Please select the role \"Child\" and assign at least one guardian.",
   "renameGroup": "Rename group",
   "personalChatName": "Personal chat name",
   "chatNameHint": "Group name",
-  "personalNameHint": "Name only visible to you"
+  "personalNameHint": "Name only visible to you",
+
+  "emailTab": "By email",
+  "addressBookTab": "From address book",
+  "addressBookEmpty": "No contacts from other organizations available.",
+  "emailHidden": "Email hidden",
+  "hideEmail": "Hide email address",
+  "hideEmailSubtitle": "Your email address won't be shown to other members",
+  "privacySettings": "Privacy settings"
 }

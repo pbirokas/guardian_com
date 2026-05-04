@@ -43,8 +43,7 @@ class OrganizationService {
         .map((s) => s.docs.map(OrgAuditEntry.fromFirestore).toList());
   }
 
-  Future<Organization> createOrganization(
-      String name, OrgTag tag, ChatMode chatMode) async {
+  Future<Organization> createOrganization(String name, OrgTag tag) async {
     final orgRef = _db.collection('organizations').doc();
     final now = DateTime.now();
     final currentUser = _auth.currentUser!;
@@ -54,7 +53,6 @@ class OrganizationService {
       name: name,
       adminUid: _uid,
       tag: tag,
-      chatMode: chatMode,
       memberUids: [_uid],
       createdAt: now,
     );
@@ -106,11 +104,10 @@ class OrganizationService {
   }
 
   Future<void> updateOrganization(String orgId,
-      {String? name, OrgTag? tag, ChatMode? chatMode}) async {
+      {String? name, OrgTag? tag}) async {
     final updates = <String, dynamic>{
       'name': ?name,
       if (tag != null) 'tag': tag.name,
-      if (chatMode != null) 'chatMode': chatMode.name,
     };
     if (updates.isNotEmpty) {
       await _db.collection('organizations').doc(orgId).update(updates);
@@ -124,7 +121,7 @@ class OrganizationService {
   Future<void> inviteMember(String orgId, String email, OrgRole role,
       {List<String> guardianUids = const []}) async {
     final normalizedEmail = email.toLowerCase().trim();
-    final isChild = role == OrgRole.child;
+    var isChild = role == OrgRole.child;
     if (isChild && guardianUids.isEmpty) {
       throw Exception('Für ein Kind muss mindestens ein Guardian ausgewählt werden.');
     }
@@ -173,6 +170,18 @@ class OrganizationService {
     final userData = userDoc.data();
     final targetUid = userDoc.id;
 
+    // Kind-Konten dürfen nur mit Rolle 'Kind' eingeladen werden
+    final isChildAccount = userData['isChild'] as bool? ?? false;
+    if (isChildAccount && role != OrgRole.child) {
+      throw Exception('child_account_role_locked');
+    }
+    // Effektive Rolle: Bei Kind-Konten immer 'child', unabhängig von der Auswahl
+    final effectiveRole = isChildAccount ? OrgRole.child : role;
+    isChild = effectiveRole == OrgRole.child;
+    if (isChild && guardianUids.isEmpty) {
+      throw Exception('Für ein Kind muss mindestens ein Guardian ausgewählt werden.');
+    }
+
     final memberDoc = _db
         .collection('organizations')
         .doc(orgId)
@@ -211,7 +220,7 @@ class OrganizationService {
     }
 
     final memberStatus = isChild ? MemberStatus.pending : MemberStatus.active;
-    final membership = OrgMembership(orgId: orgId, role: role);
+    final membership = OrgMembership(orgId: orgId, role: effectiveRole);
 
     await _db.runTransaction((tx) async {
       tx.set(memberDoc, OrgMember(
@@ -219,7 +228,7 @@ class OrganizationService {
         displayName: userData['displayName'] as String,
         email: userData['email'] as String,
         photoUrl: userData['photoUrl'] as String?,
-        role: role,
+        role: effectiveRole,
         joinedAt: DateTime.now(),
         guardianUids: isChild ? guardianUids : [],
         status: memberStatus,
@@ -591,7 +600,7 @@ class OrganizationService {
   Future<void> approveSuggestion(String orgId, String suggestionId,
       String email, OrgRole role, List<String> guardianUids) async {
     final normalizedEmail = email.toLowerCase().trim();
-    final isChild = role == OrgRole.child;
+    var isChild = role == OrgRole.child;
 
     // Prüfen ob User bereits registriert ist
     final query = await _db
@@ -606,6 +615,14 @@ class OrganizationService {
       final targetUid = userDoc.id;
       final userData = userDoc.data();
 
+      // Kind-Konten dürfen nur mit Rolle 'Kind' hinzugefügt werden
+      final isChildAccount = userData['isChild'] as bool? ?? false;
+      if (isChildAccount && role != OrgRole.child) {
+        throw Exception('child_account_role_locked');
+      }
+      final effectiveRole = isChildAccount ? OrgRole.child : role;
+      isChild = effectiveRole == OrgRole.child;
+
       final memberDoc = _db
           .collection('organizations')
           .doc(orgId)
@@ -614,7 +631,7 @@ class OrganizationService {
 
       final existing = await memberDoc.get();
       if (!existing.exists) {
-        final membership = OrgMembership(orgId: orgId, role: role);
+        final membership = OrgMembership(orgId: orgId, role: effectiveRole);
         await _db.runTransaction((tx) async {
           tx.set(
             memberDoc,
@@ -623,7 +640,7 @@ class OrganizationService {
               displayName: userData['displayName'] as String,
               email: userData['email'] as String,
               photoUrl: userData['photoUrl'] as String?,
-              role: role,
+              role: effectiveRole,
               joinedAt: DateTime.now(),
               guardianUids: isChild ? guardianUids : [],
               status: isChild ? MemberStatus.pending : MemberStatus.active,
@@ -704,6 +721,68 @@ class OrganizationService {
       {'invitationIds': FieldValue.arrayUnion([invitationId])},
       SetOptions(merge: true),
     );
+  }
+
+  // ── Adressbuch & Datenschutz ─────────────────────────────────────────────
+
+  /// Setzt hideEmail im User-Dokument und batch-updated alle Member-Dokumente.
+  Future<void> setHideEmail(bool hideEmail) async {
+    final userDoc = await _db.collection('users').doc(_uid).get();
+    final memberships = List<Map<String, dynamic>>.from(
+        userDoc.data()?['memberships'] as List? ?? []);
+
+    final batch = _db.batch();
+    batch.update(_db.collection('users').doc(_uid), {'hideEmail': hideEmail});
+    for (final m in memberships) {
+      final orgId = m['orgId'] as String?;
+      if (orgId == null) continue;
+      batch.update(
+        _db.collection('organizations').doc(orgId).collection('members').doc(_uid),
+        {'hideEmail': hideEmail},
+      );
+    }
+    await batch.commit();
+  }
+
+  /// Gibt aktive Mitglieder aus allen anderen Orgs des Nutzers zurück,
+  /// ohne bereits in [excludeOrgId] vorhandene Mitglieder.
+  Future<List<OrgMember>> getAddressBook(String excludeOrgId) async {
+    final userDoc = await _db.collection('users').doc(_uid).get();
+    final memberships = List<Map<String, dynamic>>.from(
+        userDoc.data()?['memberships'] as List? ?? []);
+
+    final currentOrgSnap = await _db
+        .collection('organizations')
+        .doc(excludeOrgId)
+        .collection('members')
+        .get();
+    final currentOrgUids = currentOrgSnap.docs.map((d) => d.id).toSet();
+
+    final Map<String, OrgMember> result = {};
+    for (final m in memberships) {
+      final orgId = m['orgId'] as String?;
+      if (orgId == null || orgId == excludeOrgId) continue;
+      try {
+        final snap = await _db
+            .collection('organizations')
+            .doc(orgId)
+            .collection('members')
+            .where('status', isEqualTo: 'active')
+            .get();
+        for (final doc in snap.docs) {
+          final uid = doc.id;
+          if (uid == _uid) continue;
+          if (currentOrgUids.contains(uid)) continue;
+          result.putIfAbsent(uid, () => OrgMember.fromFirestore(doc));
+        }
+      } catch (_) {
+        // Skip orgs where the member doc is stale or the org was deleted.
+      }
+    }
+
+    final list = result.values.toList()
+      ..sort((a, b) => a.displayName.compareTo(b.displayName));
+    return list;
   }
 
   // ── Ankündigungen (Pinnwand) ───────────────────────────────────────────────

@@ -16,10 +16,13 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
   bool _showOnlineStatus = true;
   bool _showLastSeen = true;
   bool _showProfilePhoto = true;
+  bool? _hideEmailOverride;
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final appUser = ref.watch(currentAppUserProvider).value;
+    final hideEmail = _hideEmailOverride ?? (appUser?.hideEmail ?? false);
 
     return Scaffold(
       appBar: AppBar(title: Text(l.privacyTitle)),
@@ -43,6 +46,24 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
             subtitle: Text(l.showProfilePhotoSubtitle),
             value: _showProfilePhoto,
             onChanged: (v) => setState(() => _showProfilePhoto = v),
+          ),
+          SwitchListTile(
+            secondary: Icon(
+              hideEmail ? Icons.no_accounts_outlined : Icons.alternate_email,
+            ),
+            title: Text(l.hideEmail),
+            subtitle: Text(l.hideEmailSubtitle),
+            value: hideEmail,
+            onChanged: (v) async {
+              setState(() => _hideEmailOverride = v);
+              try {
+                await ref
+                    .read(organizationServiceProvider)
+                    .setHideEmail(v);
+              } catch (_) {
+                if (mounted) setState(() => _hideEmailOverride = !v);
+              }
+            },
           ),
           const Divider(),
           _SectionHeader(l.legal),

@@ -4,6 +4,36 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+### 2026-05-04 — Einheitlicher Org-Modus, Adressbuch & E-Mail-Datenschutz
+
+#### Neue Funktionen
+
+**Einheitlicher Org-Modus (Guardian + Sheltered vereint)**
+- Jede Organisation unterstützt jetzt beide Chat-Typen: Mitglieder können Chat-Anfragen stellen (wie im früheren Guardian-Modus) *und* Admins können Gruppen anlegen (wie im früheren Sheltered-Modus)
+- Der bisherige `ChatMode`-Schalter (Guardian / Sheltered) entfällt bei der Org-Erstellung und im Bearbeiten-Dialog vollständig
+- Abstimmungen (Polls) sind in allen Gruppenkonversationen verfügbar — nicht mehr auf Sheltered-Gruppen beschränkt
+- Bestehende Orgs in Firestore sind ohne Migration lauffähig; das `chatMode`-Feld wird ignoriert
+
+**Adressbuch beim Einladen**
+- Mitglieder einladen öffnet jetzt zwei Tabs: „E-Mail" (wie bisher) und „Adressbuch"
+- Das Adressbuch aggregiert aktive Mitglieder aus allen anderen Orgs des Admins/Moderators, dedupliziert nach UID und schließt aktuelle Org-Mitglieder sowie das eigene Konto aus
+- Pro Person kann direkt eine Rolle und (bei Kind-Konten) ein Guardian ausgewählt werden — ohne erneute E-Mail-Eingabe
+
+**E-Mail-Datenschutz**
+- Neues Schalter „E-Mail-Adresse verbergen" in den Datenschutz-Einstellungen (Profil → Datenschutz)
+- Ist der Schalter aktiv, wird die E-Mail-Adresse in der Mitgliederliste durch ein Datenschutz-Icon ersetzt
+- Die Einstellung wird auf alle Mitglieds-Dokumente des Nutzers synchron übertragen (`hideEmail`-Feld in `users` und `members`)
+- Neuer Menüpunkt „Datenschutz" in der Profil-Übersicht
+
+#### Fehlerbehebungen
+
+| Bereich | Änderung |
+|---|---|
+| **PERMISSION_DENIED: Moderator-Konversationen** | `watchShelteredModeratorConversations` filterte bisher nur nach `orgAdminUid` — orgsübergreifende Ergebnisse verursachten Firestore-PERMISSION_DENIED. Filter um `orgId` ergänzt; neuer Composite-Index `(orgId, orgAdminUid)` in `firestore.indexes.json` |
+| **PERMISSION_DENIED: Adressbuch** | Veraltete Mitgliedschafts-Einträge im User-Dokument konnten auf Orgs zeigen, in denen kein Mitglieds-Dokument mehr existiert. Per-Org-Abfrage ist jetzt in try/catch gekapselt, fehlerhafte Orgs werden übersprungen |
+
+---
+
 ### 2026-05-01 — Share-Target: Org-Gruppierung, Chat-Direktsenden & Tastatur-GIF
 
 #### Neue Funktionen

@@ -662,13 +662,13 @@ class ChatService {
       String orgId, String adminUid) {
     return _db
         .collection('conversations')
+        .where('orgId', isEqualTo: orgId)
         .where('orgAdminUid', isEqualTo: adminUid)
         .snapshots()
         .map((s) {
       final all = s.docs.map(Conversation.fromFirestore).toList();
       final filtered = all
           .where((c) =>
-              c.orgId == orgId &&
               c.status == ConversationStatus.approved &&
               !c.participantUids.contains(_uid))
           .toList();

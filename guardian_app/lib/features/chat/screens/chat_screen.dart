@@ -23,7 +23,6 @@ import '../../../core/models/message.dart';
 import '../../../core/widgets/help_sheet.dart';
 import '../../../core/providers/chat_font_size_provider.dart';
 import '../../../core/models/org_member.dart';
-import '../../../core/models/organization.dart';
 import '../../../core/models/scheduled_message.dart';
 import '../../../core/providers/share_provider.dart';
 import '../../../features/organizations/providers/organizations_provider.dart';
@@ -953,9 +952,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ? null
         : ref.watch(orgMembersProvider(conv.orgId)).value;
 
-    final isSheltered = conv != null &&
-        ref.watch(organizationProvider(conv.orgId)).value?.chatMode ==
-            ChatMode.sheltered;
 
     String title;
     if (conv == null) {
@@ -1368,7 +1364,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               onStartRecording: _startRecording,
               onStopAndSend: _stopAndSend,
               onCancelRecording: _cancelRecording,
-              onCreatePoll: isSheltered ? _showCreatePollDialog : null,
+              onCreatePoll: (conv?.isGroup ?? false) ? _showCreatePollDialog : null,
               onSchedule: _showScheduleDialog,
               replyMessage: _replyingTo,
               onCancelReply: () => setState(() => _replyingTo = null),

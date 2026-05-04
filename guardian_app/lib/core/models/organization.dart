@@ -42,34 +42,11 @@ enum OrgTag {
       };
 }
 
-enum ChatMode {
-  guardian,
-  sheltered;
-
-  String get label => switch (this) {
-        ChatMode.guardian => 'Guardian',
-        ChatMode.sheltered => 'Sheltered',
-      };
-
-  String get description => switch (this) {
-        ChatMode.guardian =>
-          'Mitglieder können einen Chat anfordern. Ein Admin oder Moderator genehmigt oder lehnt die Anfrage ab.',
-        ChatMode.sheltered =>
-          'Der Admin legt vorab fest, wer mit wem kommunizieren darf. Nur freigegebene Verbindungen sind erlaubt.',
-      };
-
-  IconData get icon => switch (this) {
-        ChatMode.guardian => Icons.shield_outlined,
-        ChatMode.sheltered => Icons.lock_outlined,
-      };
-}
-
 class Organization {
   final String id;
   final String name;
   final String adminUid;
   final OrgTag tag;
-  final ChatMode chatMode;
   final List<String> memberUids;
   final DateTime createdAt;
   final bool isArchived;
@@ -80,7 +57,6 @@ class Organization {
     required this.name,
     required this.adminUid,
     required this.tag,
-    required this.chatMode,
     required this.memberUids,
     required this.createdAt,
     this.isArchived = false,
@@ -94,8 +70,6 @@ class Organization {
       name: data['name'] as String,
       adminUid: data['adminUid'] as String,
       tag: OrgTag.values.byName(data['tag'] as String? ?? 'sonstiges'),
-      chatMode:
-          ChatMode.values.byName(data['chatMode'] as String? ?? 'guardian'),
       memberUids: List<String>.from(data['memberUids'] as List? ?? []),
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       isArchived: data['isArchived'] as bool? ?? false,
@@ -107,7 +81,6 @@ class Organization {
         'name': name,
         'adminUid': adminUid,
         'tag': tag.name,
-        'chatMode': chatMode.name,
         'memberUids': memberUids,
         'createdAt': Timestamp.fromDate(createdAt),
         'isArchived': isArchived,

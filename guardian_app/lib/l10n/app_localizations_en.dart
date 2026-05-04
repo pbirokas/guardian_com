@@ -378,9 +378,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get orgTagSonstiges => 'Other';
 
   @override
-  String get chatMode => 'Chat mode';
-
-  @override
   String get keywordsHelpTitle => 'Keywords – Help';
 
   @override
@@ -489,10 +486,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noChatsGuardian => 'No chats yet.\nSend a request to get started.';
-
-  @override
-  String get noChatsSheltered =>
-      'No chats yet.\nThe admin sets up connections.';
 
   @override
   String get createGroup => 'Create group';
@@ -1202,18 +1195,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Admin – Full control, manages all members and settings.\nModerator – Can view and approve chats.\nMember – Can request chats and communicate.\nChild – Restricted, requires a Guardian and parental consent for invitations.';
 
   @override
-  String get helpOrgTopicChatModesTitle => 'Chat Modes';
-
-  @override
-  String get helpOrgTopicChatModesBody =>
-      'Guardian Mode – Members request chats, admins or moderators approve them.\nSheltered Mode – The admin determines in advance who can communicate with whom. Group chats are possible.';
-
-  @override
   String get helpOrgTopicInviteTitle => 'Invite Members';
 
   @override
   String get helpOrgTopicInviteBody =>
-      'Open an organization → tap the people icon → enter email and choose a role. As an admin you can also import multiple members via CSV file in Sheltered orgs.';
+      'Open an organization → tap the people icon → enter email and choose a role. As an admin you can also import multiple members via CSV file.';
 
   @override
   String get helpOrgTopicFamilyTitle => 'Parent-Child Connection';
@@ -1527,6 +1513,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pollDetailsButton => 'Poll details';
 
   @override
+  String get errorChildAccountRoleLocked =>
+      'This account is registered as a child account. Please select the role \"Child\" and assign at least one guardian.';
+
+  @override
   String get renameGroup => 'Rename group';
 
   @override
@@ -1537,4 +1527,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get personalNameHint => 'Name only visible to you';
+
+  @override
+  String get emailTab => 'By email';
+
+  @override
+  String get addressBookTab => 'From address book';
+
+  @override
+  String get addressBookEmpty =>
+      'No contacts from other organizations available.';
+
+  @override
+  String get emailHidden => 'Email hidden';
+
+  @override
+  String get hideEmail => 'Hide email address';
+
+  @override
+  String get hideEmailSubtitle =>
+      'Your email address won\'t be shown to other members';
+
+  @override
+  String get privacySettings => 'Privacy settings';
 }

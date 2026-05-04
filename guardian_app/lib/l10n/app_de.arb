@@ -138,7 +138,6 @@
   "orgTagSchule": "Schule",
   "orgTagVereine": "Vereine",
   "orgTagSonstiges": "Sonstiges",
-  "chatMode": "Chat-Modus",
   "keywordsHelpTitle": "Schlüsselwörter – Hilfe",
   "keywordsHelpBody": "Wozu dienen Schlüsselwörter?\nGuardians und Moderatoren werden benachrichtigt, sobald eines dieser Wörter in einem Chat-Nachricht erscheint. So lassen sich sensible Themen oder Risikobegriffe frühzeitig erkennen.\n\nWörter hinzufügen\nGib ein Wort in das Textfeld ein und tippe auf '+' oder drücke Enter. Gross-/Kleinschreibung wird ignoriert – alles wird in Kleinbuchstaben gespeichert.\n\nWörter entfernen\nTippe auf das '×'-Symbol auf einem Chip.\n\nCSV-Import / Export\n• Import (Pfeil nach oben): Lade eine Textdatei mit einem Wort pro Zeile oder kommagetrennt.\n• Export (Pfeil nach unten): Speichere alle Wörter als CSV-Datei.\n\nÄnderungen werden erst nach 'Speichern' übernommen.",
   "keywordsTitle": "Schlüsselwörter",
@@ -181,7 +180,6 @@
     "placeholders": { "count": { "type": "int" } }
   },
   "noChatsGuardian": "Noch keine Chats.\nStelle eine Anfrage um zu starten.",
-  "noChatsSheltered": "Noch keine Chats.\nDer Admin legt Verbindungen fest.",
   "createGroup": "Gruppe erstellen",
   "groupName": "Gruppenname",
   "addMembers": "Mitglieder hinzufügen",
@@ -511,10 +509,8 @@
   "helpOrgTopicOrgsBody": "Organisationen sind Gruppen für sichere Kommunikation – z. B. Familie, Schule oder Verein. Du kannst selbst Organisationen erstellen oder per Einladung beitreten.",
   "helpOrgTopicRolesTitle": "Rollen",
   "helpOrgTopicRolesBody": "Admin – Volle Kontrolle, verwaltet alle Mitglieder und Einstellungen.\nModerator – Kann Chats einsehen und genehmigen.\nMitglied – Kann Chats anfordern und kommunizieren.\nKind – Eingeschränkt, benötigt einen Guardian und Eltern-Zustimmung bei Einladungen.",
-  "helpOrgTopicChatModesTitle": "Chat-Modi",
-  "helpOrgTopicChatModesBody": "Guardian-Modus – Mitglieder beantragen Chats, Admins oder Moderatoren genehmigen sie.\nSheltered-Modus – Der Admin legt vorab fest, wer mit wem kommunizieren darf. Gruppen-Chats sind möglich.",
   "helpOrgTopicInviteTitle": "Mitglieder einladen",
-  "helpOrgTopicInviteBody": "Öffne eine Organisation → tippe auf das Personen-Symbol → E-Mail eingeben und Rolle wählen. Als Admin kannst du in Sheltered-Orgs auch mehrere Mitglieder per CSV-Datei importieren.",
+  "helpOrgTopicInviteBody": "Öffne eine Organisation → tippe auf das Personen-Symbol → E-Mail eingeben und Rolle wählen. Als Admin kannst du mehrere Mitglieder per CSV-Datei importieren.",
   "helpOrgTopicFamilyTitle": "Eltern-Kind-Verknüpfung",
   "helpOrgTopicFamilyBody": "Kind-Konten sind global auf die Rolle 'Kind' gesperrt. Wird ein Kind in eine Org eingeladen, müssen die Eltern zuerst zustimmen. Der Baum-Button oben öffnet deine Familienübersicht.",
   "tourStepProfileTitle": "Profil & Einstellungen",
@@ -659,8 +655,17 @@
   "chatTypeGroup": "Gruppe",
   "chatTypeDirect": "Direktnachricht",
   "pollDetailsButton": "Abstimmungs-Details",
+  "errorChildAccountRoleLocked": "Dieses Konto ist als Kind-Konto registriert. Bitte wähle die Rolle 'Kind' und weise mindestens einen Guardian zu.",
   "renameGroup": "Gruppe umbenennen",
   "personalChatName": "Eigener Chatname",
   "chatNameHint": "Gruppenname",
-  "personalNameHint": "Name nur für dich sichtbar"
+  "personalNameHint": "Name nur für dich sichtbar",
+
+  "emailTab": "Per E-Mail",
+  "addressBookTab": "Aus Adressbuch",
+  "addressBookEmpty": "Keine Kontakte aus anderen Organisationen verfügbar.",
+  "emailHidden": "E-Mail versteckt",
+  "hideEmail": "E-Mail-Adresse verstecken",
+  "hideEmailSubtitle": "Deine E-Mail-Adresse wird anderen Mitgliedern nicht angezeigt",
+  "privacySettings": "Datenschutz-Einstellungen"
 }

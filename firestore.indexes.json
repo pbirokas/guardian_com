@@ -42,6 +42,14 @@
       ]
     },
     {
+      "collectionGroup": "conversations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId", "order": "ASCENDING" },
+        { "fieldPath": "orgAdminUid", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "orgInviteConsents",
       "queryScope": "COLLECTION",
       "fields": [

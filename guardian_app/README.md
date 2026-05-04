@@ -8,17 +8,18 @@ A Flutter app for supervised, GDPR-compliant communication within organizations 
 - Create and manage multiple organizations
 - Role-based access: **Admin**, **Moderator**, **Member**, **Child**
 - Invite members by email (individual or bulk CSV import)
+- **Address book** — invite members from your other organizations directly, without re-entering their email
 - Guardian–child relationship with approval workflow
 - Suggest new members (regular members can propose, admin/mod approves)
 - Archive and restore organizations
 
 ### Chat
-- Direct and group chats with approval workflow (admin/moderator must approve chat requests)
+- Every org supports both **direct chat requests** (member-initiated, admin/mod approval) and **admin-created group chats** — no mode switch required
 - **Read receipts** — see who has read each message
 - **Replies** — quote and reply to individual messages
 - **Search** — full-text search within a chat
 - **Scheduled messages** — queue a message to be sent at a specific time
-- **Polls** — create single- and multiple-choice polls, close manually
+- **Polls** — create single- and multiple-choice polls in any group chat, with optional expiry date
 - Send images, files (max. 5 MB), and voice messages
 - Report messages; admin/moderators can moderate and delete
 - Guardian supervision: guardians see their child's chats and receive keyword alerts
@@ -42,6 +43,7 @@ A Flutter app for supervised, GDPR-compliant communication within organizations 
 - Light / dark / system theme
 - Language: German, English
 - Show/hide online status, last-seen, profile photo
+- **Hide email address** — opt out of showing your email in member lists across all organizations
 - Delete account (removes all data immediately)
 
 ### Platforms

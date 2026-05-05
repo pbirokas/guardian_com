@@ -103,13 +103,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Future<void> _onKeyboardContentInserted(KeyboardInsertedContent content) async {
+    const supportedTypes = {
+      'image/gif', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp'
+    };
+    if (!supportedTypes.contains(content.mimeType.toLowerCase())) return;
     try {
       Uint8List? bytes = content.data;
       if (bytes == null && content.uri.isNotEmpty) {
         bytes = await ref.read(shareServiceProvider).readUri(content.uri);
       }
       if (bytes == null || !mounted) return;
-      await ref.read(chatServiceProvider).sendImage(widget.chatId, bytes);
+      await ref.read(chatServiceProvider).sendImage(
+            widget.chatId,
+            bytes,
+            mimeType: content.mimeType,
+          );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1533,6 +1541,42 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 }
 
+bool _isAllowedGifHost(String url) {
+  try {
+    final host = Uri.parse(url).host;
+    return host == 'firebasestorage.googleapis.com' ||
+        host.endsWith('.tenor.com') || host == 'tenor.com' ||
+        host.endsWith('.giphy.com') || host == 'giphy.com' ||
+        host.endsWith('.klipy.com') || host == 'klipy.com';
+  } catch (_) {
+    return false;
+  }
+}
+
+Widget _buildGifImage(String url, {Widget Function(BuildContext)? errorChild}) {
+  if (!_isAllowedGifHost(url)) {
+    return const SizedBox(width: 220, height: 160, child: Icon(Icons.broken_image));
+  }
+  return CachedNetworkImage(
+    imageUrl: url,
+    width: 220,
+    fit: BoxFit.fitWidth,
+    imageBuilder: (_, imageProvider) =>
+        Image(image: imageProvider, width: 220, fit: BoxFit.fitWidth),
+    placeholder: (_, _) => const SizedBox(
+      width: 220,
+      height: 160,
+      child: Center(child: CircularProgressIndicator()),
+    ),
+    errorWidget: (ctx, _, _) =>
+        errorChild != null ? errorChild(ctx) : const SizedBox(
+          width: 220,
+          height: 160,
+          child: Icon(Icons.broken_image),
+        ),
+  );
+}
+
 class _MessageBubble extends ConsumerWidget {
   final Message message;
   final bool isMe;
@@ -1787,22 +1831,24 @@ class _MessageBubble extends ConsumerWidget {
                 onTap: onImageTap,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: CachedNetworkImage(
-                    imageUrl: message.imageUrl!,
-                    width: 220,
-                    height: 160,
-                    fit: BoxFit.cover,
-                    placeholder: (_, _) => const SizedBox(
-                      width: 220,
-                      height: 160,
-                      child: Center(child: CircularProgressIndicator()),
-                    ),
-                    errorWidget: (_, _, _) => const SizedBox(
-                      width: 220,
-                      height: 160,
-                      child: Icon(Icons.broken_image),
-                    ),
-                  ),
+                  child: message.isGif
+                      ? _buildGifImage(message.imageUrl!)
+                      : CachedNetworkImage(
+                          imageUrl: message.imageUrl!,
+                          width: 220,
+                          height: 160,
+                          fit: BoxFit.cover,
+                          placeholder: (_, _) => const SizedBox(
+                            width: 220,
+                            height: 160,
+                            child: Center(child: CircularProgressIndicator()),
+                          ),
+                          errorWidget: (_, _, _) => const SizedBox(
+                            width: 220,
+                            height: 160,
+                            child: Icon(Icons.broken_image),
+                          ),
+                        ),
                 ),
               )
             else if (message.fileUrl != null)
@@ -1810,16 +1856,9 @@ class _MessageBubble extends ConsumerWidget {
             else if (_isGifUrl(message.text))
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: CachedNetworkImage(
-                  imageUrl: message.text.trim(),
-                  width: 220,
-                  fit: BoxFit.fitWidth,
-                  placeholder: (_, _) => const SizedBox(
-                    width: 220,
-                    height: 120,
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                  errorWidget: (_, _, _) => _LinkText(
+                child: _buildGifImage(
+                  message.text.trim(),
+                  errorChild: (_) => _LinkText(
                     text: message.text,
                     style: TextStyle(
                       fontSize: chatFontSize,

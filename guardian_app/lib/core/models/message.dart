@@ -25,6 +25,7 @@ class Message {
   final String? systemEvent; // 'memberAdded' | 'memberRemoved'
   final String? systemActorName;
   final String? systemTargetName;
+  final bool isGif;
 
   const Message({
     required this.id,
@@ -51,6 +52,7 @@ class Message {
     this.systemEvent,
     this.systemActorName,
     this.systemTargetName,
+    this.isGif = false,
   });
 
   factory Message.fromFirestore(DocumentSnapshot doc) {
@@ -84,6 +86,7 @@ class Message {
       systemEvent: data['systemEvent'] as String?,
       systemActorName: data['systemActorName'] as String?,
       systemTargetName: data['systemTargetName'] as String?,
+      isGif: data['isGif'] as bool? ?? false,
     );
   }
 
@@ -106,5 +109,6 @@ class Message {
         if (replyToId != null) 'replyToId': replyToId,
         if (replyToSenderName != null) 'replyToSenderName': replyToSenderName,
         if (replyToText != null) 'replyToText': replyToText,
+        if (isGif) 'isGif': true,
       };
 }

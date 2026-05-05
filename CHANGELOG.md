@@ -4,6 +4,13 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-05 (2)
+
+- GIFs, die über die Tastatur eingefügt werden, werden jetzt animiert angezeigt (vorher: statisches Bild)
+- GIF-Links (z. B. von Tenor) werden ebenfalls animiert dargestellt
+
+---
+
 ## 2026-05-05
 
 - Chatliste zeigt Gruppen und Einzel-Chats jetzt in getrennten Abschnitten mit Überschriften

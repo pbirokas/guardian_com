@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -15,6 +16,25 @@ class ChatService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   String get _uid => _auth.currentUser!.uid;
+
+  static bool get _isDesktop =>
+      !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+
+  String get _senderName =>
+      _auth.currentUser!.displayName ?? 'Unbekannt';
+
+  static int _byLastMessageDesc(Conversation a, Conversation b) {
+    if (a.lastMessageAt == null) return 1;
+    if (b.lastMessageAt == null) return -1;
+    return b.lastMessageAt!.compareTo(a.lastMessageAt!);
+  }
+
+  void _updateLastMessage(WriteBatch batch, String convId, String preview) {
+    batch.update(_db.collection('conversations').doc(convId), {
+      'lastMessage': preview,
+      'lastMessageAt': Timestamp.fromDate(DateTime.now()),
+    });
+  }
 
   Future<String> _getOrgAdminUid(String orgId) async {
     final doc = await _db.collection('organizations').doc(orgId).get();
@@ -224,12 +244,11 @@ class ChatService {
     final msgRef =
         _db.collection('conversations').doc(convId).collection('messages').doc();
     final batch = _db.batch();
-    final user = _auth.currentUser!;
 
     batch.set(msgRef, Message(
       id: msgRef.id,
       senderUid: _uid,
-      senderName: user.displayName ?? user.email ?? 'Unbekannt',
+      senderName: _senderName,
       text: text,
       sentAt: DateTime.now(),
       replyToId: replyToId,
@@ -237,10 +256,8 @@ class ChatService {
       replyToText: replyToText,
     ).toFirestore());
 
-    batch.update(_db.collection('conversations').doc(convId), {
-      'lastMessage': text.length > 200 ? '${text.substring(0, 200)}…' : text,
-      'lastMessageAt': Timestamp.fromDate(DateTime.now()),
-    });
+    _updateLastMessage(
+        batch, convId, text.length > 200 ? '${text.substring(0, 200)}…' : text);
 
     await batch.commit();
   }
@@ -274,8 +291,8 @@ class ChatService {
   /// Verringert Qualität schrittweise bis das Bild unter [_maxImageBytes] liegt.
   /// Wirft eine Exception wenn das Bild auch bei minimaler Qualität zu groß ist.
   Future<Uint8List> _prepareImageForUpload(Uint8List bytes) async {
-    // flutter_image_compress unterstützt kein Web → Bytes direkt verwenden
-    if (kIsWeb) {
+    // flutter_image_compress unterstützt kein Web und kein Windows → Bytes direkt verwenden
+    if (kIsWeb || _isDesktop) {
       if (bytes.length > _maxImageBytes) {
         throw Exception(
             'Das Bild ist zu groß (max. ${_maxImageBytes ~/ (1024 * 1024)} MB).');
@@ -315,7 +332,6 @@ class ChatService {
   Future<void> sendVoiceMessage(
       String convId, Uint8List audioBytes, int durationMs,
       {String contentType = 'audio/m4a'}) async {
-    final user = _auth.currentUser!;
     final msgRef =
         _db.collection('conversations').doc(convId).collection('messages').doc();
 
@@ -335,34 +351,61 @@ class ChatService {
         Message(
           id: msgRef.id,
           senderUid: _uid,
-          senderName: user.displayName ?? user.email ?? 'Unbekannt',
+          senderName: _senderName,
           text: '',
           sentAt: DateTime.now(),
           audioUrl: audioUrl,
           audioDurationMs: durationMs,
         ).toFirestore());
-    batch.update(_db.collection('conversations').doc(convId), {
-      'lastMessage': '🎤 Sprachnachricht',
-      'lastMessageAt': Timestamp.fromDate(DateTime.now()),
-    });
+    _updateLastMessage(batch, convId, '🎤 Sprachnachricht');
     await batch.commit();
   }
 
-  Future<void> sendImage(String convId, Uint8List imageBytes) async {
-    final user = _auth.currentUser!;
+  Future<void> sendImage(String convId, Uint8List imageBytes,
+      {String mimeType = 'image/jpeg'}) async {
+    const allowedMimeTypes = {
+      'image/gif', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp'
+    };
+    final normalizedMime = mimeType.toLowerCase();
+    if (!allowedMimeTypes.any((t) => normalizedMime.startsWith(t))) {
+      throw Exception('Nicht unterstützter Dateityp: $mimeType');
+    }
+
     final msgRef =
         _db.collection('conversations').doc(convId).collection('messages').doc();
 
-    // Bild komprimieren und Größe prüfen
-    final compressed = await _prepareImageForUpload(imageBytes);
+    final isGif = normalizedMime.startsWith('image/gif');
+    final Uint8List uploadBytes;
+    final String ext;
+    final String uploadContentType;
 
-    // Komprimierte Bytes in Firebase Storage hochladen
+    if (isGif) {
+      // GIFs nicht komprimieren — JPEG-Konvertierung würde Animation zerstören
+      const maxGifBytes = 5 * 1024 * 1024;
+      if (imageBytes.length > maxGifBytes) {
+        throw Exception('Das GIF ist zu groß (max. 5 MB).');
+      }
+      // Magic-Byte-Check: GIF87a = 47 49 46 38 37 61 / GIF89a = 47 49 46 38 39 61
+      if (imageBytes.length < 6 ||
+          imageBytes[0] != 0x47 || imageBytes[1] != 0x49 ||
+          imageBytes[2] != 0x46 || imageBytes[3] != 0x38) {
+        throw Exception('Ungültiges GIF-Format.');
+      }
+      uploadBytes = imageBytes;
+      ext = 'gif';
+      uploadContentType = 'image/gif';
+    } else {
+      uploadBytes = await _prepareImageForUpload(imageBytes);
+      ext = 'jpg';
+      uploadContentType = 'image/jpeg';
+    }
+
     final storageRef = FirebaseStorage.instance
         .ref()
-        .child('chatImages/$convId/${_uid}_${msgRef.id}.jpg');
+        .child('chatImages/$convId/${_uid}_${msgRef.id}.$ext');
     await storageRef.putData(
-      compressed,
-      SettableMetadata(contentType: 'image/jpeg'),
+      uploadBytes,
+      SettableMetadata(contentType: uploadContentType),
     );
     final imageUrl = await storageRef.getDownloadURL();
 
@@ -370,15 +413,13 @@ class ChatService {
     batch.set(msgRef, Message(
       id: msgRef.id,
       senderUid: _uid,
-      senderName: user.displayName ?? user.email ?? 'Unbekannt',
+      senderName: _senderName,
       text: '',
       sentAt: DateTime.now(),
       imageUrl: imageUrl,
+      isGif: isGif,
     ).toFirestore());
-    batch.update(_db.collection('conversations').doc(convId), {
-      'lastMessage': '[Bild]',
-      'lastMessageAt': Timestamp.fromDate(DateTime.now()),
-    });
+    _updateLastMessage(batch, convId, '[Bild]');
     await batch.commit();
   }
 
@@ -390,7 +431,6 @@ class ChatService {
       throw Exception('Die Datei ist zu groß (max. 5 MB).');
     }
 
-    final user = _auth.currentUser!;
     final msgRef =
         _db.collection('conversations').doc(convId).collection('messages').doc();
 
@@ -405,17 +445,14 @@ class ChatService {
     batch.set(msgRef, Message(
       id: msgRef.id,
       senderUid: _uid,
-      senderName: user.displayName ?? user.email ?? 'Unbekannt',
+      senderName: _senderName,
       text: '',
       sentAt: DateTime.now(),
       fileUrl: fileUrl,
       fileName: fileName,
       fileSizeBytes: fileSize,
     ).toFirestore());
-    batch.update(_db.collection('conversations').doc(convId), {
-      'lastMessage': '📎 $fileName',
-      'lastMessageAt': Timestamp.fromDate(DateTime.now()),
-    });
+    _updateLastMessage(batch, convId, '📎 $fileName');
     await batch.commit();
   }
 
@@ -429,11 +466,7 @@ class ChatService {
       // Client-seitig nach Org filtern und nach letzter Nachricht sortieren
       final filtered =
           all.where((c) => c.orgId == orgId).toList();
-      filtered.sort((a, b) {
-        if (a.lastMessageAt == null) return 1;
-        if (b.lastMessageAt == null) return -1;
-        return b.lastMessageAt!.compareTo(a.lastMessageAt!);
-      });
+      filtered.sort(_byLastMessageDesc);
       return filtered;
     });
   }
@@ -449,11 +482,7 @@ class ChatService {
       final filtered = all
           .where((c) => c.status == ConversationStatus.approved)
           .toList()
-        ..sort((a, b) {
-          if (a.lastMessageAt == null) return 1;
-          if (b.lastMessageAt == null) return -1;
-          return b.lastMessageAt!.compareTo(a.lastMessageAt!);
-        });
+        ..sort(_byLastMessageDesc);
       return filtered;
     });
   }
@@ -467,11 +496,7 @@ class ChatService {
         .map((s) {
       final all = s.docs.map(Conversation.fromFirestore).toList();
       final filtered = all.where((c) => c.orgId == orgId).toList();
-      filtered.sort((a, b) {
-        if (a.lastMessageAt == null) return 1;
-        if (b.lastMessageAt == null) return -1;
-        return b.lastMessageAt!.compareTo(a.lastMessageAt!);
-      });
+      filtered.sort(_byLastMessageDesc);
       return filtered;
     });
   }
@@ -537,11 +562,7 @@ class ChatService {
               c.status == ConversationStatus.approved &&
               !c.participantUids.contains(_uid))
           .toList();
-      filtered.sort((a, b) {
-        if (a.lastMessageAt == null) return 1;
-        if (b.lastMessageAt == null) return -1;
-        return b.lastMessageAt!.compareTo(a.lastMessageAt!);
-      });
+      filtered.sort(_byLastMessageDesc);
       return filtered;
     });
   }
@@ -648,11 +669,7 @@ class ChatService {
       // who was removed from a group (but child still in it) would lose
       // the supervised view.
       final filtered = all.where((c) => c.orgId == orgId).toList();
-      filtered.sort((a, b) {
-        if (a.lastMessageAt == null) return 1;
-        if (b.lastMessageAt == null) return -1;
-        return b.lastMessageAt!.compareTo(a.lastMessageAt!);
-      });
+      filtered.sort(_byLastMessageDesc);
       return filtered;
     });
   }
@@ -672,11 +689,7 @@ class ChatService {
               c.status == ConversationStatus.approved &&
               !c.participantUids.contains(_uid))
           .toList();
-      filtered.sort((a, b) {
-        if (a.lastMessageAt == null) return 1;
-        if (b.lastMessageAt == null) return -1;
-        return b.lastMessageAt!.compareTo(a.lastMessageAt!);
-      });
+      filtered.sort(_byLastMessageDesc);
       return filtered;
     });
   }
@@ -755,7 +768,6 @@ class ChatService {
     bool isAnonymous = false,
     DateTime? expiresAt,
   }) async {
-    final user = _auth.currentUser!;
     final pollRef = _db
         .collection('conversations')
         .doc(convId)
@@ -777,7 +789,7 @@ class ChatService {
           .map((e) => PollOption(id: '${e.key}', text: e.value))
           .toList(),
       createdBy: _uid,
-      createdByName: user.displayName ?? user.email ?? 'Unbekannt',
+      createdByName: _senderName,
       createdAt: DateTime.now(),
       multipleChoice: multipleChoice,
       isAnonymous: isAnonymous,
@@ -795,16 +807,13 @@ class ChatService {
       Message(
         id: msgRef.id,
         senderUid: _uid,
-        senderName: user.displayName ?? user.email ?? 'Unbekannt',
+        senderName: _senderName,
         text: preview,
         sentAt: DateTime.now(),
         pollId: pollRef.id,
       ).toFirestore(),
     );
-    batch.update(_db.collection('conversations').doc(convId), {
-      'lastMessage': preview,
-      'lastMessageAt': Timestamp.fromDate(DateTime.now()),
-    });
+    _updateLastMessage(batch, convId, preview);
     await batch.commit();
   }
 

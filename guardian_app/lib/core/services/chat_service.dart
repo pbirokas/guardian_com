@@ -633,21 +633,21 @@ class ChatService {
     }
   }
 
-  /// Überwachte Konversationen für Guardians (via guardianUids, approved, kein Teilnehmer)
+  /// Überwachte Konversationen für Guardians (via guardianUids, approved)
   Stream<List<Conversation>> watchGuardianSupervisorConversations(
       String orgId) {
     return _db
         .collection('conversations')
         .where('guardianUids', arrayContains: _uid)
+        .where('status', isEqualTo: 'approved')
         .snapshots()
         .map((s) {
       final all = s.docs.map(Conversation.fromFirestore).toList();
-      final filtered = all
-          .where((c) =>
-              c.orgId == orgId &&
-              c.status == ConversationStatus.approved &&
-              !c.participantUids.contains(_uid))
-          .toList();
+      // UI deduplicates against participantUids-based approved list,
+      // so we don't filter by !participantUids here — otherwise a guardian
+      // who was removed from a group (but child still in it) would lose
+      // the supervised view.
+      final filtered = all.where((c) => c.orgId == orgId).toList();
       filtered.sort((a, b) {
         if (a.lastMessageAt == null) return 1;
         if (b.lastMessageAt == null) return -1;

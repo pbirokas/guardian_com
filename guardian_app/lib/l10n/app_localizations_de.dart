@@ -408,7 +408,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get helpDetailTopicMembersBody =>
-      'Im Tab \'Mitglieder\' siehst du alle aktiven Personen der Organisation mit ihrer Rolle (Admin, Moderator, Mitglied, Kind).\n\nRollen im 3-Punkte-Menü (Admin):\n• Rolle ändern – Admin, Moderator, Mitglied oder Kind\n• Guardian zuweisen – verbindet ein Kind mit einem Elternteil\n• Mitglied entfernen\n• Admin-Rolle übertragen\n\nMitglieder können die Org selbst verlassen (ausser Admin).';
+      'Im Tab \'Mitglieder\' siehst du alle aktiven Personen der Organisation mit ihrer Rolle (Admin, Moderator, Mitglied, Kind).\n\nAktionen im 3-Punkte-Menü (Admin):\n• Rolle ändern – Admin, Moderator oder Mitglied (bei Kind-Konten ist die Rolle gesperrt)\n• Guardian zuweisen – verbindet ein Kind mit einem Elternteil\n• Mitglied entfernen\n• Admin-Rolle übertragen\n\nKind-Konten: Konten die global als Kind registriert sind, behalten immer die Rolle \'Kind\' – unabhängig davon, was ein Admin einstellt.\n\nMitglieder können die Org selbst verlassen (ausser Admin).';
 
   @override
   String get helpDetailTopicMembersInviteTitle =>
@@ -416,7 +416,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get helpDetailTopicMembersInviteBody =>
-      'Admin / Moderator – \'+\'-Schaltfläche unten rechts:\n• Einzeln per E-Mail einladen (Rolle und ggf. Guardian wählbar)\n• Im \'Sheltered\'-Modus: Massenimport per CSV-Datei\n\nEingeladene Kinder: erscheinen als ausstehend, bis der Guardian die Einladung in \'Meine Verknüpfungen\' genehmigt.\n\nReguläres Mitglied – \'Mitglied vorschlagen\':\nSchlage eine Person vor. Admin oder Moderator muss den Vorschlag oben im Tab bestätigen.\n\nKind (Guardian-Modus) – \'Chat anfragen\':\nSende eine Anfrage für einen 1:1-Chat. Admin oder Moderator genehmigt oder lehnt ab.';
+      'Admin / Moderator – \'+\'-Schaltfläche unten rechts:\n• Einzeln per E-Mail einladen (Rolle und ggf. Guardian wählbar)\n• Im \'Sheltered\'-Modus: Massenimport per CSV-Datei\n\nEingeladene Kinder: erscheinen als ausstehend, bis der Guardian die Einladung in \'Meine Verknüpfungen\' genehmigt.\n\nReguläres Mitglied – \'Mitglied vorschlagen\':\nSchlage eine Person vor. Admin oder Moderator muss den Vorschlag oben im Tab bestätigen.\n\nKind (Guardian-Modus) – \'Einzel-Chat anfragen\':\nSende eine Anfrage für einen 1:1-Chat. Admin oder Moderator genehmigt oder lehnt ab.';
 
   @override
   String get helpDetailTopicNotificationsTitle => 'Benachrichtigungen';
@@ -430,7 +430,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get helpDetailTopicChatsSendBody =>
-      'Textnachrichten: Tippe in das Eingabefeld und sende mit dem Pfeil-Symbol.\n\nBilder, Audio & Dateien: \'+\'-Symbol neben dem Textfeld:\n• Bilder aus der Galerie (JPEG, max. 2 MB)\n• Sprachnachricht aufnehmen (Mikrofon-Symbol)\n• Dateien senden (max. 5 MB)\n\nAntworten: Nachricht lang drücken → \'Antworten\'. Die Ursprungsnachricht erscheint als Zitat.\n\nReaktionen: Nachricht lang drücken → Emoji wählen (👍❤️😂😮😢😡👎). Erneut tippen entfernt die eigene Reaktion.\n\nNachrichten planen: \'+\' → Uhr-Symbol → Datum und Uhrzeit wählen.\n\nUmfragen (Sheltered-Gruppen): \'+\' → Umfrage-Symbol → Frage mit Optionen erstellen.';
+      'Chat-Übersicht: Zuerst werden Gruppen, dann Einzel-Chats angezeigt. Darunter erscheinen – für Guardians und Moderatoren – die überwachten Chats deiner Kinder.\n\nTextnachrichten: Tippe in das Eingabefeld und sende mit dem Pfeil-Symbol.\n\nBilder, Audio & Dateien: \'+\'-Symbol neben dem Textfeld:\n• Bilder aus der Galerie (JPEG, max. 2 MB)\n• Sprachnachricht aufnehmen (Mikrofon-Symbol)\n• Dateien senden (max. 5 MB)\n\nAntworten: Nachricht lang drücken → \'Antworten\'. Die Ursprungsnachricht erscheint als Zitat.\n\nReaktionen: Nachricht lang drücken → Emoji wählen (👍❤️😂😮😢😡👎). Erneut tippen entfernt die eigene Reaktion.\n\nNachrichten planen: \'+\' → Uhr-Symbol → Datum und Uhrzeit wählen.\n\nUmfragen (Sheltered-Gruppen): \'+\' → Umfrage-Symbol → Frage mit Optionen erstellen.\n\nGruppen umbenennen: Admin/Moderator kann den Gruppennamen über das Stift-Symbol oben rechts ändern. Jeder Teilnehmer kann ausserdem einen eigenen Anzeigenamen für einen Direkt-Chat vergeben (Stift-Symbol im Chat oder langer Druck auf den Chat).';
 
   @override
   String get helpDetailTopicChatsModTitle => 'Nachrichten moderieren & melden';
@@ -510,7 +510,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get suggestMember => 'Mitglied vorschlagen';
 
   @override
-  String get requestChat => 'Chat anfragen';
+  String get requestChat => 'Einzel-Chat anfragen';
 
   @override
   String suggestions(int count) {
@@ -549,7 +549,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get inviteSent => 'Einladung gesendet.';
 
   @override
-  String get requestChatTitle => 'Chat anfragen';
+  String get requestChatTitle => 'Einzel-Chat anfragen';
 
   @override
   String get requestChatSubtitle => 'Mit wem möchtest du chatten?';
@@ -647,7 +647,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get changeGuardians => 'Guardians ändern';
 
   @override
-  String get startChat => 'Chat starten';
+  String get startChat => 'Einzel-Chat starten';
 
   @override
   String get changeRole => 'Rolle ändern';
@@ -1516,6 +1516,12 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatTypeDirect => 'Direktnachricht';
+
+  @override
+  String get sectionGroups => 'Gruppen';
+
+  @override
+  String get sectionDirectChats => 'Einzel-Chats';
 
   @override
   String get pollDetailsButton => 'Abstimmungs-Details';

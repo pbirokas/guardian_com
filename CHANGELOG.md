@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-05
+
+- Chatliste zeigt Gruppen und Einzel-Chats jetzt in getrennten Abschnitten mit Überschriften
+- Hilfe-Symbol direkt in der AppBar sichtbar (statt im 3-Punkte-Menü) — für alle Rollen erreichbar
+- 3-Punkte-Menü in der Org-Übersicht wird nur noch für Admins und Moderatoren angezeigt
+- Überwachte Chats (Guardian-Ansicht) werden jetzt effizienter geladen — weniger Datenbankabfragen
+
+---
+
 ### 2026-05-04 — Einheitlicher Org-Modus, Adressbuch & E-Mail-Datenschutz
 
 #### Neue Funktionen

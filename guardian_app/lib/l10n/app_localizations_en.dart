@@ -405,7 +405,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get helpDetailTopicMembersBody =>
-      'The \'Members\' tab shows all active members of the organisation with their role (Admin, Moderator, Member, Child).\n\nRoles via the 3-dot menu (Admin):\n• Change role – Admin, Moderator, Member, or Child\n• Assign guardian – links a child to a parent account\n• Remove member\n• Transfer admin role\n\nMembers can leave the org themselves (except admins).';
+      'The \'Members\' tab shows all active members of the organisation with their role (Admin, Moderator, Member, Child).\n\nActions via the 3-dot menu (Admin):\n• Change role – Admin, Moderator, or Member (role is locked for child accounts)\n• Assign guardian – links a child to a parent account\n• Remove member\n• Transfer admin role\n\nChild accounts: Accounts globally registered as children always keep the \'Child\' role – regardless of what an admin selects.\n\nMembers can leave the org themselves (except admins).';
 
   @override
   String get helpDetailTopicMembersInviteTitle =>
@@ -413,7 +413,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get helpDetailTopicMembersInviteBody =>
-      'Admin / Moderator – \'+\' button bottom right:\n• Invite individuals by email (choose role and optional guardian)\n• In \'Sheltered\' mode: bulk import via CSV file\n\nInvited children: appear as pending until the guardian approves the invitation in \'My connections\'.\n\nRegular member – \'Suggest member\':\nSuggest a person. An admin or moderator must confirm the suggestion at the top of the tab.\n\nChild (Guardian mode) – \'Request chat\':\nSend a request for a 1-to-1 chat. An admin or moderator approves or declines.';
+      'Admin / Moderator – \'+\' button bottom right:\n• Invite individuals by email (choose role and optional guardian)\n• In \'Sheltered\' mode: bulk import via CSV file\n\nInvited children: appear as pending until the guardian approves the invitation in \'My connections\'.\n\nRegular member – \'Suggest member\':\nSuggest a person. An admin or moderator must confirm the suggestion at the top of the tab.\n\nChild (Guardian mode) – \'Request direct chat\':\nSend a request for a 1-to-1 chat. An admin or moderator approves or declines.';
 
   @override
   String get helpDetailTopicNotificationsTitle => 'Notifications';
@@ -427,7 +427,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get helpDetailTopicChatsSendBody =>
-      'Text messages: Tap the input field and send with the arrow icon.\n\nImages, audio & files: \'+\' icon next to the text field:\n• Images from gallery (JPEG, max. 2 MB)\n• Record voice message (microphone icon)\n• Send files (max. 5 MB)\n\nReply: Long press a message → \'Reply\'. The original message appears as a quote.\n\nReactions: Long press a message → choose an emoji (👍❤️😂😮😢😡👎). Tap again to remove your reaction.\n\nSchedule message: \'+\' → clock icon → pick date and time.\n\nPolls (Sheltered groups): \'+\' → poll icon → create a question with options.';
+      'Chat list: Groups are shown first, then direct chats. Below those, guardians and moderators see supervised chats of their children.\n\nText messages: Tap the input field and send with the arrow icon.\n\nImages, audio & files: \'+\' icon next to the text field:\n• Images from gallery (JPEG, max. 2 MB)\n• Record voice message (microphone icon)\n• Send files (max. 5 MB)\n\nReply: Long press a message → \'Reply\'. The original message appears as a quote.\n\nReactions: Long press a message → choose an emoji (👍❤️😂😮😢😡👎). Tap again to remove your reaction.\n\nSchedule message: \'+\' → clock icon → pick date and time.\n\nPolls (Sheltered groups): \'+\' → poll icon → create a question with options.\n\nRename group: Admins/moderators can rename a group using the pencil icon in the top right. Each participant can also set a personal display name for a direct chat (pencil icon in the chat or long press on the chat).';
 
   @override
   String get helpDetailTopicChatsModTitle => 'Moderate & Report Messages';
@@ -506,7 +506,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get suggestMember => 'Suggest member';
 
   @override
-  String get requestChat => 'Request chat';
+  String get requestChat => 'Request direct chat';
 
   @override
   String suggestions(int count) {
@@ -545,7 +545,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get inviteSent => 'Invitation sent.';
 
   @override
-  String get requestChatTitle => 'Request chat';
+  String get requestChatTitle => 'Request direct chat';
 
   @override
   String get requestChatSubtitle => 'Who would you like to chat with?';
@@ -642,7 +642,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get changeGuardians => 'Change guardians';
 
   @override
-  String get startChat => 'Start chat';
+  String get startChat => 'Start direct chat';
 
   @override
   String get changeRole => 'Change role';
@@ -1508,6 +1508,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatTypeDirect => 'Direct message';
+
+  @override
+  String get sectionGroups => 'Groups';
+
+  @override
+  String get sectionDirectChats => 'Direct chats';
 
   @override
   String get pollDetailsButton => 'Poll details';

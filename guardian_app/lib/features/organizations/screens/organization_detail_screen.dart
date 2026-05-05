@@ -75,66 +75,70 @@ class OrganizationDetailScreen extends ConsumerWidget {
               ),
               actions: [
                 _OrgNotificationToggle(orgId: orgId),
+                IconButton(
+                  icon: const Icon(Icons.help_outline),
+                  tooltip: l.helpLabel,
+                  onPressed: () => showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(16)),
+                    ),
+                    builder: (_) => HelpSheet(
+                      screenTitle: org.name,
+                      topics: [
+                        HelpTopic(
+                          icon: Icons.people_outline,
+                          title: l.helpDetailTopicMembersTitle,
+                          body: l.helpDetailTopicMembersBody,
+                        ),
+                        HelpTopic(
+                          icon: Icons.person_add_outlined,
+                          title: l.helpDetailTopicMembersInviteTitle,
+                          body: l.helpDetailTopicMembersInviteBody,
+                        ),
+                        HelpTopic(
+                          icon: Icons.notifications_outlined,
+                          title: l.helpDetailTopicNotificationsTitle,
+                          body: l.helpDetailTopicNotificationsBody,
+                        ),
+                        HelpTopic(
+                          icon: Icons.chat_bubble_outline,
+                          title: l.helpDetailTopicChatsSendTitle,
+                          body: l.helpDetailTopicChatsSendBody,
+                        ),
+                        HelpTopic(
+                          icon: Icons.shield_outlined,
+                          title: l.helpDetailTopicChatsModTitle,
+                          body: l.helpDetailTopicChatsModBody,
+                        ),
+                        HelpTopic(
+                          icon: Icons.campaign_outlined,
+                          title: l.helpDetailTopicPinnwandTitle,
+                          body: l.helpDetailTopicPinnwandBody,
+                        ),
+                        if (isAdmin || isModerator) ...[
+                          HelpTopic(
+                            icon: Icons.edit_calendar_outlined,
+                            title: l.helpDetailTopicPinnwandManageTitle,
+                            body: l.helpDetailTopicPinnwandManageBody,
+                          ),
+                          HelpTopic(
+                            icon: Icons.flag_outlined,
+                            title: l.helpDetailTopicReportsTitle,
+                            body: l.helpDetailTopicReportsBody,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                if (isAdmin || isModerator)
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert),
                   onSelected: (value) {
                     switch (value) {
-                      case 'help':
-                        showModalBottomSheet<void>(
-                          context: context,
-                          isScrollControlled: true,
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.vertical(
-                                top: Radius.circular(16)),
-                          ),
-                          builder: (_) => HelpSheet(
-                            screenTitle: org.name,
-                            topics: [
-                              HelpTopic(
-                                icon: Icons.people_outline,
-                                title: l.helpDetailTopicMembersTitle,
-                                body: l.helpDetailTopicMembersBody,
-                              ),
-                              HelpTopic(
-                                icon: Icons.person_add_outlined,
-                                title: l.helpDetailTopicMembersInviteTitle,
-                                body: l.helpDetailTopicMembersInviteBody,
-                              ),
-                              HelpTopic(
-                                icon: Icons.notifications_outlined,
-                                title: l.helpDetailTopicNotificationsTitle,
-                                body: l.helpDetailTopicNotificationsBody,
-                              ),
-                              HelpTopic(
-                                icon: Icons.chat_bubble_outline,
-                                title: l.helpDetailTopicChatsSendTitle,
-                                body: l.helpDetailTopicChatsSendBody,
-                              ),
-                              HelpTopic(
-                                icon: Icons.shield_outlined,
-                                title: l.helpDetailTopicChatsModTitle,
-                                body: l.helpDetailTopicChatsModBody,
-                              ),
-                              HelpTopic(
-                                icon: Icons.campaign_outlined,
-                                title: l.helpDetailTopicPinnwandTitle,
-                                body: l.helpDetailTopicPinnwandBody,
-                              ),
-                              if (isAdmin || isModerator) ...[
-                                HelpTopic(
-                                  icon: Icons.edit_calendar_outlined,
-                                  title: l.helpDetailTopicPinnwandManageTitle,
-                                  body: l.helpDetailTopicPinnwandManageBody,
-                                ),
-                                HelpTopic(
-                                  icon: Icons.flag_outlined,
-                                  title: l.helpDetailTopicReportsTitle,
-                                  body: l.helpDetailTopicReportsBody,
-                                ),
-                              ],
-                            ],
-                          ),
-                        );
                       case 'keywords':
                         _showKeywordsDialog(context, ref, org);
                       case 'edit':
@@ -150,15 +154,6 @@ class OrganizationDetailScreen extends ConsumerWidget {
                     }
                   },
                   itemBuilder: (_) => [
-                    PopupMenuItem(
-                      value: 'help',
-                      child: ListTile(
-                        leading: const Icon(Icons.help_outline),
-                        title: Text(l.helpLabel),
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                      ),
-                    ),
                     if (isAdmin || isModerator) ...[
                       PopupMenuItem(
                         value: 'auditLog',
@@ -554,6 +549,22 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
   bool get isAdmin => widget.isAdmin;
   bool get isModerator => widget.isModerator;
 
+  SliverToBoxAdapter _buildSectionLabel(BuildContext context, String label) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ref = this.ref;
@@ -588,6 +599,10 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                 c.status == ConversationStatus.approved &&
                 c.participantUids.contains(currentUid))
             .toList();
+        final approvedGroups =
+            approved.where((c) => c.isGroup).toList();
+        final approvedDirect =
+            approved.where((c) => !c.isGroup).toList();
         final archivedConvs = convs
             .where((c) =>
                 c.status == ConversationStatus.archived &&
@@ -805,28 +820,56 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                     ),
                   )
                 else ...[
-                  if (approved.isNotEmpty)
+                  // Gruppen
+                  if (approvedGroups.isNotEmpty) ...[
+                    _buildSectionLabel(context, l.sectionGroups),
                     SliverList(
                       delegate: SliverChildBuilderDelegate(
                         (ctx, i) => membersAsync.maybeWhen(
                           data: (members) => _ConversationTile(
-                            conv: approved[i],
+                            conv: approvedGroups[i],
                             members: members,
                             currentUid: currentUid,
                             ref: ref,
                             isAdminOrMod: isAdmin || isModerator,
                             onArchive: (isAdmin || isModerator)
-                                ? () => ref.read(chatServiceProvider).archiveConversation(approved[i].id)
+                                ? () => ref.read(chatServiceProvider).archiveConversation(approvedGroups[i].id)
                                 : null,
                             onDelete: (isAdmin || isModerator)
-                                ? () => ref.read(chatServiceProvider).deleteConversation(approved[i].id)
+                                ? () => ref.read(chatServiceProvider).deleteConversation(approvedGroups[i].id)
                                 : null,
                           ),
                           orElse: () => const SizedBox(),
                         ),
-                        childCount: approved.length,
+                        childCount: approvedGroups.length,
                       ),
                     ),
+                  ],
+                  // Einzel-Chats
+                  if (approvedDirect.isNotEmpty) ...[
+                    _buildSectionLabel(context, l.sectionDirectChats),
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (ctx, i) => membersAsync.maybeWhen(
+                          data: (members) => _ConversationTile(
+                            conv: approvedDirect[i],
+                            members: members,
+                            currentUid: currentUid,
+                            ref: ref,
+                            isAdminOrMod: isAdmin || isModerator,
+                            onArchive: (isAdmin || isModerator)
+                                ? () => ref.read(chatServiceProvider).archiveConversation(approvedDirect[i].id)
+                                : null,
+                            onDelete: (isAdmin || isModerator)
+                                ? () => ref.read(chatServiceProvider).deleteConversation(approvedDirect[i].id)
+                                : null,
+                          ),
+                          orElse: () => const SizedBox(),
+                        ),
+                        childCount: approvedDirect.length,
+                      ),
+                    ),
+                  ],
                   // Überwachte Chats (für Moderatoren + Guardians)
                   if (allSupervisorConvs.isNotEmpty) ...[
                     SliverToBoxAdapter(
@@ -838,13 +881,14 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                           child: Row(
                             children: [
                               Icon(Icons.visibility_outlined,
-                                  size: 14, color: Colors.grey[600]),
+                                  size: 14,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant),
                               const SizedBox(width: 6),
                               Text(
                                 l.monitoredChats(allSupervisorConvs.length),
                                 style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.grey[600],
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                                     fontWeight: FontWeight.bold),
                               ),
                               const Spacer(),
@@ -853,7 +897,7 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                                     ? Icons.expand_less
                                     : Icons.expand_more,
                                 size: 18,
-                                color: Colors.grey[600],
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
                               ),
                             ],
                           ),
@@ -892,13 +936,14 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                         child: Row(
                           children: [
                             Icon(Icons.archive_outlined,
-                                size: 14, color: Colors.grey[500]),
+                                size: 14,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant),
                             const SizedBox(width: 6),
                             Text(
                               l.archivedChats(archivedConvs.length),
                               style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey[500],
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                                   fontWeight: FontWeight.bold),
                             ),
                           ],

@@ -56,7 +56,7 @@ class HelpSheet extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey[300],
+                color: colorScheme.outlineVariant,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -110,7 +110,7 @@ class HelpSheet extends StatelessWidget {
                           child: Text(
                             topic.body,
                             style: TextStyle(
-                              color: Colors.grey[700],
+                              color: colorScheme.onSurfaceVariant,
                               height: 1.6,
                             ),
                           ),

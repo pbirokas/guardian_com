@@ -845,7 +845,7 @@ abstract class AppLocalizations {
   /// No description provided for @helpDetailTopicMembersBody.
   ///
   /// In de, this message translates to:
-  /// **'Im Tab \'Mitglieder\' siehst du alle aktiven Personen der Organisation mit ihrer Rolle (Admin, Moderator, Mitglied, Kind).\n\nRollen im 3-Punkte-Menü (Admin):\n• Rolle ändern – Admin, Moderator, Mitglied oder Kind\n• Guardian zuweisen – verbindet ein Kind mit einem Elternteil\n• Mitglied entfernen\n• Admin-Rolle übertragen\n\nMitglieder können die Org selbst verlassen (ausser Admin).'**
+  /// **'Im Tab \'Mitglieder\' siehst du alle aktiven Personen der Organisation mit ihrer Rolle (Admin, Moderator, Mitglied, Kind).\n\nAktionen im 3-Punkte-Menü (Admin):\n• Rolle ändern – Admin, Moderator oder Mitglied (bei Kind-Konten ist die Rolle gesperrt)\n• Guardian zuweisen – verbindet ein Kind mit einem Elternteil\n• Mitglied entfernen\n• Admin-Rolle übertragen\n\nKind-Konten: Konten die global als Kind registriert sind, behalten immer die Rolle \'Kind\' – unabhängig davon, was ein Admin einstellt.\n\nMitglieder können die Org selbst verlassen (ausser Admin).'**
   String get helpDetailTopicMembersBody;
 
   /// No description provided for @helpDetailTopicMembersInviteTitle.
@@ -857,7 +857,7 @@ abstract class AppLocalizations {
   /// No description provided for @helpDetailTopicMembersInviteBody.
   ///
   /// In de, this message translates to:
-  /// **'Admin / Moderator – \'+\'-Schaltfläche unten rechts:\n• Einzeln per E-Mail einladen (Rolle und ggf. Guardian wählbar)\n• Im \'Sheltered\'-Modus: Massenimport per CSV-Datei\n\nEingeladene Kinder: erscheinen als ausstehend, bis der Guardian die Einladung in \'Meine Verknüpfungen\' genehmigt.\n\nReguläres Mitglied – \'Mitglied vorschlagen\':\nSchlage eine Person vor. Admin oder Moderator muss den Vorschlag oben im Tab bestätigen.\n\nKind (Guardian-Modus) – \'Chat anfragen\':\nSende eine Anfrage für einen 1:1-Chat. Admin oder Moderator genehmigt oder lehnt ab.'**
+  /// **'Admin / Moderator – \'+\'-Schaltfläche unten rechts:\n• Einzeln per E-Mail einladen (Rolle und ggf. Guardian wählbar)\n• Im \'Sheltered\'-Modus: Massenimport per CSV-Datei\n\nEingeladene Kinder: erscheinen als ausstehend, bis der Guardian die Einladung in \'Meine Verknüpfungen\' genehmigt.\n\nReguläres Mitglied – \'Mitglied vorschlagen\':\nSchlage eine Person vor. Admin oder Moderator muss den Vorschlag oben im Tab bestätigen.\n\nKind (Guardian-Modus) – \'Einzel-Chat anfragen\':\nSende eine Anfrage für einen 1:1-Chat. Admin oder Moderator genehmigt oder lehnt ab.'**
   String get helpDetailTopicMembersInviteBody;
 
   /// No description provided for @helpDetailTopicNotificationsTitle.
@@ -881,7 +881,7 @@ abstract class AppLocalizations {
   /// No description provided for @helpDetailTopicChatsSendBody.
   ///
   /// In de, this message translates to:
-  /// **'Textnachrichten: Tippe in das Eingabefeld und sende mit dem Pfeil-Symbol.\n\nBilder, Audio & Dateien: \'+\'-Symbol neben dem Textfeld:\n• Bilder aus der Galerie (JPEG, max. 2 MB)\n• Sprachnachricht aufnehmen (Mikrofon-Symbol)\n• Dateien senden (max. 5 MB)\n\nAntworten: Nachricht lang drücken → \'Antworten\'. Die Ursprungsnachricht erscheint als Zitat.\n\nReaktionen: Nachricht lang drücken → Emoji wählen (👍❤️😂😮😢😡👎). Erneut tippen entfernt die eigene Reaktion.\n\nNachrichten planen: \'+\' → Uhr-Symbol → Datum und Uhrzeit wählen.\n\nUmfragen (Sheltered-Gruppen): \'+\' → Umfrage-Symbol → Frage mit Optionen erstellen.'**
+  /// **'Chat-Übersicht: Zuerst werden Gruppen, dann Einzel-Chats angezeigt. Darunter erscheinen – für Guardians und Moderatoren – die überwachten Chats deiner Kinder.\n\nTextnachrichten: Tippe in das Eingabefeld und sende mit dem Pfeil-Symbol.\n\nBilder, Audio & Dateien: \'+\'-Symbol neben dem Textfeld:\n• Bilder aus der Galerie (JPEG, max. 2 MB)\n• Sprachnachricht aufnehmen (Mikrofon-Symbol)\n• Dateien senden (max. 5 MB)\n\nAntworten: Nachricht lang drücken → \'Antworten\'. Die Ursprungsnachricht erscheint als Zitat.\n\nReaktionen: Nachricht lang drücken → Emoji wählen (👍❤️😂😮😢😡👎). Erneut tippen entfernt die eigene Reaktion.\n\nNachrichten planen: \'+\' → Uhr-Symbol → Datum und Uhrzeit wählen.\n\nUmfragen (Sheltered-Gruppen): \'+\' → Umfrage-Symbol → Frage mit Optionen erstellen.\n\nGruppen umbenennen: Admin/Moderator kann den Gruppennamen über das Stift-Symbol oben rechts ändern. Jeder Teilnehmer kann ausserdem einen eigenen Anzeigenamen für einen Direkt-Chat vergeben (Stift-Symbol im Chat oder langer Druck auf den Chat).'**
   String get helpDetailTopicChatsSendBody;
 
   /// No description provided for @helpDetailTopicChatsModTitle.
@@ -1013,7 +1013,7 @@ abstract class AppLocalizations {
   /// No description provided for @requestChat.
   ///
   /// In de, this message translates to:
-  /// **'Chat anfragen'**
+  /// **'Einzel-Chat anfragen'**
   String get requestChat;
 
   /// No description provided for @suggestions.
@@ -1079,7 +1079,7 @@ abstract class AppLocalizations {
   /// No description provided for @requestChatTitle.
   ///
   /// In de, this message translates to:
-  /// **'Chat anfragen'**
+  /// **'Einzel-Chat anfragen'**
   String get requestChatTitle;
 
   /// No description provided for @requestChatSubtitle.
@@ -1265,7 +1265,7 @@ abstract class AppLocalizations {
   /// No description provided for @startChat.
   ///
   /// In de, this message translates to:
-  /// **'Chat starten'**
+  /// **'Einzel-Chat starten'**
   String get startChat;
 
   /// No description provided for @changeRole.
@@ -2767,6 +2767,18 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Direktnachricht'**
   String get chatTypeDirect;
+
+  /// No description provided for @sectionGroups.
+  ///
+  /// In de, this message translates to:
+  /// **'Gruppen'**
+  String get sectionGroups;
+
+  /// No description provided for @sectionDirectChats.
+  ///
+  /// In de, this message translates to:
+  /// **'Einzel-Chats'**
+  String get sectionDirectChats;
 
   /// No description provided for @pollDetailsButton.
   ///

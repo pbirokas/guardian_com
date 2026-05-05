@@ -11,7 +11,10 @@
       "Bash(python -c \"import aggdraw; print\\('aggdraw OK'\\)\")",
       "Bash(grep -v \"^$\")",
       "Bash(git -C \"c:\\\\Users\\\\pbiro\\\\Documents\\\\git\\\\fist_steps\" diff --stat HEAD)",
-      "Bash(xargs ls *)"
+      "Bash(xargs ls *)",
+      "WebFetch(domain:www.aihero.dev)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }

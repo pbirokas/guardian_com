@@ -147,7 +147,7 @@ class AuthService {
     // Schritt 2: idToken → Custom Token via Cloud Function
     final customTokenResponse = await http.post(
       Uri.parse(
-        'https://us-central1-guardian-app-b0f6c.cloudfunctions.net/getCustomToken',
+        'https://getcustomtoken-jnxhy44mcq-ey.a.run.app',
       ),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'idToken': idToken}),
@@ -332,8 +332,10 @@ class AuthService {
         await inviteDoc.reference
             .update({'status': 'processed'})
             .catchError((_) {});
-      } catch (_) {
+      } catch (e) {
         // Eine einzelne Einladung fehlgeschlagen – mit den anderen weitermachen
+        // ignore: avoid_print
+        print('[Auth] Einladung $inviteId konnte nicht verarbeitet werden: $e');
       }
     }
 

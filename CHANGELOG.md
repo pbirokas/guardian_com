@@ -4,6 +4,17 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-06
+
+- Sicherheit: Absturz behoben, der auftreten konnte wenn man den Chat-Bildschirm in einem ungünstigen Moment verlässt
+- Sicherheit: Token-Verifizierung bei der Desktop-Anmeldung per E-Mail-Link abgesichert — gefälschte Tokens werden jetzt korrekt abgewiesen
+- Sicherheit: Zugriffsregeln für Chats, Nachrichten, Einladungen und Nutzerdaten präzisiert — nur noch erlaubte Feldänderungen werden akzeptiert
+- Sicherheit: Dateiübertragung bricht jetzt sauber ab wenn eine Datei die 50-MB-Grenze überschreitet (statt Speicherfehler)
+- Sicherheit: Moderatoren, deren Rolle entzogen wurde, können Konversationsstatus nicht mehr über einen veralteten Eintrag ändern
+- Sicherheit: Einladungs-Lookup-Dokumente können nur noch von berechtigten Admins/Moderatoren der jeweiligen Organisation geschrieben werden
+
+---
+
 ## 2026-05-05 (2)
 
 - GIFs, die über die Tastatur eingefügt werden, werden jetzt animiert angezeigt (vorher: statisches Bild)

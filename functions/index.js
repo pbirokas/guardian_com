@@ -729,20 +729,9 @@ exports.getCustomToken = onRequest(async (req, res) => {
   }
 
   try {
-    // JWT-Payload dekodieren (ohne Signatur-Verifikation) um die uid zu lesen.
-    // Das reicht hier aus: wir erstellen nur einen Custom Token für denselben uid.
-    // Der Custom Token selbst kann nur über das Firebase SDK eingelöst werden.
-    const payloadBase64 = idToken.split('.')[1];
-    if (!payloadBase64) throw new Error('Ungültiges JWT-Format.');
-
-    const payload = JSON.parse(
-      Buffer.from(payloadBase64, 'base64url').toString('utf8')
-    );
-    const uid = payload.sub || payload.user_id;
-    if (!uid) throw new Error('Keine uid im Token gefunden.');
-
-    // Prüfen ob der User in Firebase Auth existiert
-    await getAuth().getUser(uid);
+    // Signatur, Ablaufzeit und Aussteller prüfen — verhindert gefälschte Tokens.
+    const decodedToken = await getAuth().verifyIdToken(idToken);
+    const uid = decodedToken.uid;
 
     const customToken = await getAuth().createCustomToken(uid);
     res.status(200).json({ customToken });

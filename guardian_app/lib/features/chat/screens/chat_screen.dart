@@ -22,6 +22,7 @@ import '../../../core/models/conversation.dart';
 import '../../../core/models/message.dart';
 import '../../../core/widgets/help_sheet.dart';
 import '../../../core/providers/chat_font_size_provider.dart';
+import '../../../core/models/app_user.dart';
 import '../../../core/models/org_member.dart';
 import '../../../core/models/scheduled_message.dart';
 import '../../../core/providers/share_provider.dart';
@@ -185,7 +186,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return false;
     final conv = ref.read(conversationProvider(widget.chatId)).value;
-    return conv == null || conv.participantUids.contains(uid);
+    return conv != null && conv.participantUids.contains(uid);
   }
 
   void _markRead() {
@@ -252,6 +253,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Future<void> _checkScheduledMessages() async {
+    if (!mounted) return;
     final now = DateTime.now();
     final service = ref.read(chatServiceProvider);
     try {
@@ -977,9 +979,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           : (other?.displayName ?? widget.partnerName ?? 'Chat');
     }
 
+    final currentMember = members?.where((m) => m.uid == currentUid).firstOrNull;
     final isModeratorOrAdmin = conv != null &&
         conv.isGroup &&
-        conv.canApproveUids.contains(currentUid);
+        (conv.orgAdminUid == currentUid ||
+         currentMember?.role == OrgRole.admin ||
+         currentMember?.role == OrgRole.moderator);
 
     final scheduledMessages =
         ref.watch(scheduledMessagesProvider(widget.chatId)).value ?? [];

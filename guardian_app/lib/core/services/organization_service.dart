@@ -159,7 +159,7 @@ class OrganizationService {
         'status': 'pending',
         'createdAt': Timestamp.now(),
       });
-      await _writeInvitationLookup(normalizedEmail, inviteRef.id);
+      await _writeInvitationLookup(normalizedEmail, inviteRef.id, orgId);
       await _logAudit(orgId, AuditAction.invitationSent,
           {'email': normalizedEmail, 'role': role.name});
       return;
@@ -679,7 +679,7 @@ class OrganizationService {
           'invitedBy': _uid,
           'updatedAt': Timestamp.now(),
         });
-        await _writeInvitationLookup(normalizedEmail, existingId);
+        await _writeInvitationLookup(normalizedEmail, existingId, orgId);
       } else {
         final inviteRef = await _db.collection('invitations').add({
           'email': normalizedEmail,
@@ -691,7 +691,7 @@ class OrganizationService {
           'status': 'pending',
           'createdAt': Timestamp.now(),
         });
-        await _writeInvitationLookup(normalizedEmail, inviteRef.id);
+        await _writeInvitationLookup(normalizedEmail, inviteRef.id, orgId);
       }
     }
 
@@ -715,10 +715,15 @@ class OrganizationService {
 
   /// Speichert eine Einladungs-ID in einem Lookup-Dokument, das direkt per
   /// E-Mail-Adresse abrufbar ist (kein List-Query nötig → keine Regel-Probleme).
+  /// orgId wird mitgespeichert damit die Firestore-Rule den Schreibzugriff
+  /// auf Admins/Mods der jeweiligen Org beschränken kann.
   Future<void> _writeInvitationLookup(
-      String normalizedEmail, String invitationId) async {
+      String normalizedEmail, String invitationId, String orgId) async {
     await _db.collection('invitationLookup').doc(normalizedEmail).set(
-      {'invitationIds': FieldValue.arrayUnion([invitationId])},
+      {
+        'invitationIds': FieldValue.arrayUnion([invitationId]),
+        'orgId': orgId,
+      },
       SetOptions(merge: true),
     );
   }

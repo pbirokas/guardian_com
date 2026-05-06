@@ -71,6 +71,13 @@ class MainActivity : FlutterActivity() {
                         }
                         try {
                             val uri = Uri.parse(uriString)
+                            val maxBytes = 50L * 1024 * 1024 // 50 MB
+                            val fd = contentResolver.openFileDescriptor(uri, "r")
+                            val tooLarge = fd?.use { it.statSize > maxBytes } == true
+                            if (tooLarge) {
+                                result.error("FILE_TOO_LARGE", "File exceeds 50 MB limit", null)
+                                return@setMethodCallHandler
+                            }
                             val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
                             result.success(bytes)
                         } catch (e: Exception) {

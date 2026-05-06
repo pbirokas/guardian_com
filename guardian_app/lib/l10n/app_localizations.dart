@@ -1766,6 +1766,36 @@ abstract class AppLocalizations {
   /// **'Nachricht melden'**
   String get reportMessage;
 
+  /// No description provided for @undoDeleteMessage.
+  ///
+  /// In de, this message translates to:
+  /// **'Löschen rückgängig machen'**
+  String get undoDeleteMessage;
+
+  /// No description provided for @messageDeleted.
+  ///
+  /// In de, this message translates to:
+  /// **'Diese Nachricht wurde gelöscht.'**
+  String get messageDeleted;
+
+  /// No description provided for @deletedBadge.
+  ///
+  /// In de, this message translates to:
+  /// **'Gelöscht'**
+  String get deletedBadge;
+
+  /// No description provided for @confirmDeleteMessage.
+  ///
+  /// In de, this message translates to:
+  /// **'Nachricht wirklich löschen?'**
+  String get confirmDeleteMessage;
+
+  /// No description provided for @confirmDeleteMessageBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Die Nachricht wird für alle anderen als gelöscht angezeigt. Du kannst das Löschen jederzeit rückgängig machen.'**
+  String get confirmDeleteMessageBody;
+
   /// No description provided for @editedPrefix.
   ///
   /// In de, this message translates to:

@@ -940,6 +940,22 @@ class AppLocalizationsDe extends AppLocalizations {
   String get reportMessage => 'Nachricht melden';
 
   @override
+  String get undoDeleteMessage => 'Löschen rückgängig machen';
+
+  @override
+  String get messageDeleted => 'Diese Nachricht wurde gelöscht.';
+
+  @override
+  String get deletedBadge => 'Gelöscht';
+
+  @override
+  String get confirmDeleteMessage => 'Nachricht wirklich löschen?';
+
+  @override
+  String get confirmDeleteMessageBody =>
+      'Die Nachricht wird für alle anderen als gelöscht angezeigt. Du kannst das Löschen jederzeit rückgängig machen.';
+
+  @override
   String get editedPrefix => 'bearbeitet · ';
 
   @override

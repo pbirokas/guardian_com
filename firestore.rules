@@ -208,7 +208,7 @@ service cloud.firestore {
         (notPinUpdate() &&
           request.auth.uid in resource.data.participantUids &&
           request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['lastMessageAt', 'lastMessageText', 'lastMessageSenderUid',
+            .hasOnly(['lastMessageAt', 'lastMessage',
                       'name', 'personalNames'])) ||
         // Admin/Mod: broad update access (status, guardianUids, etc.)
         // Live check — canApproveUids is a stale snapshot and must not be used here.
@@ -297,13 +297,30 @@ service cloud.firestore {
         );
 
         // Sender may edit own message text; admin/mod may moderate; participants may react.
+        // Sender may soft-delete and undo-delete own messages (deletedAt / deletedBy).
+        // Admin/mod moderation (text edit) is blocked while a message is soft-deleted.
         allow update: if isSignedIn() && (
           (request.auth.uid == resource.data.senderUid &&
             request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['text', 'editedAt'])) ||
-          isAdminOrMod(convSnap().orgId) ||
+              .hasOnly(['text', 'editedAt']) &&
+            resource.data.get('deletedAt', null) == null) ||
+          // Soft-delete: message not yet deleted; deletedBy must be the caller.
+          (request.auth.uid == resource.data.senderUid &&
+            resource.data.get('deletedAt', null) == null &&
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['deletedAt', 'deletedBy']) &&
+            request.resource.data.deletedBy == request.auth.uid) ||
+          // Undo-delete: message is deleted; caller clears both fields.
+          (request.auth.uid == resource.data.senderUid &&
+            resource.data.get('deletedAt', null) != null &&
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['deletedAt', 'deletedBy']) &&
+            request.resource.data.get('deletedBy', null) == null) ||
+          (isAdminOrMod(convSnap().orgId) &&
+            resource.data.get('deletedAt', null) == null) ||
           (request.auth.uid in convSnap().participantUids &&
-           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']))
+           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']) &&
+           resource.data.get('deletedAt', null) == null)
         );
 
         allow delete: if isSignedIn() && isAdmin(convSnap().orgId);

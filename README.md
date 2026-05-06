@@ -135,6 +135,7 @@ Erreichbar über **Profil → Meine Verknüpfungen**. Der Screen vereint alle As
 - **GIF-Rendering** — GIF-URLs werden direkt als animiertes Bild im Chat angezeigt
 - **URLs und E-Mail-Adressen** in Nachrichten sind anklickbar
 - **Eigene Nachrichten bearbeiten** (per Langer Druck → Bearbeiten)
+- **Eigene Nachrichten löschen** (per Langer Druck → Löschen) — für alle anderen erscheint ein Platzhalter; das Löschen kann jederzeit rückgängig gemacht werden. Admins und Moderatoren sehen den Originalinhalt gelöschter Nachrichten (markiert), können sie aber nicht moderieren solange sie gelöscht sind.
 - **Text in Zwischenablage kopieren** (per Langer Druck → Kopieren)
 - Bearbeitete Nachrichten von Admin/Moderator werden automatisch archiviert (Moderations-Log)
 - Bilder senden (JPEG, max. 2 MB, automatisch komprimiert)

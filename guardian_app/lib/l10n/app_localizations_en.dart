@@ -933,6 +933,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reportMessage => 'Report message';
 
   @override
+  String get undoDeleteMessage => 'Undo delete';
+
+  @override
+  String get messageDeleted => 'This message was deleted.';
+
+  @override
+  String get deletedBadge => 'Deleted';
+
+  @override
+  String get confirmDeleteMessage => 'Delete this message?';
+
+  @override
+  String get confirmDeleteMessageBody =>
+      'The message will appear as deleted for everyone else. You can undo this at any time.';
+
+  @override
   String get editedPrefix => 'edited · ';
 
   @override

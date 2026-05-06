@@ -14,7 +14,9 @@
       "Bash(xargs ls *)",
       "WebFetch(domain:www.aihero.dev)",
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(Get-Content \"guardian_app\\\\android\\\\app\\\\src\\\\main\\\\AndroidManifest.xml\")",
+      "Bash(git -C \"C:\\\\Users\\\\pbiro\\\\Documents\\\\git\\\\fist_steps\" show HEAD:functions/index.js)"
     ]
   }
 }

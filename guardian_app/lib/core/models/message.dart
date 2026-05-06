@@ -26,6 +26,10 @@ class Message {
   final String? systemActorName;
   final String? systemTargetName;
   final bool isGif;
+  final DateTime? deletedAt;
+  final String? deletedBy;
+
+  bool get isDeleted => deletedAt != null;
 
   const Message({
     required this.id,
@@ -53,6 +57,8 @@ class Message {
     this.systemActorName,
     this.systemTargetName,
     this.isGif = false,
+    this.deletedAt,
+    this.deletedBy,
   });
 
   factory Message.fromFirestore(DocumentSnapshot doc) {
@@ -87,6 +93,10 @@ class Message {
       systemActorName: data['systemActorName'] as String?,
       systemTargetName: data['systemTargetName'] as String?,
       isGif: data['isGif'] as bool? ?? false,
+      deletedAt: data['deletedAt'] != null
+          ? (data['deletedAt'] as Timestamp).toDate()
+          : null,
+      deletedBy: data['deletedBy'] as String?,
     );
   }
 
@@ -110,5 +120,7 @@ class Message {
         if (replyToSenderName != null) 'replyToSenderName': replyToSenderName,
         if (replyToText != null) 'replyToText': replyToText,
         if (isGif) 'isGif': true,
+        if (deletedAt != null) 'deletedAt': Timestamp.fromDate(deletedAt!),
+        if (deletedBy != null) 'deletedBy': deletedBy,
       };
 }

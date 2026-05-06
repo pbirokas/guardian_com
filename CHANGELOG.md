@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-06 (2)
+
+- Nachrichten können jetzt gelöscht werden: Jeder Nutzer kann eigene Nachrichten löschen — für alle anderen erscheint ein grauer Platzhalter
+- Löschen rückgängig machen: Wer eine eigene Nachricht gelöscht hat, kann das jederzeit über langes Drücken auf die Nachricht rückgängig machen
+- Admins und Moderatoren sehen den Inhalt gelöschter Nachrichten weiterhin (markiert mit einem roten Rahmen und Badge) — können sie aber nicht mehr bearbeiten, solange sie gelöscht sind
+- Fix: Nachrichten in Einzel-Chats konnten nicht versendet werden (falscher Feldname in der Zugriffsregel)
+
+---
+
 ## 2026-05-06
 
 - Sicherheit: Absturz behoben, der auftreten konnte wenn man den Chat-Bildschirm in einem ungünstigen Moment verlässt

@@ -262,6 +262,12 @@ class ChatService {
     await batch.commit();
   }
 
+  DocumentReference _msgRef(String convId, String messageId) => _db
+      .collection('conversations')
+      .doc(convId)
+      .collection('messages')
+      .doc(messageId);
+
   Future<void> editMessage(
     String convId,
     String messageId,
@@ -270,17 +276,26 @@ class ChatService {
     String? archivedByUid,
     String? archivedByName,
   }) async {
-    await _db
-        .collection('conversations')
-        .doc(convId)
-        .collection('messages')
-        .doc(messageId)
-        .update({
+    await _msgRef(convId, messageId).update({
       'text': newText,
       'editedAt': Timestamp.now(),
       if (archive) 'isArchived': true,
       if (archive && archivedByUid != null) 'archivedByUid': archivedByUid,
       if (archive && archivedByName != null) 'archivedByName': archivedByName,
+    });
+  }
+
+  Future<void> softDeleteMessage(String convId, String messageId) async {
+    await _msgRef(convId, messageId).update({
+      'deletedAt': Timestamp.now(),
+      'deletedBy': _uid,
+    });
+  }
+
+  Future<void> undoDeleteMessage(String convId, String messageId) async {
+    await _msgRef(convId, messageId).update({
+      'deletedAt': FieldValue.delete(),
+      'deletedBy': FieldValue.delete(),
     });
   }
 
@@ -951,11 +966,7 @@ class ChatService {
   /// [emoji] == null → Reaktion entfernen.
   Future<void> setReaction(
       String convId, String msgId, String? emoji) async {
-    final msgRef = _db
-        .collection('conversations')
-        .doc(convId)
-        .collection('messages')
-        .doc(msgId);
+    final msgRef = _msgRef(convId, msgId);
     if (emoji == null) {
       await msgRef.update({'reactions.$_uid': FieldValue.delete()});
     } else {

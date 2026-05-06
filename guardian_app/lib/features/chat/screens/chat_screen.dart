@@ -1297,26 +1297,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           showSenderName:
                               showSender && msg.senderName.isNotEmpty,
                           isModerating: isModeratorOrAdmin && !isMe,
+                          isAdminOrMod: isModeratorOrAdmin,
                           readStatus: isMe && conv != null
                               ? _readStatus(conv, msg)
                               : null,
-                          onReport: isMe || conv == null || msg.pollId != null
+                          onReport: isMe || conv == null || msg.pollId != null || msg.isDeleted
                               ? null
                               : () => _confirmReport(conv, msg),
                           onEdit: msg.pollId == null &&
                                   msg.imageUrl == null &&
                                   msg.audioUrl == null &&
                                   msg.fileUrl == null &&
+                                  !msg.isDeleted &&
                                   (isMe || isModeratorOrAdmin)
                               ? () => _editMessage(
                                     msg,
                                     archive: isModeratorOrAdmin && !isMe,
                                   )
                               : null,
-                          onImageTap: msg.imageUrl != null
+                          onImageTap: msg.imageUrl != null && !msg.isDeleted
                               ? () => _openImageFullscreen(context, msg.imageUrl!)
                               : null,
-                          onReply: isArchived
+                          onReply: isArchived || msg.isDeleted
                               ? null
                               : () => setState(() {
                                     _replyingTo = msg;
@@ -1326,10 +1328,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                           offset: _controller.text.length),
                                     );
                                   }),
-                          onReact: isArchived
+                          onReact: isArchived || msg.isDeleted
                               ? null
                               : (emoji) => _setReaction(msg, emoji),
-                          onPin: isModeratorOrAdmin && !isArchived
+                          onPin: isModeratorOrAdmin && !isArchived && !msg.isDeleted
                               ? () {
                                   final isPinned =
                                       conv.pinnedMessageId == msg.id;
@@ -1587,6 +1589,7 @@ class _MessageBubble extends ConsumerWidget {
   final bool isMe;
   final bool showSenderName;
   final bool isModerating;
+  final bool isAdminOrMod;
   final VoidCallback? onReport;
   final VoidCallback? onEdit;
   final VoidCallback? onImageTap;
@@ -1607,6 +1610,7 @@ class _MessageBubble extends ConsumerWidget {
     required this.currentUid,
     this.showSenderName = false,
     this.isModerating = false,
+    this.isAdminOrMod = false,
     this.onReport,
     this.onEdit,
     this.onImageTap,
@@ -1727,7 +1731,7 @@ class _MessageBubble extends ConsumerWidget {
                         onPin!();
                       },
                     ),
-                  if (hasText)
+                  if (hasText && !message.isDeleted)
                     ListTile(
                       leading: const Icon(Icons.copy_outlined),
                       title: Text(l.copyText),
@@ -1751,6 +1755,66 @@ class _MessageBubble extends ConsumerWidget {
                       onTap: () {
                         Navigator.pop(context);
                         onEdit!();
+                      },
+                    ),
+                  if (isMe && !message.isDeleted)
+                    ListTile(
+                      leading: const Icon(Icons.delete_outline,
+                          color: Colors.red),
+                      title: Text(l.deleteMessage,
+                          style: const TextStyle(color: Colors.red)),
+                      onTap: () async {
+                        Navigator.pop(context);
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: Text(l.confirmDeleteMessage),
+                            content: Text(l.confirmDeleteMessageBody),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: Text(l.cancel),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: Text(l.deleteMessage,
+                                    style: const TextStyle(color: Colors.red)),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmed == true && context.mounted) {
+                          try {
+                            await ref
+                                .read(chatServiceProvider)
+                                .softDeleteMessage(convId, message.id);
+                          } catch (_) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Fehler beim Löschen der Nachricht.')),
+                              );
+                            }
+                          }
+                        }
+                      },
+                    ),
+                  if (isMe && message.isDeleted)
+                    ListTile(
+                      leading: const Icon(Icons.restore_outlined),
+                      title: Text(l.undoDeleteMessage),
+                      onTap: () async {
+                        Navigator.pop(context);
+                        try {
+                          await ref
+                              .read(chatServiceProvider)
+                              .undoDeleteMessage(convId, message.id);
+                        } catch (_) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Fehler beim Wiederherstellen der Nachricht.')),
+                            );
+                          }
+                        }
                       },
                     ),
                   if (onReport != null)
@@ -1793,11 +1857,37 @@ class _MessageBubble extends ConsumerWidget {
             bottomLeft: Radius.circular(isMe ? 16 : 4),
             bottomRight: Radius.circular(isMe ? 4 : 16),
           ),
+          border: message.isDeleted && isAdminOrMod
+              ? Border.all(color: Colors.red.withAlpha(180), width: 1.5)
+              : null,
         ),
-        child: Column(
+        child: message.isDeleted && !isAdminOrMod
+            ? _DeletedLabel(
+                icon: Icons.do_not_disturb_outlined,
+                text: l.messageDeleted,
+                color: isMe
+                    ? colorScheme.onPrimary.withAlpha(140)
+                    : colorScheme.onSecondaryContainer.withAlpha(140),
+                iconSize: 14,
+                fontSize: chatFontSize,
+                italic: true,
+              )
+            : Column(
           crossAxisAlignment:
               isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
+            if (message.isDeleted && isAdminOrMod)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: _DeletedLabel(
+                  icon: Icons.delete_outline,
+                  text: l.deletedBadge,
+                  color: Colors.red.withAlpha(200),
+                  iconSize: 11,
+                  fontSize: 10,
+                  bold: true,
+                ),
+              ),
             if (showSenderName)
               Padding(
                 padding: const EdgeInsets.only(bottom: 2),
@@ -3294,6 +3384,46 @@ class _FullscreenImageDialogState extends State<_FullscreenImageDialog> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _DeletedLabel extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color color;
+  final double iconSize;
+  final double fontSize;
+  final bool italic;
+  final bool bold;
+
+  const _DeletedLabel({
+    required this.icon,
+    required this.text,
+    required this.color,
+    this.iconSize = 14,
+    this.fontSize = 12,
+    this.italic = false,
+    this.bold = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: iconSize, color: color),
+        SizedBox(width: iconSize > 12 ? 6 : 3),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: fontSize,
+            color: color,
+            fontStyle: italic ? FontStyle.italic : FontStyle.normal,
+            fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ],
     );
   }
 }

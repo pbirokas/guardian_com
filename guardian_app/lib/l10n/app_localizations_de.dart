@@ -1268,6 +1268,65 @@ class AppLocalizationsDe extends AppLocalizations {
       'Tippe hier um eine neue Organisation zu erstellen und Chat-Modus sowie Kategorie festzulegen.';
 
   @override
+  String get tourOrgStartButton => 'Tour starten';
+
+  @override
+  String get tourOrgTabsTitle => 'Tabs im Überblick';
+
+  @override
+  String get tourOrgTabsDesc =>
+      'Die Tabs oben gliedern die Organisation: Mitglieder, Chats, Pinnwand – und für Admins/Moderatoren auch Meldungen.';
+
+  @override
+  String get tourOrgMembersTitle => 'Mitglieder verwalten';
+
+  @override
+  String get tourOrgMembersDesc =>
+      'Hier siehst du alle Mitglieder mit ihrer Rolle. Als Admin kannst du Rollen ändern, neue Mitglieder einladen und Guardians zuweisen.';
+
+  @override
+  String get tourOrgChatTitle => 'Chats';
+
+  @override
+  String get tourOrgChatDesc =>
+      'Alle Gespräche dieser Organisation. Im Guardian-Modus müssen Chats zuerst genehmigt werden — ausstehende Anfragen erscheinen oben.';
+
+  @override
+  String get tourOrgGuardianChatTitle => 'Kind-Aktivität';
+
+  @override
+  String get tourOrgGuardianChatDesc =>
+      'Hier siehst du die Chat-Anfragen deiner Kinder und alle Gespräche in denen du als Guardian eingetragen bist.';
+
+  @override
+  String get tourOrgPinnwandTitle => 'Pinnwand';
+
+  @override
+  String get tourOrgPinnwandDesc =>
+      'Ankündigungen für alle Mitglieder. Admins und Moderatoren können Beiträge erstellen, bearbeiten und löschen.';
+
+  @override
+  String get tourOrgReportsTitle => 'Meldungen';
+
+  @override
+  String get tourOrgReportsDesc =>
+      'Gemeldete Nachrichten von Mitgliedern landen hier. Du kannst sie prüfen und gegebenenfalls moderieren.';
+
+  @override
+  String get tourOrgMenuTitle => 'Org-Einstellungen';
+
+  @override
+  String get tourOrgMenuDesc =>
+      'Das Drei-Punkte-Menü gibt dir Zugriff auf Org-Bearbeitung, Schlüsselwörter für die Inhaltsüberwachung und das Änderungsprotokoll.';
+
+  @override
+  String get tourOrgNotifTitle => 'Benachrichtigungen';
+
+  @override
+  String get tourOrgNotifDesc =>
+      'Hier stellst du ein wie oft du Benachrichtigungen für diese Organisation erhältst — von \'Jede Nachricht\' bis \'Stumm\'.';
+
+  @override
   String get noOrganizations => 'Noch keine Organisationen';
 
   @override

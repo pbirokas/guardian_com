@@ -6,6 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:showcaseview/showcaseview.dart';
 import 'package:guardian_app/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -23,13 +25,30 @@ import '../../chat/providers/chat_provider.dart';
 import '../providers/organizations_provider.dart';
 import 'bulk_import_screen.dart';
 
-class OrganizationDetailScreen extends ConsumerWidget {
+class OrganizationDetailScreen extends ConsumerStatefulWidget {
   final String orgId;
 
   const OrganizationDetailScreen({super.key, required this.orgId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OrganizationDetailScreen> createState() =>
+      _OrganizationDetailScreenState();
+}
+
+class _OrganizationDetailScreenState
+    extends ConsumerState<OrganizationDetailScreen> {
+  // ── Tour GlobalKeys ────────────────────────────────────────────────────────
+  final _tourNotifKey    = GlobalKey();
+  final _tourMenuKey     = GlobalKey();
+  final _tourMembersKey  = GlobalKey();
+  final _tourChatKey     = GlobalKey();
+  final _tourPinnwandKey = GlobalKey();
+  final _tourReportsKey  = GlobalKey();
+
+  String get orgId => widget.orgId;
+
+  @override
+  Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final orgAsync = ref.watch(organizationProvider(orgId));
     final currentUid = FirebaseAuth.instance.currentUser!.uid;
@@ -48,190 +67,258 @@ class OrganizationDetailScreen extends ConsumerWidget {
         final isModerator =
             !isAdmin && currentMember?.role == OrgRole.moderator;
 
+        final isChild = currentMember?.role == OrgRole.child;
+        final isGuardian = !isAdmin && !isModerator && !isChild;
+
         final tabCount = (isAdmin || isModerator) ? 4 : 3;
-        return DefaultTabController(
-          length: tabCount,
-          initialIndex: 1,
-          child: Scaffold(
-            appBar: AppBar(
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(org.name),
-                  Row(
+        return ShowCaseWidget(
+          builder: (innerCtx) {
+            void startTour() {
+              final keys = [
+                if (isAdmin || isModerator) _tourMembersKey,
+                if (isAdmin || isModerator) _tourMenuKey,
+                _tourChatKey,
+                _tourPinnwandKey,
+                if (isAdmin || isModerator) _tourReportsKey,
+                _tourNotifKey,
+              ];
+              ShowCaseWidget.of(innerCtx).startShowCase(keys);
+            }
+
+            return DefaultTabController(
+              length: tabCount,
+              initialIndex: 1,
+              child: Scaffold(
+                appBar: AppBar(
+                  title: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(org.tag.icon, size: 12, color: org.tag.color),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          org.tag.localizedLabel(l),
-                          style: TextStyle(fontSize: 12, color: org.tag.color),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Icon(Icons.timer_outlined,
-                          size: 12, color: Colors.grey[500]),
-                      const SizedBox(width: 2),
-                      Text(
-                        l.orgRetentionDays(org.messageRetentionDays),
-                        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              actions: [
-                _OrgNotificationToggle(orgId: orgId),
-                IconButton(
-                  icon: const Icon(Icons.help_outline),
-                  tooltip: l.helpLabel,
-                  onPressed: () => showModalBottomSheet<void>(
-                    context: context,
-                    isScrollControlled: true,
-                    shape: const RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(16)),
-                    ),
-                    builder: (_) => HelpSheet(
-                      screenTitle: org.name,
-                      topics: [
-                        HelpTopic(
-                          icon: Icons.people_outline,
-                          title: l.helpDetailTopicMembersTitle,
-                          body: l.helpDetailTopicMembersBody,
-                        ),
-                        HelpTopic(
-                          icon: Icons.person_add_outlined,
-                          title: l.helpDetailTopicMembersInviteTitle,
-                          body: l.helpDetailTopicMembersInviteBody,
-                        ),
-                        HelpTopic(
-                          icon: Icons.notifications_outlined,
-                          title: l.helpDetailTopicNotificationsTitle,
-                          body: l.helpDetailTopicNotificationsBody,
-                        ),
-                        HelpTopic(
-                          icon: Icons.chat_bubble_outline,
-                          title: l.helpDetailTopicChatsSendTitle,
-                          body: l.helpDetailTopicChatsSendBody,
-                        ),
-                        HelpTopic(
-                          icon: Icons.shield_outlined,
-                          title: l.helpDetailTopicChatsModTitle,
-                          body: l.helpDetailTopicChatsModBody,
-                        ),
-                        HelpTopic(
-                          icon: Icons.campaign_outlined,
-                          title: l.helpDetailTopicPinnwandTitle,
-                          body: l.helpDetailTopicPinnwandBody,
-                        ),
-                        if (isAdmin || isModerator) ...[
-                          HelpTopic(
-                            icon: Icons.edit_calendar_outlined,
-                            title: l.helpDetailTopicPinnwandManageTitle,
-                            body: l.helpDetailTopicPinnwandManageBody,
+                      Text(org.name),
+                      Row(
+                        children: [
+                          Icon(org.tag.icon, size: 12, color: org.tag.color),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              org.tag.localizedLabel(l),
+                              style: TextStyle(fontSize: 12, color: org.tag.color),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          HelpTopic(
-                            icon: Icons.flag_outlined,
-                            title: l.helpDetailTopicReportsTitle,
-                            body: l.helpDetailTopicReportsBody,
+                          const SizedBox(width: 8),
+                          Icon(Icons.timer_outlined,
+                              size: 12, color: Colors.grey[500]),
+                          const SizedBox(width: 2),
+                          Text(
+                            l.orgRetentionDays(org.messageRetentionDays),
+                            style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                           ),
                         ],
-                      ],
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    Showcase(
+                      key: _tourNotifKey,
+                      title: l.tourOrgNotifTitle,
+                      description: l.tourOrgNotifDesc,
+                      child: _OrgNotificationToggle(orgId: orgId),
                     ),
+                    _OrgHelpButton(
+                      orgId: orgId,
+                      onTap: () => _showHelp(
+                        innerCtx, org, startTour,
+                        isAdmin: isAdmin,
+                        isModerator: isModerator,
+                      ),
+                    ),
+                    if (isAdmin || isModerator)
+                      Showcase(
+                        key: _tourMenuKey,
+                        title: l.tourOrgMenuTitle,
+                        description: l.tourOrgMenuDesc,
+                        child: PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert),
+                          onSelected: (value) {
+                            switch (value) {
+                              case 'keywords':
+                                _showKeywordsDialog(context, ref, org);
+                              case 'edit':
+                                _showEditDialog(context, ref, org);
+                              case 'auditLog':
+                                showModalBottomSheet<void>(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  backgroundColor: Colors.transparent,
+                                  builder: (_) => _AuditLogSheet(orgId: orgId),
+                                );
+                            }
+                          },
+                          itemBuilder: (_) => [
+                            if (isAdmin || isModerator) ...[
+                              PopupMenuItem(
+                                value: 'auditLog',
+                                child: ListTile(
+                                  leading: const Icon(Icons.history_outlined),
+                                  title: Text(l.auditLog),
+                                  contentPadding: EdgeInsets.zero,
+                                  dense: true,
+                                ),
+                              ),
+                            ],
+                            if (isAdmin) ...[
+                              PopupMenuItem(
+                                value: 'keywords',
+                                child: ListTile(
+                                  leading: const Icon(Icons.manage_search_outlined),
+                                  title: Text(l.keywordsTooltip),
+                                  contentPadding: EdgeInsets.zero,
+                                  dense: true,
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value: 'edit',
+                                child: ListTile(
+                                  leading: const Icon(Icons.edit_outlined),
+                                  title: Text(l.editTooltip),
+                                  contentPadding: EdgeInsets.zero,
+                                  dense: true,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                  ],
+                  bottom: TabBar(
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    tabs: [
+                      Showcase(
+                        key: _tourMembersKey,
+                        title: l.tourOrgMembersTitle,
+                        description: l.tourOrgMembersDesc,
+                        child: Tab(
+                          icon: const Icon(Icons.people_outline),
+                          text: l.tabMembers,
+                        ),
+                      ),
+                      Showcase(
+                        key: _tourChatKey,
+                        title: isGuardian
+                            ? l.tourOrgGuardianChatTitle
+                            : l.tourOrgChatTitle,
+                        description: isGuardian
+                            ? l.tourOrgGuardianChatDesc
+                            : l.tourOrgChatDesc,
+                        child: Tab(
+                          child: _ChatTabLabel(
+                            orgId: orgId,
+                            isAdminOrMod: isAdmin || isModerator,
+                            currentUid: currentUid,
+                          ),
+                        ),
+                      ),
+                      Showcase(
+                        key: _tourPinnwandKey,
+                        title: l.tourOrgPinnwandTitle,
+                        description: l.tourOrgPinnwandDesc,
+                        child: Tab(child: _PinnwandTabLabel(orgId: orgId)),
+                      ),
+                      if (isAdmin || isModerator)
+                        Showcase(
+                          key: _tourReportsKey,
+                          title: l.tourOrgReportsTitle,
+                          description: l.tourOrgReportsDesc,
+                          child: Tab(child: _ReportsTabLabel(orgId: orgId)),
+                        ),
+                    ],
                   ),
                 ),
-                if (isAdmin || isModerator)
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert),
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'keywords':
-                        _showKeywordsDialog(context, ref, org);
-                      case 'edit':
-                        _showEditDialog(context, ref, org);
-                      case 'auditLog':
-                        showModalBottomSheet<void>(
-                          context: context,
-                          isScrollControlled: true,
-                          backgroundColor: Colors.transparent,
-                          builder: (_) =>
-                              _AuditLogSheet(orgId: orgId),
-                        );
-                    }
-                  },
-                  itemBuilder: (_) => [
-                    if (isAdmin || isModerator) ...[
-                      PopupMenuItem(
-                        value: 'auditLog',
-                        child: ListTile(
-                          leading: const Icon(Icons.history_outlined),
-                          title: Text(l.auditLog),
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                        ),
-                      ),
-                    ],
-                    if (isAdmin) ...[
-                      PopupMenuItem(
-                        value: 'keywords',
-                        child: ListTile(
-                          leading: const Icon(Icons.manage_search_outlined),
-                          title: Text(l.keywordsTooltip),
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'edit',
-                        child: ListTile(
-                          leading: const Icon(Icons.edit_outlined),
-                          title: Text(l.editTooltip),
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                        ),
-                      ),
-                    ],
+                body: TabBarView(
+                  children: [
+                    _MembersTab(org: org, isAdmin: isAdmin, isModerator: isModerator, ref: ref),
+                    _ChatsTab(
+                        org: org,
+                        currentUid: currentUid,
+                        isAdmin: isAdmin,
+                        isModerator: isModerator),
+                    _PinnwandTab(orgId: orgId, canManage: isAdmin || isModerator),
+                    if (isAdmin || isModerator) _ReportsTab(org: org),
                   ],
                 ),
-              ],
-              bottom: TabBar(
-                labelPadding: const EdgeInsets.symmetric(horizontal: 8),
-                tabs: [
-                  Tab(icon: const Icon(Icons.people_outline), text: l.tabMembers),
-                  Tab(
-                    child: _ChatTabLabel(
-                        orgId: orgId,
-                        isAdminOrMod: isAdmin || isModerator,
-                        currentUid: currentUid),
-                  ),
-                  Tab(child: _PinnwandTabLabel(orgId: orgId)),
-                  if (isAdmin || isModerator)
-                    Tab(
-                      child: _ReportsTabLabel(orgId: orgId),
-                    ),
-                ],
               ),
-            ),
-            body: TabBarView(
-              children: [
-                _MembersTab(org: org, isAdmin: isAdmin, isModerator: isModerator, ref: ref),
-                _ChatsTab(
-                    org: org,
-                    currentUid: currentUid,
-                    isAdmin: isAdmin,
-                    isModerator: isModerator),
-                _PinnwandTab(
-                    orgId: orgId,
-                    canManage: isAdmin || isModerator),
-                if (isAdmin || isModerator)
-                  _ReportsTab(org: org),
-              ],
-            ),
-          ),
+            );
+          },
         );
       },
+    );
+  }
+
+  void _showHelp(
+    BuildContext innerCtx,
+    Organization org,
+    VoidCallback startTour, {
+    required bool isAdmin,
+    required bool isModerator,
+  }) {
+    final l = AppLocalizations.of(context);
+    showModalBottomSheet<void>(
+      context: innerCtx,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => HelpSheet(
+        screenTitle: org.name,
+        topics: [
+          HelpTopic(
+            icon: Icons.people_outline,
+            title: l.helpDetailTopicMembersTitle,
+            body: l.helpDetailTopicMembersBody,
+          ),
+          HelpTopic(
+            icon: Icons.person_add_outlined,
+            title: l.helpDetailTopicMembersInviteTitle,
+            body: l.helpDetailTopicMembersInviteBody,
+          ),
+          HelpTopic(
+            icon: Icons.notifications_outlined,
+            title: l.helpDetailTopicNotificationsTitle,
+            body: l.helpDetailTopicNotificationsBody,
+          ),
+          HelpTopic(
+            icon: Icons.chat_bubble_outline,
+            title: l.helpDetailTopicChatsSendTitle,
+            body: l.helpDetailTopicChatsSendBody,
+          ),
+          HelpTopic(
+            icon: Icons.shield_outlined,
+            title: l.helpDetailTopicChatsModTitle,
+            body: l.helpDetailTopicChatsModBody,
+          ),
+          HelpTopic(
+            icon: Icons.campaign_outlined,
+            title: l.helpDetailTopicPinnwandTitle,
+            body: l.helpDetailTopicPinnwandBody,
+          ),
+          if (isAdmin || isModerator) ...[
+            HelpTopic(
+              icon: Icons.edit_calendar_outlined,
+              title: l.helpDetailTopicPinnwandManageTitle,
+              body: l.helpDetailTopicPinnwandManageBody,
+            ),
+            HelpTopic(
+              icon: Icons.flag_outlined,
+              title: l.helpDetailTopicReportsTitle,
+              body: l.helpDetailTopicReportsBody,
+            ),
+          ],
+        ],
+        onStartTour: () {
+          Navigator.pop(innerCtx);
+          Future.delayed(const Duration(milliseconds: 350), startTour);
+        },
+      ),
     );
   }
 
@@ -4420,6 +4507,93 @@ class _AuditLogSheet extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Org Help Button mit Glow-Animation ───────────────────────────────────────
+
+class _OrgHelpButton extends StatefulWidget {
+  final String orgId;
+  final VoidCallback onTap;
+
+  const _OrgHelpButton({required this.orgId, required this.onTap});
+
+  @override
+  State<_OrgHelpButton> createState() => _OrgHelpButtonState();
+}
+
+class _OrgHelpButtonState extends State<_OrgHelpButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _glow;
+  bool _seen = true;
+
+  static String _prefsKey(String orgId) => 'orgTourSeen_$orgId';
+
+  @override
+  void initState() {
+    super.initState();
+    _glow = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _checkSeen();
+  }
+
+  Future<void> _checkSeen() async {
+    final prefs = await SharedPreferences.getInstance();
+    final seen = prefs.getBool(_prefsKey(widget.orgId)) ?? false;
+    if (!seen && mounted) {
+      _glow.repeat(reverse: true);
+      setState(() => _seen = false);
+    }
+  }
+
+  Future<void> _markSeen() async {
+    if (_seen) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefsKey(widget.orgId), true);
+    if (mounted) {
+      _glow.stop();
+      setState(() => _seen = true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _glow.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    return AnimatedBuilder(
+      animation: _glow,
+      builder: (context, child) {
+        final opacity = _seen ? 0.0 : _glow.value * 0.55;
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: opacity),
+                blurRadius: 14,
+                spreadRadius: 5,
+              ),
+            ],
+          ),
+          child: child,
+        );
+      },
+      child: IconButton(
+        icon: const Icon(Icons.help_outline),
+        onPressed: () {
+          _markSeen();
+          widget.onTap();
+        },
       ),
     );
   }

@@ -1261,6 +1261,65 @@ class AppLocalizationsEn extends AppLocalizations {
       'Tap here to create a new organization and set chat mode and category.';
 
   @override
+  String get tourOrgStartButton => 'Start tour';
+
+  @override
+  String get tourOrgTabsTitle => 'Tabs at a glance';
+
+  @override
+  String get tourOrgTabsDesc =>
+      'The tabs organize the org: Members, Chats, Bulletin Board – and for admins/moderators also Reports.';
+
+  @override
+  String get tourOrgMembersTitle => 'Manage members';
+
+  @override
+  String get tourOrgMembersDesc =>
+      'See all members and their roles. As admin you can change roles, invite new members, and assign guardians.';
+
+  @override
+  String get tourOrgChatTitle => 'Chats';
+
+  @override
+  String get tourOrgChatDesc =>
+      'All conversations in this organization. In guardian mode chats need approval first — pending requests appear at the top.';
+
+  @override
+  String get tourOrgGuardianChatTitle => 'Child activity';
+
+  @override
+  String get tourOrgGuardianChatDesc =>
+      'Here you see your children\'s chat requests and all conversations where you are listed as a guardian.';
+
+  @override
+  String get tourOrgPinnwandTitle => 'Bulletin Board';
+
+  @override
+  String get tourOrgPinnwandDesc =>
+      'Announcements for all members. Admins and moderators can create, edit, and delete posts.';
+
+  @override
+  String get tourOrgReportsTitle => 'Reports';
+
+  @override
+  String get tourOrgReportsDesc =>
+      'Messages reported by members appear here. You can review and moderate them as needed.';
+
+  @override
+  String get tourOrgMenuTitle => 'Org settings';
+
+  @override
+  String get tourOrgMenuDesc =>
+      'The three-dot menu gives access to org editing, keywords for content monitoring, and the audit log.';
+
+  @override
+  String get tourOrgNotifTitle => 'Notifications';
+
+  @override
+  String get tourOrgNotifDesc =>
+      'Set how often you receive notifications for this organization — from \'Every message\' to \'Muted\'.';
+
+  @override
   String get noOrganizations => 'No organizations yet';
 
   @override

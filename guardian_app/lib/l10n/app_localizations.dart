@@ -2330,6 +2330,108 @@ abstract class AppLocalizations {
   /// **'Tippe hier um eine neue Organisation zu erstellen und Chat-Modus sowie Kategorie festzulegen.'**
   String get tourStepFabDesc;
 
+  /// No description provided for @tourOrgStartButton.
+  ///
+  /// In de, this message translates to:
+  /// **'Tour starten'**
+  String get tourOrgStartButton;
+
+  /// No description provided for @tourOrgTabsTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Tabs im Überblick'**
+  String get tourOrgTabsTitle;
+
+  /// No description provided for @tourOrgTabsDesc.
+  ///
+  /// In de, this message translates to:
+  /// **'Die Tabs oben gliedern die Organisation: Mitglieder, Chats, Pinnwand – und für Admins/Moderatoren auch Meldungen.'**
+  String get tourOrgTabsDesc;
+
+  /// No description provided for @tourOrgMembersTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Mitglieder verwalten'**
+  String get tourOrgMembersTitle;
+
+  /// No description provided for @tourOrgMembersDesc.
+  ///
+  /// In de, this message translates to:
+  /// **'Hier siehst du alle Mitglieder mit ihrer Rolle. Als Admin kannst du Rollen ändern, neue Mitglieder einladen und Guardians zuweisen.'**
+  String get tourOrgMembersDesc;
+
+  /// No description provided for @tourOrgChatTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Chats'**
+  String get tourOrgChatTitle;
+
+  /// No description provided for @tourOrgChatDesc.
+  ///
+  /// In de, this message translates to:
+  /// **'Alle Gespräche dieser Organisation. Im Guardian-Modus müssen Chats zuerst genehmigt werden — ausstehende Anfragen erscheinen oben.'**
+  String get tourOrgChatDesc;
+
+  /// No description provided for @tourOrgGuardianChatTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Kind-Aktivität'**
+  String get tourOrgGuardianChatTitle;
+
+  /// No description provided for @tourOrgGuardianChatDesc.
+  ///
+  /// In de, this message translates to:
+  /// **'Hier siehst du die Chat-Anfragen deiner Kinder und alle Gespräche in denen du als Guardian eingetragen bist.'**
+  String get tourOrgGuardianChatDesc;
+
+  /// No description provided for @tourOrgPinnwandTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Pinnwand'**
+  String get tourOrgPinnwandTitle;
+
+  /// No description provided for @tourOrgPinnwandDesc.
+  ///
+  /// In de, this message translates to:
+  /// **'Ankündigungen für alle Mitglieder. Admins und Moderatoren können Beiträge erstellen, bearbeiten und löschen.'**
+  String get tourOrgPinnwandDesc;
+
+  /// No description provided for @tourOrgReportsTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Meldungen'**
+  String get tourOrgReportsTitle;
+
+  /// No description provided for @tourOrgReportsDesc.
+  ///
+  /// In de, this message translates to:
+  /// **'Gemeldete Nachrichten von Mitgliedern landen hier. Du kannst sie prüfen und gegebenenfalls moderieren.'**
+  String get tourOrgReportsDesc;
+
+  /// No description provided for @tourOrgMenuTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Org-Einstellungen'**
+  String get tourOrgMenuTitle;
+
+  /// No description provided for @tourOrgMenuDesc.
+  ///
+  /// In de, this message translates to:
+  /// **'Das Drei-Punkte-Menü gibt dir Zugriff auf Org-Bearbeitung, Schlüsselwörter für die Inhaltsüberwachung und das Änderungsprotokoll.'**
+  String get tourOrgMenuDesc;
+
+  /// No description provided for @tourOrgNotifTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Benachrichtigungen'**
+  String get tourOrgNotifTitle;
+
+  /// No description provided for @tourOrgNotifDesc.
+  ///
+  /// In de, this message translates to:
+  /// **'Hier stellst du ein wie oft du Benachrichtigungen für diese Organisation erhältst — von \'Jede Nachricht\' bis \'Stumm\'.'**
+  String get tourOrgNotifDesc;
+
   /// No description provided for @noOrganizations.
   ///
   /// In de, this message translates to:

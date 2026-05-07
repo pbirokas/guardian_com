@@ -4,6 +4,13 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-07 (3)
+
+- Geführte Tour für Organisations-Ansicht: Beim ersten Betreten einer Organisation blinkt das (?) auf — ein Tipp startet eine rollenbasierte Tour durch alle Tabs und Funktionen (Admins/Moderatoren sehen mehr Schritte als normale Mitglieder oder Guardians)
+- Guardians erhalten in der Tour eine eigene Erklärung zum Tab "Kind-Aktivität"
+
+---
+
 ## 2026-05-07 (2)
 
 - Automatischer Löschzeitraum für Chat-Nachrichten: Admins können pro Organisation festlegen, wie lange Nachrichten aufbewahrt werden (30 bis 365 Tage, Standard 90 Tage) — ältere Nachrichten, Umfragen und Anhänge werden automatisch täglich bereinigt

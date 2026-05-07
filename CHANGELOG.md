@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-07
+
+- Fix: Nach einem Admin-Rollenwechsel waren die Gruppen-Chats der Org für den neuen Admin nicht mehr sichtbar — behoben durch eine robustere Abfrage nach `orgId` statt `orgAdminUid`
+- Fix: Neue Cloud Function `onOrgAdminTransferred` aktualisiert `orgAdminUid` und `canApproveUids` in allen Conversations der Org, sobald der Admin wechselt
+- Fix: Ausstehende Anfragen waren für den neuen Admin ebenfalls nicht sichtbar (gleiche Ursache)
+
+---
+
 ## 2026-05-06 (2)
 
 - Nachrichten können jetzt gelöscht werden: Jeder Nutzer kann eigene Nachrichten löschen — für alle anderen erscheint ein grauer Platzhalter

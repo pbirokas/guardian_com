@@ -502,31 +502,39 @@ class ChatService {
     });
   }
 
-  /// Alle Konversationen einer Org — nur für Admins (query by orgAdminUid)
+  /// Alle Konversationen einer Org — nur für Admins.
+  /// Queried by orgId (not orgAdminUid) so that conversations created before
+  /// an admin transfer are also visible to the current admin.
+  /// Non-admins get an empty list (permission denied is swallowed).
   Stream<List<Conversation>> watchAdminConversations(String orgId) {
     return _db
         .collection('conversations')
-        .where('orgAdminUid', isEqualTo: _uid)
+        .where('orgId', isEqualTo: orgId)
         .snapshots()
         .map((s) {
       final all = s.docs.map(Conversation.fromFirestore).toList();
-      final filtered = all.where((c) => c.orgId == orgId).toList();
-      filtered.sort(_byLastMessageDesc);
-      return filtered;
-    });
+      all.sort(_byLastMessageDesc);
+      return all;
+    }).handleError(
+      (_) {},
+      test: (e) => e is FirebaseException && e.code == 'permission-denied',
+    );
   }
 
   Stream<List<Conversation>> watchPendingRequests(String orgId) {
     return _db
         .collection('conversations')
-        .where('orgAdminUid', isEqualTo: _uid)
+        .where('orgId', isEqualTo: orgId)
         .snapshots()
         .map((s) {
       final all = s.docs.map(Conversation.fromFirestore).toList();
       return all
-          .where((c) => c.orgId == orgId && c.status == ConversationStatus.pending)
+          .where((c) => c.status == ConversationStatus.pending)
           .toList();
-    });
+    }).handleError(
+      (_) {},
+      test: (e) => e is FirebaseException && e.code == 'permission-denied',
+    );
   }
 
   /// Ausstehende Anfragen für Moderatoren (canApproveUids enthält ihre UID)

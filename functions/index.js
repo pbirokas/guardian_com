@@ -1102,6 +1102,51 @@ exports.cleanupExpiredPolls = onSchedule('every day 03:05', async () => {
 // an denen das Kind beteiligt ist, aktualisiert.
 // Läuft server-seitig (Admin SDK) – keine Firestore Rules nötig.
 
+exports.onOrgAdminTransferred = onDocumentUpdated(
+  'organizations/{orgId}',
+  async (event) => {
+    const before = event.data.before.data();
+    const after  = event.data.after.data();
+    const { orgId } = event.params;
+
+    const oldAdminUid = before.adminUid;
+    const newAdminUid = after.adminUid;
+    if (!oldAdminUid || !newAdminUid || oldAdminUid === newAdminUid) return;
+
+    const convsSnap = await db
+      .collection('conversations')
+      .where('orgId', '==', orgId)
+      .get();
+
+    if (convsSnap.empty) return;
+
+    const BATCH_SIZE = 400;
+    const commits = [];
+    let batch = db.batch();
+    let count = 0;
+
+    for (const doc of convsSnap.docs) {
+      const canApproveUids = (doc.data().canApproveUids ?? [])
+        .filter((uid) => uid !== oldAdminUid);
+      if (!canApproveUids.includes(newAdminUid)) canApproveUids.push(newAdminUid);
+
+      batch.update(doc.ref, { orgAdminUid: newAdminUid, canApproveUids });
+
+      if (++count % BATCH_SIZE === 0) {
+        commits.push(batch.commit());
+        batch = db.batch();
+      }
+    }
+    if (count % BATCH_SIZE !== 0) commits.push(batch.commit());
+    await Promise.all(commits);
+
+    console.log(
+      `onOrgAdminTransferred: org=${orgId} old=${oldAdminUid} ` +
+      `new=${newAdminUid} conversations updated=${count}`
+    );
+  }
+);
+
 exports.onMemberGuardiansChanged = onDocumentUpdated(
   'organizations/{orgId}/members/{memberId}',
   async (event) => {

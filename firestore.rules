@@ -204,12 +204,12 @@ service cloud.firestore {
           (resource.data.orgAdminUid == request.auth.uid ||
            request.auth.uid in resource.data.canApproveUids ||
            isAdminOrMod(resource.data.orgId))) ||
-        // Participants: message preview + rename
+        // Participants: message preview + rename + mark as read
         (notPinUpdate() &&
           request.auth.uid in resource.data.participantUids &&
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['lastMessageAt', 'lastMessage',
-                      'name', 'personalNames'])) ||
+                      'name', 'personalNames', 'lastReadAt'])) ||
         // Admin/Mod: broad update access (status, guardianUids, etc.)
         // Live check — canApproveUids is a stale snapshot and must not be used here.
         (notPinUpdate() && isAdminOrMod(resource.data.orgId))

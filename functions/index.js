@@ -21,8 +21,30 @@ initializeApp({
 const db = getFirestore();
 
 /**
- * Sends an FCM push notification to a list of FCM tokens.
+ * Applies `updateFn(batch, doc)` to each document and commits in chunks of `batchSize`.
+ * Re-throws on commit failure so Cloud Functions retries the invocation.
  */
+async function commitInBatches(docs, updateFn, batchSize = 400) {
+  const commits = [];
+  let batch = db.batch();
+  let count = 0;
+  for (const doc of docs) {
+    updateFn(batch, doc);
+    if (++count % batchSize === 0) {
+      commits.push(batch.commit());
+      batch = db.batch();
+    }
+  }
+  if (count % batchSize !== 0) commits.push(batch.commit());
+  try {
+    await Promise.all(commits);
+  } catch (err) {
+    console.error('commitInBatches: commit failed', err);
+    throw err;
+  }
+  return count;
+}
+
 /**
  * Removes a stale FCM token from all user documents in Firestore.
  * Called when FCM returns registration-token-not-registered or invalid-registration-token.
@@ -1120,25 +1142,12 @@ exports.onOrgAdminTransferred = onDocumentUpdated(
 
     if (convsSnap.empty) return;
 
-    const BATCH_SIZE = 400;
-    const commits = [];
-    let batch = db.batch();
-    let count = 0;
-
-    for (const doc of convsSnap.docs) {
+    const count = await commitInBatches(convsSnap.docs, (batch, doc) => {
       const canApproveUids = (doc.data().canApproveUids ?? [])
         .filter((uid) => uid !== oldAdminUid);
       if (!canApproveUids.includes(newAdminUid)) canApproveUids.push(newAdminUid);
-
       batch.update(doc.ref, { orgAdminUid: newAdminUid, canApproveUids });
-
-      if (++count % BATCH_SIZE === 0) {
-        commits.push(batch.commit());
-        batch = db.batch();
-      }
-    }
-    if (count % BATCH_SIZE !== 0) commits.push(batch.commit());
-    await Promise.all(commits);
+    });
 
     console.log(
       `onOrgAdminTransferred: org=${orgId} old=${oldAdminUid} ` +

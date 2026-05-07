@@ -6,9 +6,9 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ## 2026-05-07
 
-- Fix: Nach einem Admin-Rollenwechsel waren die Gruppen-Chats der Org für den neuen Admin nicht mehr sichtbar — behoben durch eine robustere Abfrage nach `orgId` statt `orgAdminUid`
-- Fix: Neue Cloud Function `onOrgAdminTransferred` aktualisiert `orgAdminUid` und `canApproveUids` in allen Conversations der Org, sobald der Admin wechselt
-- Fix: Ausstehende Anfragen waren für den neuen Admin ebenfalls nicht sichtbar (gleiche Ursache)
+- Fix: Nach einem Admin-Rollenwechsel sieht der neue Admin nun alle Chats der Organisation — zuvor waren diese nach dem Rollenwechsel nicht mehr sichtbar
+- Fix: Ausstehende Chat-Anfragen sind für den neuen Admin nach einem Rollenwechsel ebenfalls wieder sichtbar
+- Fix: Chats als gelesen markieren funktioniert jetzt zuverlässig
 
 ---
 

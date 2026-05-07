@@ -29,6 +29,14 @@ class ChatService {
     return b.lastMessageAt!.compareTo(a.lastMessageAt!);
   }
 
+  /// Swallows Firestore permission-denied errors on a stream so non-admins
+  /// get an empty list instead of an exception propagating to the UI.
+  Stream<T> _swallowPermissionDenied<T>(Stream<T> stream) =>
+      stream.handleError(
+        (_) {},
+        test: (e) => e is FirebaseException && e.code == 'permission-denied',
+      );
+
   void _updateLastMessage(WriteBatch batch, String convId, String preview) {
     batch.update(_db.collection('conversations').doc(convId), {
       'lastMessage': preview,
@@ -507,7 +515,7 @@ class ChatService {
   /// an admin transfer are also visible to the current admin.
   /// Non-admins get an empty list (permission denied is swallowed).
   Stream<List<Conversation>> watchAdminConversations(String orgId) {
-    return _db
+    final raw = _db
         .collection('conversations')
         .where('orgId', isEqualTo: orgId)
         .snapshots()
@@ -515,14 +523,12 @@ class ChatService {
       final all = s.docs.map(Conversation.fromFirestore).toList();
       all.sort(_byLastMessageDesc);
       return all;
-    }).handleError(
-      (_) {},
-      test: (e) => e is FirebaseException && e.code == 'permission-denied',
-    );
+    });
+    return _swallowPermissionDenied(raw);
   }
 
   Stream<List<Conversation>> watchPendingRequests(String orgId) {
-    return _db
+    final raw = _db
         .collection('conversations')
         .where('orgId', isEqualTo: orgId)
         .snapshots()
@@ -531,10 +537,8 @@ class ChatService {
       return all
           .where((c) => c.status == ConversationStatus.pending)
           .toList();
-    }).handleError(
-      (_) {},
-      test: (e) => e is FirebaseException && e.code == 'permission-denied',
-    );
+    });
+    return _swallowPermissionDenied(raw);
   }
 
   /// Ausstehende Anfragen für Moderatoren (canApproveUids enthält ihre UID)

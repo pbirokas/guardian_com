@@ -90,30 +90,33 @@ class _OrganizationDetailScreenState
               initialIndex: 1,
               child: Scaffold(
                 appBar: AppBar(
+                  toolbarHeight: kToolbarHeight + 16,
                   title: Column(
+                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(org.name),
-                      Row(
-                        children: [
-                          Icon(org.tag.icon, size: 12, color: org.tag.color),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(org.tag.icon, size: 12, color: org.tag.color),
+                            const SizedBox(width: 4),
+                            Text(
                               org.tag.localizedLabel(l),
                               style: TextStyle(fontSize: 12, color: org.tag.color),
-                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Icon(Icons.timer_outlined,
-                              size: 12, color: Colors.grey[500]),
-                          const SizedBox(width: 2),
-                          Text(
-                            l.orgRetentionDays(org.messageRetentionDays),
-                            style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                          ),
-                        ],
+                            const SizedBox(width: 8),
+                            Icon(Icons.timer_outlined, size: 12, color: Colors.grey[500]),
+                            const SizedBox(width: 2),
+                            Text(
+                              l.orgRetentionDays(org.messageRetentionDays),
+                              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -4574,7 +4577,7 @@ class _OrgHelpButtonState extends State<_OrgHelpButton>
       builder: (context, child) {
         final opacity = _seen ? 0.0 : _glow.value * 0.55;
         return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          margin: const EdgeInsets.symmetric(horizontal: 4),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             boxShadow: [

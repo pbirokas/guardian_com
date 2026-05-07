@@ -210,6 +210,12 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['lastMessageAt', 'lastMessage',
                       'name', 'personalNames', 'lastReadAt'])) ||
+        // Supervisors (guardians, canApprove): mark as read only
+        (notPinUpdate() &&
+          (request.auth.uid in resource.data.guardianUids ||
+           request.auth.uid in resource.data.canApproveUids) &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['lastReadAt'])) ||
         // Admin/Mod: broad update access (status, guardianUids, etc.)
         // Live check — canApproveUids is a stale snapshot and must not be used here.
         (notPinUpdate() && isAdminOrMod(resource.data.orgId))

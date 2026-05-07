@@ -190,7 +190,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _markRead() {
-    if (!_isParticipant) return;
     ref.read(chatServiceProvider).markAsRead(widget.chatId).catchError((_) {});
   }
 

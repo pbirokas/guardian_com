@@ -69,6 +69,14 @@ class OrganizationDetailScreen extends ConsumerWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      Icon(Icons.timer_outlined,
+                          size: 12, color: Colors.grey[500]),
+                      const SizedBox(width: 2),
+                      Text(
+                        l.orgRetentionDays(org.messageRetentionDays),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                      ),
                     ],
                   ),
                 ],
@@ -232,6 +240,8 @@ class OrganizationDetailScreen extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final nameController = TextEditingController(text: org.name);
     OrgTag selectedTag = org.tag;
+    int selectedRetention = org.messageRetentionDays;
+    const retentionOptions = [30, 60, 90, 180, 365];
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -277,6 +287,23 @@ class OrganizationDetailScreen extends ConsumerWidget {
                       );
                     }).toList(),
                   ),
+                  const SizedBox(height: 16),
+                  Text(ld.orgRetentionSectionTitle,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: retentionOptions.map((days) {
+                      final selected = selectedRetention == days;
+                      return ChoiceChip(
+                        label: Text(ld.orgRetentionDays(days)),
+                        selected: selected,
+                        onSelected: (_) =>
+                            setState(() => selectedRetention = days),
+                      );
+                    }).toList(),
+                  ),
                 ],
               ),
             ),
@@ -301,6 +328,7 @@ class OrganizationDetailScreen extends ConsumerWidget {
               orgId,
               name: nameController.text.trim(),
               tag: selectedTag,
+              messageRetentionDays: selectedRetention,
             );
       } catch (e) {
         if (context.mounted) {

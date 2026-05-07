@@ -202,6 +202,12 @@ Erreichbar über **Profil → Meine Verknüpfungen**. Der Screen vereint alle As
 - Bei Auftreten eines Keywords werden Guardians, Moderatoren und der Admin per Push-Benachrichtigung informiert
 - Verwaltung über das 🔍-Icon in der AppBar der Organisation
 
+### Automatischer Löschzeitraum
+- Admin legt pro Organisation fest, wie lange Nachrichten aufbewahrt werden (30–365 Tage, Standard 90 Tage)
+- Einstellung im `⋮`-Menü unter „Organisation bearbeiten"
+- Der Aufbewahrungszeitraum ist für alle Mitglieder im Kopfbereich der Org-Ansicht sichtbar
+- Nachrichten, Umfragen und Anhänge die älter als der eingestellte Zeitraum sind werden täglich automatisch gelöscht
+
 ### Guardian-Aktivitäts-Benachrichtigungen
 - Guardian wird benachrichtigt, wenn sein Kind eine Nachricht sendet oder empfängt
 - Benachrichtigungsintervall einstellbar (pro Guardian, pro Organisation):

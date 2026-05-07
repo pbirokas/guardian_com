@@ -138,6 +138,11 @@
   "orgTagSchule": "School",
   "orgTagVereine": "Clubs",
   "orgTagSonstiges": "Other",
+  "orgRetentionSectionTitle": "Message Retention",
+  "orgRetentionDays": "{days} days",
+  "@orgRetentionDays": {
+    "placeholders": { "days": { "type": "int" } }
+  },
   "keywordsHelpTitle": "Keywords – Help",
   "keywordsHelpBody": "What are keywords for?\nGuardians and moderators are notified whenever one of these words appears in a chat message. This helps detect sensitive topics or risk terms early.\n\nAdding words\nType a word in the text field and tap '+' or press Enter. Case is ignored – everything is stored in lowercase.\n\nRemoving words\nTap the '×' on a chip.\n\nCSV import / export\n• Import (upload arrow): Load a text file with one word per line or comma-separated.\n• Export (download arrow): Save all words as a CSV file.\n\nChanges only take effect after tapping 'Save'.",
   "keywordsTitle": "Keywords",

@@ -51,6 +51,11 @@ class Organization {
   final DateTime createdAt;
   final bool isArchived;
   final List<String> keywords;
+  final int messageRetentionDays;
+
+  static const int retentionMin = 30;
+  static const int retentionMax = 365;
+  static const int retentionDefault = 90;
 
   const Organization({
     required this.id,
@@ -61,6 +66,7 @@ class Organization {
     required this.createdAt,
     this.isArchived = false,
     this.keywords = const [],
+    this.messageRetentionDays = retentionDefault,
   });
 
   factory Organization.fromFirestore(DocumentSnapshot doc) {
@@ -74,6 +80,9 @@ class Organization {
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       isArchived: data['isArchived'] as bool? ?? false,
       keywords: List<String>.from(data['keywords'] as List? ?? []),
+      messageRetentionDays:
+          (data['messageRetentionDays'] as int? ?? retentionDefault)
+              .clamp(retentionMin, retentionMax),
     );
   }
 
@@ -85,5 +94,6 @@ class Organization {
         'createdAt': Timestamp.fromDate(createdAt),
         'isArchived': isArchived,
         'keywords': keywords,
+        'messageRetentionDays': messageRetentionDays,
       };
 }

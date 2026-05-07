@@ -381,6 +381,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String get orgTagSonstiges => 'Sonstiges';
 
   @override
+  String get orgRetentionSectionTitle => 'Nachrichtenaufbewahrung';
+
+  @override
+  String orgRetentionDays(int days) {
+    return '$days Tage';
+  }
+
+  @override
   String get keywordsHelpTitle => 'Schlüsselwörter – Hilfe';
 
   @override

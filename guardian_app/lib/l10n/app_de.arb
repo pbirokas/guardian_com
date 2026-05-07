@@ -138,6 +138,11 @@
   "orgTagSchule": "Schule",
   "orgTagVereine": "Vereine",
   "orgTagSonstiges": "Sonstiges",
+  "orgRetentionSectionTitle": "Nachrichtenaufbewahrung",
+  "orgRetentionDays": "{days} Tage",
+  "@orgRetentionDays": {
+    "placeholders": { "days": { "type": "int" } }
+  },
   "keywordsHelpTitle": "Schlüsselwörter – Hilfe",
   "keywordsHelpBody": "Wozu dienen Schlüsselwörter?\nGuardians und Moderatoren werden benachrichtigt, sobald eines dieser Wörter in einem Chat-Nachricht erscheint. So lassen sich sensible Themen oder Risikobegriffe frühzeitig erkennen.\n\nWörter hinzufügen\nGib ein Wort in das Textfeld ein und tippe auf '+' oder drücke Enter. Gross-/Kleinschreibung wird ignoriert – alles wird in Kleinbuchstaben gespeichert.\n\nWörter entfernen\nTippe auf das '×'-Symbol auf einem Chip.\n\nCSV-Import / Export\n• Import (Pfeil nach oben): Lade eine Textdatei mit einem Wort pro Zeile oder kommagetrennt.\n• Export (Pfeil nach unten): Speichere alle Wörter als CSV-Datei.\n\nÄnderungen werden erst nach 'Speichern' übernommen.",
   "keywordsTitle": "Schlüsselwörter",

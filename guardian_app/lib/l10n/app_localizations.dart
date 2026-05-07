@@ -794,6 +794,18 @@ abstract class AppLocalizations {
   /// **'Sonstiges'**
   String get orgTagSonstiges;
 
+  /// No description provided for @orgRetentionSectionTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Nachrichtenaufbewahrung'**
+  String get orgRetentionSectionTitle;
+
+  /// No description provided for @orgRetentionDays.
+  ///
+  /// In de, this message translates to:
+  /// **'{days} Tage'**
+  String orgRetentionDays(int days);
+
   /// No description provided for @keywordsHelpTitle.
   ///
   /// In de, this message translates to:

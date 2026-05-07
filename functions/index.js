@@ -7,6 +7,7 @@ const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
 const { getAuth } = require('firebase-admin/auth');
+const { getStorage } = require('firebase-admin/storage');
 const nodemailer = require('nodemailer');
 
 // Alle Funktionen in derselben Region wie die Firestore-Datenbank deployen.
@@ -1117,6 +1118,101 @@ exports.cleanupExpiredPolls = onSchedule('every day 03:05', async () => {
   );
 
   console.log(`cleanupExpiredPolls: ${totalClosed} poll(s) closed.`);
+});
+
+// ── Alte Nachrichten gemäß Org-Aufbewahrungszeitraum löschen ─────────────────
+// Läuft täglich um 03:30 Uhr. Liest für jede Org den Wert `messageRetentionDays`
+// (Standard 90, min 30, max 365) und löscht Nachrichten, Polls und
+// Storage-Anhänge die älter als dieser Zeitraum sind.
+
+const STORAGE_CHAT_PREFIXES = ['chatImages/', 'voiceMessages/', 'chatFiles/'];
+
+exports.cleanupOldMessages = onSchedule('every day 03:30', async () => {
+  const storage = getStorage().bucket();
+  const now = new Date();
+  let totalMessages = 0;
+  let totalPolls = 0;
+
+  const orgsSnap = await db.collection('organizations').get();
+
+  await Promise.all(
+    orgsSnap.docs.map(async (orgDoc) => {
+      const retentionDays = Math.min(
+        Math.max((orgDoc.data().messageRetentionDays ?? 90), 30),
+        365,
+      );
+      const cutoff = new Date(now.getTime() - retentionDays * 24 * 60 * 60 * 1000);
+      const cutoffTs = Timestamp.fromDate(cutoff);
+
+      const convsSnap = await db
+        .collection('conversations')
+        .where('orgId', '==', orgDoc.id)
+        .get();
+
+      await Promise.all(
+        convsSnap.docs.map(async (convDoc) => {
+          const convRef = db.collection('conversations').doc(convDoc.id);
+
+          // Alte Nachrichten paginiert löschen
+          let lastDoc = null;
+          let keepGoing = true;
+          while (keepGoing) {
+            let query = convRef
+              .collection('messages')
+              .where('sentAt', '<', cutoffTs)
+              .orderBy('sentAt')
+              .limit(400);
+            if (lastDoc) query = query.startAfter(lastDoc);
+
+            const msgSnap = await query.get();
+            if (msgSnap.empty) break;
+
+            // Storage-Anhänge parallel pro Nachricht löschen (Allowlist verhindert
+            // dass manipulierte URL-Werte fremde Bucket-Dateien löschen können)
+            await Promise.all(
+              msgSnap.docs.map((msgDoc) => {
+                const d = msgDoc.data();
+                const deletions = ['imageUrl', 'audioUrl', 'fileUrl'].flatMap((field) => {
+                  const url = d[field];
+                  if (!url || typeof url !== 'string') return [];
+                  const match = url.match(/\/o\/([^?]+)/);
+                  if (!match) return [];
+                  const path = decodeURIComponent(match[1]);
+                  if (!STORAGE_CHAT_PREFIXES.some((p) => path.startsWith(p))) {
+                    console.warn(`cleanupOldMessages: skipping unexpected storage path: ${path}`);
+                    return [];
+                  }
+                  return [storage.file(path).delete().catch((e) =>
+                    console.warn(`cleanupOldMessages: storage delete skipped for ${path}: ${e.message}`),
+                  )];
+                });
+                return Promise.all(deletions);
+              }),
+            );
+
+            totalMessages += await commitInBatches(msgSnap.docs, (b, d) => b.delete(d.ref));
+
+            lastDoc = msgSnap.docs[msgSnap.docs.length - 1];
+            if (msgSnap.size < 400) keepGoing = false;
+          }
+
+          // Alte Polls löschen (commitInBatches übernimmt Chunking bei >400)
+          const pollsSnap = await convRef
+            .collection('polls')
+            .where('createdAt', '<', cutoffTs)
+            .get();
+
+          if (!pollsSnap.empty) {
+            totalPolls += await commitInBatches(pollsSnap.docs, (b, d) => b.delete(d.ref));
+          }
+        }),
+      );
+    }),
+  );
+
+  console.log(
+    `cleanupOldMessages: ${totalMessages} message(s) and ${totalPolls} poll(s) deleted.`,
+  );
 });
 
 // ── Guardian-Änderungen in Conversations propagieren ─────────────────────────

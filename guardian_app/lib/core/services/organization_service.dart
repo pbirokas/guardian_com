@@ -104,16 +104,20 @@ class OrganizationService {
   }
 
   Future<void> updateOrganization(String orgId,
-      {String? name, OrgTag? tag}) async {
+      {String? name, OrgTag? tag, int? messageRetentionDays}) async {
+    final clampedRetention = messageRetentionDays?.clamp(
+        Organization.retentionMin, Organization.retentionMax);
     final updates = <String, dynamic>{
       'name': ?name,
       if (tag != null) 'tag': tag.name,
+      'messageRetentionDays': ?clampedRetention,
     };
     if (updates.isNotEmpty) {
       await _db.collection('organizations').doc(orgId).update(updates);
       await _logAudit(orgId, AuditAction.settingsChanged, {
         'name': ?name,
         if (tag != null) 'tag': tag.name,
+        'messageRetentionDays': ?clampedRetention,
       });
     }
   }

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:guardian_app/l10n/app_localizations.dart';
 import '../../../core/models/app_user.dart';
 import '../../../core/models/claim_request.dart';
@@ -417,16 +418,22 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
                   ];
                 }
                 return children
-                    .map((u) => _RelationTile(
-                          uid: u['uid'] as String,
-                          name: u['displayName'] as String? ?? '',
-                          email: u['email'] as String? ?? '',
-                          photoUrl: u['photoUrl'] as String?,
-                          label: l.verifiedChild,
-                          onRevoke: () => _revokeConnection(
-                              u['uid'] as String,
-                              u['displayName'] as String? ?? ''),
-                        ))
+                    .map((u) {
+                      final childUid = u['uid'] as String;
+                      final childName = u['displayName'] as String? ?? '';
+                      return _RelationTile(
+                        uid: childUid,
+                        name: childName,
+                        email: u['email'] as String? ?? '',
+                        photoUrl: u['photoUrl'] as String?,
+                        label: l.verifiedChild,
+                        onSummary: () => context.push(
+                          '/child-summary/$childUid',
+                          extra: childName,
+                        ),
+                        onRevoke: () => _revokeConnection(childUid, childName),
+                      );
+                    })
                     .toList();
               },
               loading: () => [
@@ -558,6 +565,7 @@ class _RelationTile extends StatelessWidget {
   final String? photoUrl;
   final String label;
   final VoidCallback? onRevoke;
+  final VoidCallback? onSummary;
 
   const _RelationTile({
     required this.uid,
@@ -566,6 +574,7 @@ class _RelationTile extends StatelessWidget {
     required this.photoUrl,
     required this.label,
     this.onRevoke,
+    this.onSummary,
   });
 
   @override
@@ -581,15 +590,26 @@ class _RelationTile extends StatelessWidget {
         child: photoUrl == null ? Text(initials) : null,
       ),
       title: Text(name.isNotEmpty ? name : email),
-      subtitle: Text(label,
-          style: const TextStyle(fontSize: 12)),
-      trailing: onRevoke != null
-          ? IconButton(
-              icon: const Icon(Icons.link_off, color: Colors.red),
-              tooltip: l.revokeConnection,
-              onPressed: onRevoke,
-            )
-          : null,
+      subtitle: Text(label, style: const TextStyle(fontSize: 12)),
+      trailing: (onSummary == null && onRevoke == null)
+          ? null
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (onSummary != null)
+                  IconButton(
+                    icon: const Icon(Icons.bar_chart_outlined),
+                    tooltip: l.summaryButtonTooltip,
+                    onPressed: onSummary,
+                  ),
+                if (onRevoke != null)
+                  IconButton(
+                    icon: const Icon(Icons.link_off, color: Colors.red),
+                    tooltip: l.revokeConnection,
+                    onPressed: onRevoke,
+                  ),
+              ],
+            ),
     );
   }
 }

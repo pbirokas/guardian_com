@@ -549,6 +549,28 @@
   "tourOrgMenuDesc": "Das Drei-Punkte-Menü gibt dir Zugriff auf Org-Bearbeitung, Schlüsselwörter für die Inhaltsüberwachung und das Änderungsprotokoll.",
   "tourOrgNotifTitle": "Benachrichtigungen",
   "tourOrgNotifDesc": "Hier stellst du ein wie oft du Benachrichtigungen für diese Organisation erhältst — von 'Jede Nachricht' bis 'Stumm'.",
+  "childSummaryTitle": "Aktivitätszusammenfassung",
+  "summaryPeriod24h": "24 Stunden",
+  "summaryPeriod7d": "7 Tage",
+  "summaryError": "Zusammenfassung konnte nicht geladen werden. Bitte versuche es später erneut.",
+  "summaryNoActivity": "In diesem Zeitraum gab es keine Aktivität.",
+  "summaryGeneratedAt": "Erstellt am {time}",
+  "@summaryGeneratedAt": {
+    "placeholders": { "time": { "type": "String" } }
+  },
+  "summaryLastActive": "Zuletzt aktiv: {time}",
+  "@summaryLastActive": {
+    "placeholders": { "time": { "type": "String" } }
+  },
+  "summarySent": "{count} gesendet",
+  "@summarySent": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "summaryReceived": "{count} empfangen",
+  "@summaryReceived": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "summaryButtonTooltip": "Aktivitätszusammenfassung",
   "noOrganizations": "Noch keine Organisationen",
   "archivedBadge": "Archiviert",
   "deleteOrgTitle": "Organisation löschen?",

@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../models/child_summary.dart';
 import '../models/claim_request.dart';
 import '../models/org_invite_consent.dart';
 
@@ -212,6 +214,20 @@ class ParentClaimService {
       'status': OrgInviteConsentStatus.vetoed.name,
       'vetoedBy': _uid,
     });
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Child activity summary
+  // ──────────────────────────────────────────────────────────────────────────
+
+  Future<ChildSummary> getChildSummary(String childUid, String period) async {
+    final callable = FirebaseFunctions.instanceFor(region: 'europe-west3')
+        .httpsCallable('getChildSummary');
+    final result = await callable.call<Map<dynamic, dynamic>>({
+      'childUid': childUid,
+      'period': period,
+    });
+    return ChildSummary.fromMap(Map<String, dynamic>.from(result.data));
   }
 }
 

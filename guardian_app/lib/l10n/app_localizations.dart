@@ -2432,6 +2432,66 @@ abstract class AppLocalizations {
   /// **'Hier stellst du ein wie oft du Benachrichtigungen für diese Organisation erhältst — von \'Jede Nachricht\' bis \'Stumm\'.'**
   String get tourOrgNotifDesc;
 
+  /// No description provided for @childSummaryTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Aktivitätszusammenfassung'**
+  String get childSummaryTitle;
+
+  /// No description provided for @summaryPeriod24h.
+  ///
+  /// In de, this message translates to:
+  /// **'24 Stunden'**
+  String get summaryPeriod24h;
+
+  /// No description provided for @summaryPeriod7d.
+  ///
+  /// In de, this message translates to:
+  /// **'7 Tage'**
+  String get summaryPeriod7d;
+
+  /// No description provided for @summaryError.
+  ///
+  /// In de, this message translates to:
+  /// **'Zusammenfassung konnte nicht geladen werden. Bitte versuche es später erneut.'**
+  String get summaryError;
+
+  /// No description provided for @summaryNoActivity.
+  ///
+  /// In de, this message translates to:
+  /// **'In diesem Zeitraum gab es keine Aktivität.'**
+  String get summaryNoActivity;
+
+  /// No description provided for @summaryGeneratedAt.
+  ///
+  /// In de, this message translates to:
+  /// **'Erstellt am {time}'**
+  String summaryGeneratedAt(String time);
+
+  /// No description provided for @summaryLastActive.
+  ///
+  /// In de, this message translates to:
+  /// **'Zuletzt aktiv: {time}'**
+  String summaryLastActive(String time);
+
+  /// No description provided for @summarySent.
+  ///
+  /// In de, this message translates to:
+  /// **'{count} gesendet'**
+  String summarySent(int count);
+
+  /// No description provided for @summaryReceived.
+  ///
+  /// In de, this message translates to:
+  /// **'{count} empfangen'**
+  String summaryReceived(int count);
+
+  /// No description provided for @summaryButtonTooltip.
+  ///
+  /// In de, this message translates to:
+  /// **'Aktivitätszusammenfassung'**
+  String get summaryButtonTooltip;
+
   /// No description provided for @noOrganizations.
   ///
   /// In de, this message translates to:

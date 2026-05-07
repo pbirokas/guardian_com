@@ -1,5 +1,5 @@
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
-const { onCall, onRequest } = require('firebase-functions/v2/https');
+const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { defineSecret } = require('firebase-functions/params');
 const { setGlobalOptions } = require('firebase-functions/v2');
@@ -576,6 +576,158 @@ exports.onNewReport = onDocumentCreated('reports/{reportId}', async (event) => {
     { convId: convId ?? '', reportId: event.params.reportId }
   );
   console.log(`Sent ${tokens.length} report notification(s) for report ${event.params.reportId}`);
+});
+
+/**
+ * Callable: returns an activity summary for a child (sent + received message
+ * counts per org/chat) for the last 24 h or 7 days.
+ * Caller must be a verified parent of the child (checked via verifiedParentUids).
+ */
+exports.getChildSummary = onCall({ timeoutSeconds: 60 }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Not authenticated');
+
+  const { childUid, period } = request.data;
+  if (!childUid || typeof childUid !== 'string') {
+    throw new HttpsError('invalid-argument', 'childUid required');
+  }
+  if (!['24h', '7d'].includes(period)) {
+    throw new HttpsError('invalid-argument', 'period must be 24h or 7d');
+  }
+
+  // Verify parent-child relationship
+  const childDoc = await db.collection('users').doc(childUid).get();
+  if (!childDoc.exists) throw new HttpsError('not-found', 'Child not found');
+
+  const childData = childDoc.data();
+  if (!(childData.verifiedParentUids ?? []).includes(uid)) {
+    throw new HttpsError('permission-denied', 'Not a verified parent of this child');
+  }
+
+  // Calculate cutoff
+  const cutoff = new Date();
+  if (period === '24h') cutoff.setHours(cutoff.getHours() - 24);
+  else cutoff.setDate(cutoff.getDate() - 7);
+  const cutoffTs = Timestamp.fromDate(cutoff);
+
+  // All conversations where child is a participant
+  const convsSnap = await db.collection('conversations')
+    .where('participantUids', 'array-contains', childUid)
+    .get();
+
+  if (convsSnap.empty) {
+    return { childUid, childName: childData.displayName || childData.email || '', period, generatedAt: Date.now(), orgs: [] };
+  }
+
+  // Group by orgId — only conversations where the parent is an actual guardian
+  const orgConvMap = {};
+  for (const doc of convsSnap.docs) {
+    const data = doc.data();
+    if (!(data.guardianUids ?? []).includes(uid)) continue;
+    const orgId = data.orgId;
+    if (!orgId) continue;
+    (orgConvMap[orgId] ??= []).push(doc);
+  }
+
+  const orgIds = Object.keys(orgConvMap);
+  const orgDocs = await Promise.all(orgIds.map(id => db.collection('organizations').doc(id).get()));
+  const orgNameMap = Object.fromEntries(orgIds.map((id, i) => [id, orgDocs[i].data()?.name || id]));
+
+  // Pre-batch all user lookups needed for 1:1 chat name fallbacks across all orgs
+  const unresolvedUids = [...new Set(
+    convsSnap.docs
+      .filter(d => !d.data().isGroup && !d.data().personalNames?.[childUid])
+      .map(d => (d.data().participantUids || []).find(u => u !== childUid))
+      .filter(Boolean)
+  )];
+  const unresolvedDocs = await Promise.all(
+    unresolvedUids.map(uid => db.collection('users').doc(uid).get())
+  );
+  const userNameCache = Object.fromEntries(
+    unresolvedUids.map((uid, i) => [
+      uid,
+      unresolvedDocs[i].data()?.displayName || unresolvedDocs[i].data()?.email || uid,
+    ])
+  );
+
+  // Process all orgs in parallel
+  const orgResultsRaw = await Promise.all(orgIds.map(async (orgId) => {
+    const convDocs = orgConvMap[orgId];
+
+    const msgSnaps = await Promise.all(
+      convDocs.map(c => db.collection('conversations').doc(c.id)
+        .collection('messages')
+        .where('timestamp', '>=', cutoffTs)
+        .get())
+    );
+
+    let orgSent = 0, orgReceived = 0;
+    let orgLastActive = null;
+    const chatResults = [];
+
+    for (let i = 0; i < convDocs.length; i++) {
+      const convData = convDocs[i].data();
+      const messages = msgSnaps[i].docs.map(d => d.data()).filter(m => !m.deletedAt);
+      if (messages.length === 0) continue;
+
+      const sent = messages.filter(m => m.senderUid === childUid).length;
+      const received = messages.length - sent;
+
+      let lastActive = null;
+      for (const m of messages) {
+        const ms = m.timestamp?.toMillis?.() ?? 0;
+        if (lastActive === null || ms > lastActive) lastActive = ms;
+      }
+
+      orgSent += sent;
+      orgReceived += received;
+      if (orgLastActive === null || lastActive > orgLastActive) orgLastActive = lastActive;
+
+      // Chat name from child's perspective
+      let chatName = '';
+      if (convData.isGroup) {
+        chatName = convData.name || 'Gruppenchat';
+      } else {
+        chatName = convData.personalNames?.[childUid] || '';
+        if (!chatName) {
+          const otherUid = (convData.participantUids || []).find(u => u !== childUid);
+          if (otherUid) chatName = userNameCache[otherUid] || otherUid;
+        }
+      }
+
+      chatResults.push({
+        convId: convDocs[i].id,
+        chatName: chatName || '?',
+        isGroup: convData.isGroup || false,
+        sentCount: sent,
+        receivedCount: received,
+        lastActive,
+      });
+    }
+
+    if (chatResults.length === 0) return null;
+
+    chatResults.sort((a, b) => (b.lastActive ?? 0) - (a.lastActive ?? 0));
+    return {
+      orgId,
+      orgName: orgNameMap[orgId],
+      sentCount: orgSent,
+      receivedCount: orgReceived,
+      lastActive: orgLastActive,
+      chats: chatResults,
+    };
+  }));
+
+  const orgResults = orgResultsRaw.filter(Boolean);
+  orgResults.sort((a, b) => (b.lastActive ?? 0) - (a.lastActive ?? 0));
+
+  return {
+    childUid,
+    childName: childData.displayName || childData.email || '',
+    period,
+    generatedAt: Date.now(),
+    orgs: orgResults,
+  };
 });
 
 /**

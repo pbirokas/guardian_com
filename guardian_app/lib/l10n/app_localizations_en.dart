@@ -1320,6 +1320,44 @@ class AppLocalizationsEn extends AppLocalizations {
       'Set how often you receive notifications for this organization — from \'Every message\' to \'Muted\'.';
 
   @override
+  String get childSummaryTitle => 'Activity Summary';
+
+  @override
+  String get summaryPeriod24h => '24 Hours';
+
+  @override
+  String get summaryPeriod7d => '7 Days';
+
+  @override
+  String get summaryError => 'Could not load summary. Please try again later.';
+
+  @override
+  String get summaryNoActivity => 'No activity found in this period.';
+
+  @override
+  String summaryGeneratedAt(String time) {
+    return 'Generated at $time';
+  }
+
+  @override
+  String summaryLastActive(String time) {
+    return 'Last active: $time';
+  }
+
+  @override
+  String summarySent(int count) {
+    return '$count sent';
+  }
+
+  @override
+  String summaryReceived(int count) {
+    return '$count received';
+  }
+
+  @override
+  String get summaryButtonTooltip => 'Activity Summary';
+
+  @override
   String get noOrganizations => 'No organizations yet';
 
   @override

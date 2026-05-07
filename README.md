@@ -126,6 +126,7 @@ Erreichbar über **Profil → Meine Verknüpfungen**. Der Screen vereint alle As
 - **Ausgehende Anfragen** (Eltern-Ansicht): aktive Anfragen einsehen und zurückziehen
 - **Kind verknüpfen**: E-Mail des Kindes eingeben und Anfrage senden
 - **Meine Kinder / Meine Eltern**: Liste der verifizierten Verbindungen mit Möglichkeit zur Aufhebung
+- **Aktivitätszusammenfassung**: Eltern können pro Kind eine Zusammenfassung der Chat-Aktivität der letzten 24 Stunden oder 7 Tage abrufen — Anzahl gesendeter und empfangener Nachrichten je Organisation und Chat, mit Zeitstempel der letzten Aktivität
 - **Ausstehende Einwilligungen**: Org-Einladungen für eigene Kinder genehmigen oder ablehnen
 - Verifizierte Verbindungen werden in der Mitgliederliste der Organisation mit `🏡`-Symbol angezeigt
 

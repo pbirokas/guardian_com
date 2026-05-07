@@ -549,6 +549,28 @@
   "tourOrgMenuDesc": "The three-dot menu gives access to org editing, keywords for content monitoring, and the audit log.",
   "tourOrgNotifTitle": "Notifications",
   "tourOrgNotifDesc": "Set how often you receive notifications for this organization — from 'Every message' to 'Muted'.",
+  "childSummaryTitle": "Activity Summary",
+  "summaryPeriod24h": "24 Hours",
+  "summaryPeriod7d": "7 Days",
+  "summaryError": "Could not load summary. Please try again later.",
+  "summaryNoActivity": "No activity found in this period.",
+  "summaryGeneratedAt": "Generated at {time}",
+  "@summaryGeneratedAt": {
+    "placeholders": { "time": { "type": "String" } }
+  },
+  "summaryLastActive": "Last active: {time}",
+  "@summaryLastActive": {
+    "placeholders": { "time": { "type": "String" } }
+  },
+  "summarySent": "{count} sent",
+  "@summarySent": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "summaryReceived": "{count} received",
+  "@summaryReceived": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "summaryButtonTooltip": "Activity Summary",
   "noOrganizations": "No organizations yet",
   "archivedBadge": "Archived",
   "deleteOrgTitle": "Delete organization?",

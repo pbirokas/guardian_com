@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-07 (4)
+
+- Eltern können in „Meine Verknüpfungen" für jedes verknüpfte Kind eine Aktivitätszusammenfassung abrufen (letzten 24 Stunden oder 7 Tage): Anzahl gesendeter und empfangener Nachrichten pro Organisation und Chat, jeweils mit Zeitstempel der letzten Aktivität
+
+---
+
 ## 2026-05-07 (3)
 
 - Geführte Tour für Organisations-Ansicht: Beim ersten Betreten einer Organisation blinkt das (?) auf — ein Tipp startet eine rollenbasierte Tour durch alle Tabs und Funktionen (Admins/Moderatoren sehen mehr Schritte als normale Mitglieder oder Guardians)

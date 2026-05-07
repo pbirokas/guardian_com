@@ -9,6 +9,7 @@ import '../../features/profile/screens/profile_screen.dart';
 import '../../features/profile/screens/notifications_screen.dart';
 import '../../features/profile/screens/privacy_screen.dart';
 import '../../features/relationships/screens/relationships_screen.dart';
+import '../../features/relationships/screens/child_summary_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -68,6 +69,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/relationships',
         builder: (context, state) => const RelationshipsScreen(),
+      ),
+      GoRoute(
+        path: '/child-summary/:childUid',
+        builder: (context, state) => ChildSummaryScreen(
+          childUid: state.pathParameters['childUid']!,
+          childName: state.extra as String? ?? '',
+        ),
       ),
     ],
   );

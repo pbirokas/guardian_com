@@ -1327,6 +1327,45 @@ class AppLocalizationsDe extends AppLocalizations {
       'Hier stellst du ein wie oft du Benachrichtigungen für diese Organisation erhältst — von \'Jede Nachricht\' bis \'Stumm\'.';
 
   @override
+  String get childSummaryTitle => 'Aktivitätszusammenfassung';
+
+  @override
+  String get summaryPeriod24h => '24 Stunden';
+
+  @override
+  String get summaryPeriod7d => '7 Tage';
+
+  @override
+  String get summaryError =>
+      'Zusammenfassung konnte nicht geladen werden. Bitte versuche es später erneut.';
+
+  @override
+  String get summaryNoActivity => 'In diesem Zeitraum gab es keine Aktivität.';
+
+  @override
+  String summaryGeneratedAt(String time) {
+    return 'Erstellt am $time';
+  }
+
+  @override
+  String summaryLastActive(String time) {
+    return 'Zuletzt aktiv: $time';
+  }
+
+  @override
+  String summarySent(int count) {
+    return '$count gesendet';
+  }
+
+  @override
+  String summaryReceived(int count) {
+    return '$count empfangen';
+  }
+
+  @override
+  String get summaryButtonTooltip => 'Aktivitätszusammenfassung';
+
+  @override
   String get noOrganizations => 'Noch keine Organisationen';
 
   @override

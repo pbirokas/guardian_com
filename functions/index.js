@@ -619,12 +619,10 @@ exports.getChildSummary = onCall({ timeoutSeconds: 60 }, async (request) => {
     return { childUid, childName: childData.displayName || childData.email || '', period, generatedAt: Date.now(), orgs: [] };
   }
 
-  // Group by orgId — only conversations where the parent is an actual guardian
+  // Group by orgId
   const orgConvMap = {};
   for (const doc of convsSnap.docs) {
-    const data = doc.data();
-    if (!(data.guardianUids ?? []).includes(uid)) continue;
-    const orgId = data.orgId;
+    const orgId = doc.data().orgId;
     if (!orgId) continue;
     (orgConvMap[orgId] ??= []).push(doc);
   }

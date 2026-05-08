@@ -811,6 +811,96 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get pinnwandNewAnnouncement => 'Ankündigung';
+
+  @override
+  String get pinnwandNewEvent => 'Termin';
+
+  @override
+  String get eventCreate => 'Termin erstellen';
+
+  @override
+  String get eventEdit => 'Termin bearbeiten';
+
+  @override
+  String get eventDelete => 'Termin löschen';
+
+  @override
+  String get eventDeleteConfirm => 'Diesen Termin wirklich löschen?';
+
+  @override
+  String get eventDate => 'Datum';
+
+  @override
+  String get eventTime => 'Uhrzeit';
+
+  @override
+  String get eventEndTime => 'Endzeit (optional)';
+
+  @override
+  String get eventLocation => 'Ort (optional)';
+
+  @override
+  String get eventDescription => 'Beschreibung (optional)';
+
+  @override
+  String get eventOpenInMaps => 'In Maps öffnen';
+
+  @override
+  String get eventRsvpYes => 'Zusagen';
+
+  @override
+  String get eventRsvpNo => 'Absagen';
+
+  @override
+  String get eventRsvpMaybe => 'Vorbehalt';
+
+  @override
+  String eventRsvpCount(int yes, int no, int maybe) {
+    return '$yes Zusagen · $no Absagen · $maybe Vorbehalt';
+  }
+
+  @override
+  String get eventAddToCalendar => 'Zum Kalender hinzufügen';
+
+  @override
+  String get eventCalendarExportSuccess => 'Zum Kalender hinzugefügt';
+
+  @override
+  String get eventCalendarExportError =>
+      'Kalender konnte nicht geöffnet werden';
+
+  @override
+  String get eventNoRsvp => 'Noch keine Rückmeldungen';
+
+  @override
+  String get eventPast => 'Vergangener Termin';
+
+  @override
+  String get eventRsvpAttendees => 'Rückmeldungen';
+
+  @override
+  String eventRsvpYesLabel(int count) {
+    return 'Zusagen ($count)';
+  }
+
+  @override
+  String eventRsvpNoLabel(int count) {
+    return 'Absagen ($count)';
+  }
+
+  @override
+  String eventRsvpMaybeLabel(int count) {
+    return 'Vorbehalt ($count)';
+  }
+
+  @override
+  String get eventChildRsvp => 'Antwort deines Kindes';
+
+  @override
+  String get eventRsvpPublic => 'Rückmeldungen für alle sichtbar';
+
+  @override
   String get scheduleMessage => 'Nachricht planen';
 
   @override

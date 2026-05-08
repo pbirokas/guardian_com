@@ -1,6 +1,8 @@
 import 'dart:io';
 
+import 'package:add_2_calendar/add_2_calendar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -3856,16 +3858,23 @@ final _orgReportsProvider =
 
 // ── Pinnwand ──────────────────────────────────────────────────────────────────
 
-class _PinnwandTab extends ConsumerWidget {
+class _PinnwandTab extends ConsumerStatefulWidget {
   final String orgId;
   final bool canManage;
 
   const _PinnwandTab({required this.orgId, required this.canManage});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_PinnwandTab> createState() => _PinnwandTabState();
+}
+
+class _PinnwandTabState extends ConsumerState<_PinnwandTab> {
+  bool _fabExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final announcementsAsync = ref.watch(announcementsProvider(orgId));
+    final announcementsAsync = ref.watch(announcementsProvider(widget.orgId));
 
     return announcementsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -3883,125 +3892,168 @@ class _PinnwandTab extends ConsumerWidget {
                   separatorBuilder: (_, _) => const SizedBox(height: 8),
                   itemBuilder: (_, i) => _AnnouncementCard(
                     announcement: items[i],
-                    orgId: orgId,
-                    canManage: canManage,
+                    orgId: widget.orgId,
+                    canManage: widget.canManage,
                   ),
                 ),
-          if (canManage)
+          if (_fabExpanded)
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => setState(() => _fabExpanded = false),
+                behavior: HitTestBehavior.opaque,
+              ),
+            ),
+          if (widget.canManage)
             Positioned(
               right: 16,
               bottom: 16,
-              child: FloatingActionButton.extended(
-                heroTag: 'pinnwand_fab',
-                icon: const Icon(Icons.add),
-                label: Text(l.newAnnouncement),
-                onPressed: () => _showEditDialog(context, ref, null),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_fabExpanded) ...[
+                    _SpeedDialOption(
+                      icon: Icons.campaign_outlined,
+                      label: l.pinnwandNewAnnouncement,
+                      onTap: () {
+                        setState(() => _fabExpanded = false);
+                        _showAnnouncementDialog(context, ref, widget.orgId, null);
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    _SpeedDialOption(
+                      icon: Icons.event_outlined,
+                      label: l.pinnwandNewEvent,
+                      onTap: () {
+                        setState(() => _fabExpanded = false);
+                        _showEventDialog(context, ref, widget.orgId, null);
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  FloatingActionButton(
+                    heroTag: 'pinnwand_fab',
+                    onPressed: () =>
+                        setState(() => _fabExpanded = !_fabExpanded),
+                    child: AnimatedRotation(
+                      turns: _fabExpanded ? 0.125 : 0,
+                      duration: const Duration(milliseconds: 200),
+                      child: const Icon(Icons.add),
+                    ),
+                  ),
+                ],
               ),
             ),
         ],
       ),
     );
   }
+}
 
-  Future<void> _showEditDialog(
-      BuildContext context, WidgetRef ref, Announcement? existing) async {
-    final l = AppLocalizations.of(context);
-    final titleCtrl = TextEditingController(text: existing?.title ?? '');
-    final contentCtrl = TextEditingController(text: existing?.content ?? '');
-    DateTime? expiresAt = existing?.expiresAt;
-    bool clearExpiry = false;
+// ── Pinnwand-Dialoge (freie Funktionen) ───────────────────────────────────────
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) {
-          final ld = AppLocalizations.of(ctx);
-          final expLabel = expiresAt == null
-              ? ld.announcementNoExpiry
-              : '${ld.announcementSetExpiry}: '
-                  '${expiresAt!.day.toString().padLeft(2, '0')}.'
-                  '${expiresAt!.month.toString().padLeft(2, '0')}.'
-                  '${expiresAt!.year}';
-          return AlertDialog(
-            title: Text(existing == null ? ld.newAnnouncement : ld.editAnnouncement),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleCtrl,
-                    autofocus: true,
-                    maxLength: 120,
-                    decoration: InputDecoration(
-                      labelText: ld.announcementTitleLabel,
-                      border: const OutlineInputBorder(),
-                    ),
+Future<void> _showAnnouncementDialog(BuildContext context, WidgetRef ref,
+    String orgId, Announcement? existing) async {
+  final l = AppLocalizations.of(context);
+  final titleCtrl = TextEditingController(text: existing?.title ?? '');
+  final contentCtrl = TextEditingController(text: existing?.content ?? '');
+  DateTime? expiresAt = existing?.expiresAt;
+  bool clearExpiry = false;
+  try {
+
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setS) {
+        final ld = AppLocalizations.of(ctx);
+        final expLabel = expiresAt == null
+            ? ld.announcementNoExpiry
+            : '${ld.announcementSetExpiry}: '
+                '${expiresAt!.day.toString().padLeft(2, '0')}.'
+                '${expiresAt!.month.toString().padLeft(2, '0')}.'
+                '${expiresAt!.year}';
+        return AlertDialog(
+          title: Text(
+              existing == null ? ld.newAnnouncement : ld.editAnnouncement),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleCtrl,
+                  autofocus: true,
+                  maxLength: 120,
+                  decoration: InputDecoration(
+                    labelText: ld.announcementTitleLabel,
+                    border: const OutlineInputBorder(),
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: contentCtrl,
-                    maxLines: 5,
-                    maxLength: 2000,
-                    decoration: InputDecoration(
-                      labelText: ld.announcementContentLabel,
-                      border: const OutlineInputBorder(),
-                      alignLabelWithHint: true,
-                    ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: contentCtrl,
+                  maxLines: 5,
+                  maxLength: 2000,
+                  decoration: InputDecoration(
+                    labelText: ld.announcementContentLabel,
+                    border: const OutlineInputBorder(),
+                    alignLabelWithHint: true,
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          icon: const Icon(Icons.event_outlined, size: 16),
-                          label: Text(expLabel,
-                              style: const TextStyle(fontSize: 13)),
-                          onPressed: () async {
-                            final picked = await showDatePicker(
-                              context: ctx,
-                              initialDate: expiresAt ??
-                                  DateTime.now().add(const Duration(days: 7)),
-                              firstDate: DateTime.now(),
-                              lastDate: DateTime.now()
-                                  .add(const Duration(days: 365)),
-                            );
-                            if (picked != null) {
-                              setS(() {
-                                expiresAt = picked;
-                                clearExpiry = false;
-                              });
-                            }
-                          },
-                        ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.event_outlined, size: 16),
+                        label: Text(expLabel,
+                            style: const TextStyle(fontSize: 13)),
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: ctx,
+                            initialDate: expiresAt ??
+                                DateTime.now()
+                                    .add(const Duration(days: 7)),
+                            firstDate: DateTime.now(),
+                            lastDate: DateTime.now()
+                                .add(const Duration(days: 365)),
+                          );
+                          if (picked != null) {
+                            setS(() {
+                              expiresAt = picked;
+                              clearExpiry = false;
+                            });
+                          }
+                        },
                       ),
-                      if (expiresAt != null)
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 18),
-                          tooltip: ld.announcementRemoveExpiry,
-                          onPressed: () => setS(() {
-                            expiresAt = null;
-                            clearExpiry = true;
-                          }),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                    if (expiresAt != null)
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        tooltip: ld.announcementRemoveExpiry,
+                        onPressed: () => setS(() {
+                          expiresAt = null;
+                          clearExpiry = true;
+                        }),
+                      ),
+                  ],
+                ),
+              ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: Text(ld.cancel),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: Text(existing == null ? ld.create : ld.save),
-              ),
-            ],
-          );
-        },
-      ),
-    );
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(ld.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(existing == null ? ld.create : ld.save),
+            ),
+          ],
+        );
+      },
+    ),
+  );
 
     if (confirmed != true || !context.mounted) return;
     final title = titleCtrl.text.trim();
@@ -4019,12 +4071,283 @@ class _PinnwandTab extends ConsumerWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l.errorMessage(e.toString()))),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(l.errorMessage(e.toString()))));
       }
     }
+  } finally {
+    titleCtrl.dispose();
+    contentCtrl.dispose();
   }
+}
+
+Future<void> _showEventDialog(BuildContext context, WidgetRef ref,
+    String orgId, Announcement? existing) async {
+  final l = AppLocalizations.of(context);
+  final titleCtrl = TextEditingController(text: existing?.title ?? '');
+  final contentCtrl = TextEditingController(text: existing?.content ?? '');
+  final locationCtrl = TextEditingController(text: existing?.location ?? '');
+
+  DateTime? eventDate = existing?.eventDate;
+  TimeOfDay? eventTime =
+      existing?.eventDate != null ? TimeOfDay.fromDateTime(existing!.eventDate!) : null;
+  TimeOfDay? endTime = existing?.eventEndDate != null
+      ? TimeOfDay.fromDateTime(existing!.eventEndDate!)
+      : null;
+  bool rsvpPublic = existing?.rsvpPublic ?? false;
+  try {
+
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setS) {
+        final ld = AppLocalizations.of(ctx);
+
+        String dateLine = eventDate == null
+            ? ld.eventDate
+            : '${eventDate!.day.toString().padLeft(2, '0')}.'
+                '${eventDate!.month.toString().padLeft(2, '0')}.'
+                '${eventDate!.year}';
+        String timeLine =
+            eventTime == null ? ld.eventTime : eventTime!.format(ctx);
+        String endTimeLine =
+            endTime == null ? ld.eventEndTime : endTime!.format(ctx);
+
+        return AlertDialog(
+          title: Text(existing == null ? ld.eventCreate : ld.eventEdit),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleCtrl,
+                  autofocus: true,
+                  maxLength: 120,
+                  decoration: InputDecoration(
+                    labelText: ld.announcementTitleLabel,
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.calendar_today_outlined,
+                            size: 16),
+                        label: Text(dateLine,
+                            style: const TextStyle(fontSize: 13)),
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: ctx,
+                            initialDate:
+                                eventDate ?? DateTime.now(),
+                            firstDate: DateTime.now()
+                                .subtract(const Duration(days: 1)),
+                            lastDate: DateTime.now()
+                                .add(const Duration(days: 730)),
+                          );
+                          if (picked != null) setS(() => eventDate = picked);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.access_time_outlined,
+                            size: 16),
+                        label: Text(timeLine,
+                            style: const TextStyle(fontSize: 13)),
+                        onPressed: () async {
+                          final picked = await showTimePicker(
+                            context: ctx,
+                            initialTime:
+                                eventTime ?? TimeOfDay.now(),
+                          );
+                          if (picked != null) setS(() => eventTime = picked);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.access_time_outlined, size: 16),
+                  label: Text(endTimeLine,
+                      style: const TextStyle(fontSize: 13)),
+                  onPressed: () async {
+                    final picked = await showTimePicker(
+                      context: ctx,
+                      initialTime: endTime ??
+                          (eventTime != null
+                              ? TimeOfDay(
+                                  hour: (eventTime!.hour + 1) % 24,
+                                  minute: eventTime!.minute)
+                              : TimeOfDay.now()),
+                    );
+                    setS(() => endTime = picked);
+                  },
+                ),
+                if (endTime != null)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      icon: const Icon(Icons.close, size: 14),
+                      label: Text(ld.announcementRemoveExpiry,
+                          style: const TextStyle(fontSize: 12)),
+                      onPressed: () => setS(() => endTime = null),
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: locationCtrl,
+                  maxLength: 200,
+                  decoration: InputDecoration(
+                    labelText: ld.eventLocation,
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.location_on_outlined),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: contentCtrl,
+                  maxLines: 3,
+                  maxLength: 1000,
+                  decoration: InputDecoration(
+                    labelText: ld.eventDescription,
+                    border: const OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                SwitchListTile(
+                  value: rsvpPublic,
+                  onChanged: (v) => setS(() => rsvpPublic = v),
+                  title: Text(ld.eventRsvpPublic,
+                      style: const TextStyle(fontSize: 14)),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(ld.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(existing == null ? ld.create : ld.save),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+
+    if (confirmed != true || !context.mounted) return;
+    final title = titleCtrl.text.trim();
+    if (title.isEmpty || eventDate == null || eventTime == null) return;
+
+    final fullDate = DateTime(eventDate!.year, eventDate!.month, eventDate!.day,
+        eventTime!.hour, eventTime!.minute);
+    final rawEndDate = endTime != null
+        ? DateTime(eventDate!.year, eventDate!.month, eventDate!.day,
+            endTime!.hour, endTime!.minute)
+        : null;
+    // Endzeit muss nach Startzeit liegen — sonst wird sie verworfen
+    final fullEndDate =
+        rawEndDate != null && rawEndDate.isAfter(fullDate) ? rawEndDate : null;
+
+    try {
+      final service = ref.read(organizationServiceProvider);
+      final loc = locationCtrl.text.trim().isEmpty ? null : locationCtrl.text.trim();
+      if (existing == null) {
+        await service.createEvent(
+          orgId,
+          title,
+          fullDate,
+          content: contentCtrl.text.trim(),
+          eventEndDate: fullEndDate,
+          location: loc,
+          rsvpPublic: rsvpPublic,
+        );
+      } else {
+        await service.editEvent(
+          orgId,
+          existing.id,
+          title,
+          fullDate,
+          content: contentCtrl.text.trim(),
+          eventEndDate: fullEndDate,
+          location: loc,
+          rsvpPublic: rsvpPublic,
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(l.errorMessage(e.toString()))));
+      }
+    }
+  } finally {
+    titleCtrl.dispose();
+    contentCtrl.dispose();
+    locationCtrl.dispose();
+  }
+}
+
+// ── Speed-Dial Option ─────────────────────────────────────────────────────────
+
+class _SpeedDialOption extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _SpeedDialOption(
+      {required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Material(
+          elevation: 2,
+          borderRadius: BorderRadius.circular(8),
+          color: Theme.of(context).colorScheme.surfaceContainerHigh,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Text(label,
+                  style: const TextStyle(fontWeight: FontWeight.w500)),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        FloatingActionButton.small(
+          heroTag: null,
+          onPressed: onTap,
+          child: Icon(icon),
+        ),
+      ],
+    );
+  }
+}
+
+String _formatEventDate(DateTime start, DateTime? end) {
+  final d =
+      '${start.day.toString().padLeft(2, '0')}.${start.month.toString().padLeft(2, '0')}.${start.year}';
+  final s =
+      '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}';
+  if (end == null) return '$d $s';
+  final e =
+      '${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}';
+  return '$d $s – $e';
 }
 
 class _AnnouncementCard extends ConsumerWidget {
@@ -4085,14 +4408,15 @@ class _AnnouncementCard extends ConsumerWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
+    final isEvent = announcement.isEvent;
+    final isPast = announcement.isPastEvent;
     final isExpired = announcement.isExpired;
+    final isDimmed = isExpired || isPast;
     final hasReactions = announcement.reactions.isNotEmpty;
 
-    return GestureDetector(
-      onLongPress: () => _showReactionPicker(context, ref, currentUid),
-      child: Card(
+    Widget card = Card(
       margin: EdgeInsets.zero,
-      color: isExpired
+      color: isDimmed
           ? colorScheme.surfaceContainerHighest.withAlpha(180)
           : null,
       child: Padding(
@@ -4103,11 +4427,13 @@ class _AnnouncementCard extends ConsumerWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.campaign_outlined,
-                    size: 18,
-                    color: isExpired
-                        ? colorScheme.onSurfaceVariant
-                        : colorScheme.primary),
+                Icon(
+                  isEvent ? Icons.event_outlined : Icons.campaign_outlined,
+                  size: 18,
+                  color: isDimmed
+                      ? colorScheme.onSurfaceVariant
+                      : colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -4115,20 +4441,20 @@ class _AnnouncementCard extends ConsumerWidget {
                     style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
-                        color: isExpired
-                            ? colorScheme.onSurfaceVariant
-                            : null),
+                        color: isDimmed ? colorScheme.onSurfaceVariant : null),
                   ),
                 ),
                 if (canManage)
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, size: 18),
                     onSelected: (value) async {
-                      if (value == 'edit') {
-                        if (context.mounted) {
-                          await _PinnwandTab(
-                                  orgId: orgId, canManage: canManage)
-                              ._showEditDialog(context, ref, announcement);
+                      if (value == 'edit' && context.mounted) {
+                        if (isEvent) {
+                          await _showEventDialog(
+                              context, ref, orgId, announcement);
+                        } else {
+                          await _showAnnouncementDialog(
+                              context, ref, orgId, announcement);
                         }
                       } else if (value == 'delete') {
                         await _confirmDelete(context, ref);
@@ -4147,8 +4473,8 @@ class _AnnouncementCard extends ConsumerWidget {
                       PopupMenuItem(
                         value: 'delete',
                         child: ListTile(
-                          leading:
-                              const Icon(Icons.delete_outline, color: Colors.red),
+                          leading: const Icon(Icons.delete_outline,
+                              color: Colors.red),
                           title: Text(l.delete,
                               style: const TextStyle(color: Colors.red)),
                           contentPadding: EdgeInsets.zero,
@@ -4159,13 +4485,73 @@ class _AnnouncementCard extends ConsumerWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              announcement.content,
-              style: TextStyle(
-                  color: isExpired ? colorScheme.onSurfaceVariant : null),
-            ),
-            if (announcement.expiresAt != null) ...[
+            // Event-specific: date/time + location
+            if (isEvent && announcement.eventDate != null) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Icon(Icons.access_time_outlined,
+                      size: 12,
+                      color: isPast ? Colors.grey[400] : colorScheme.primary),
+                  const SizedBox(width: 4),
+                  Text(
+                    _formatEventDate(announcement.eventDate!,
+                        announcement.eventEndDate),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isPast ? Colors.grey[400] : colorScheme.primary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (isPast) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(l.eventPast,
+                          style: TextStyle(
+                              fontSize: 10, color: Colors.grey[600])),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+            if (isEvent && announcement.location != null &&
+                announcement.location!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(Icons.location_on_outlined,
+                      size: 12, color: Colors.grey[500]),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      announcement.location!,
+                      style:
+                          TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (announcement.content.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                announcement.content,
+                style: TextStyle(
+                    color: isDimmed ? colorScheme.onSurfaceVariant : null),
+                maxLines: isEvent ? 2 : null,
+                overflow: isEvent ? TextOverflow.ellipsis : null,
+              ),
+            ],
+            // Announcement expiry
+            if (!isEvent && announcement.expiresAt != null) ...[
               const SizedBox(height: 6),
               Row(
                 children: [
@@ -4174,7 +4560,9 @@ class _AnnouncementCard extends ConsumerWidget {
                         ? Icons.event_busy_outlined
                         : Icons.event_available_outlined,
                     size: 12,
-                    color: isExpired ? Colors.red[400] : Colors.green[600],
+                    color: isExpired
+                        ? Colors.red[400]
+                        : Colors.green[600],
                   ),
                   const SizedBox(width: 4),
                   Text(
@@ -4186,11 +4574,22 @@ class _AnnouncementCard extends ConsumerWidget {
                             '${announcement.expiresAt!.year}'),
                     style: TextStyle(
                       fontSize: 11,
-                      color: isExpired ? Colors.red[400] : Colors.green[600],
+                      color: isExpired
+                          ? Colors.red[400]
+                          : Colors.green[600],
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
+              ),
+            ],
+            // Event RSVP summary
+            if (isEvent && announcement.rsvp.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                l.eventRsvpCount(announcement.rsvpYesCount,
+                    announcement.rsvpNoCount, announcement.rsvpMaybeCount),
+                style: TextStyle(fontSize: 11, color: Colors.grey[500]),
               ),
             ],
             if (hasReactions) ...[
@@ -4225,7 +4624,8 @@ class _AnnouncementCard extends ConsumerWidget {
                   ),
                 ],
                 Text(
-                  _formatDate(announcement.updatedAt ?? announcement.createdAt),
+                  _formatDate(
+                      announcement.updatedAt ?? announcement.createdAt),
                   style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                 ),
               ],
@@ -4233,7 +4633,27 @@ class _AnnouncementCard extends ConsumerWidget {
           ],
         ),
       ),
-    ),
+    );
+
+    if (isEvent) {
+      return InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          builder: (_) => _EventDetailSheet(
+            event: announcement,
+            orgId: orgId,
+            canManage: canManage,
+          ),
+        ),
+        onLongPress: () => _showReactionPicker(context, ref, currentUid),
+        child: card,
+      );
+    }
+    return GestureDetector(
+      onLongPress: () => _showReactionPicker(context, ref, currentUid),
+      child: card,
     );
   }
 
@@ -4244,8 +4664,12 @@ class _AnnouncementCard extends ConsumerWidget {
       builder: (ctx) {
         final ld = AppLocalizations.of(ctx);
         return AlertDialog(
-          title: Text(ld.deleteAnnouncementTitle),
-          content: Text(ld.deleteAnnouncementContent),
+          title: Text(announcement.isEvent
+              ? ld.eventDelete
+              : ld.deleteAnnouncementTitle),
+          content: Text(announcement.isEvent
+              ? ld.eventDeleteConfirm
+              : ld.deleteAnnouncementContent),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -4281,6 +4705,471 @@ class _AnnouncementCard extends ConsumerWidget {
       return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     }
     return '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
+  }
+
+}
+
+Future<void> _respond(BuildContext context, WidgetRef ref, String orgId,
+    String eventId, String uid, RsvpStatus? status, AppLocalizations l) async {
+  try {
+    await ref.read(organizationServiceProvider).respondToEvent(orgId, eventId, uid, status);
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(l.errorMessage(e.toString()))));
+    }
+  }
+}
+
+// ── Event Detail Sheet ────────────────────────────────────────────────────────
+
+class _EventDetailSheet extends ConsumerWidget {
+  final Announcement event;
+  final String orgId;
+  final bool canManage;
+
+  const _EventDetailSheet({
+    required this.event,
+    required this.orgId,
+    required this.canManage,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final myStatus = event.rsvpStatusFor(currentUid);
+
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (ctx, scrollCtrl) => Column(
+        children: [
+          // Drag handle
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: colorScheme.outlineVariant,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              controller: scrollCtrl,
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+              children: [
+                // Title
+                Text(event.title,
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+
+                // Date/time row
+                if (event.eventDate != null)
+                  _EventInfoRow(
+                    icon: Icons.access_time_outlined,
+                    text: _formatEventDate(event.eventDate!, event.eventEndDate),
+                    color: event.isPastEvent
+                        ? Colors.grey
+                        : colorScheme.primary,
+                  ),
+
+                // Location
+                if (event.location != null && event.location!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _EventInfoRow(
+                    icon: Icons.location_on_outlined,
+                    text: event.location!,
+                    trailing: IconButton(
+                      icon: const Icon(Icons.open_in_new, size: 16),
+                      tooltip: l.eventOpenInMaps,
+                      onPressed: () => _openInMaps(event.location!),
+                    ),
+                  ),
+                ],
+
+                // Description
+                if (event.content.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(event.content,
+                      style: TextStyle(color: colorScheme.onSurfaceVariant)),
+                ],
+
+                const SizedBox(height: 20),
+                const Divider(),
+                const SizedBox(height: 8),
+
+                // RSVP buttons
+                if (!event.isPastEvent) ...[
+                  Text(l.eventRsvpAttendees,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600, fontSize: 15)),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      _RsvpButton(
+                        label: l.eventRsvpYes,
+                        icon: Icons.check_circle_outline,
+                        color: Colors.green,
+                        selected: myStatus == RsvpStatus.yes,
+                        onTap: () => _respond(context, ref, orgId, event.id,
+                            currentUid, myStatus == RsvpStatus.yes ? null : RsvpStatus.yes, l),
+                      ),
+                      const SizedBox(width: 8),
+                      _RsvpButton(
+                        label: l.eventRsvpMaybe,
+                        icon: Icons.help_outline,
+                        color: Colors.orange,
+                        selected: myStatus == RsvpStatus.maybe,
+                        onTap: () => _respond(context, ref, orgId, event.id,
+                            currentUid, myStatus == RsvpStatus.maybe ? null : RsvpStatus.maybe, l),
+                      ),
+                      const SizedBox(width: 8),
+                      _RsvpButton(
+                        label: l.eventRsvpNo,
+                        icon: Icons.cancel_outlined,
+                        color: Colors.red,
+                        selected: myStatus == RsvpStatus.no,
+                        onTap: () => _respond(context, ref, orgId, event.id,
+                            currentUid, myStatus == RsvpStatus.no ? null : RsvpStatus.no, l),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                // RSVP counts
+                if (event.rsvp.isNotEmpty) ...[
+                  Text(
+                    l.eventRsvpCount(event.rsvpYesCount, event.rsvpNoCount,
+                        event.rsvpMaybeCount),
+                    style:
+                        TextStyle(fontSize: 13, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 8),
+                ] else ...[
+                  Text(l.eventNoRsvp,
+                      style:
+                          TextStyle(fontSize: 13, color: Colors.grey[500])),
+                  const SizedBox(height: 8),
+                ],
+
+                // Admin/Mod or public event: detailed RSVP list
+                if ((canManage || event.rsvpPublic) && event.rsvp.isNotEmpty) ...[
+                  _RsvpDetailList(rsvp: event.rsvp, orgId: orgId, l: l),
+                  const SizedBox(height: 8),
+                ],
+
+                // Guardian: show child's response
+                if (!canManage)
+                  _GuardianChildrenRsvp(
+                      orgId: orgId,
+                      currentUid: currentUid,
+                      event: event,
+                      l: l),
+
+                const Divider(),
+                const SizedBox(height: 8),
+
+                // Calendar export
+                if (event.eventDate != null)
+                  FilledButton.icon(
+                    icon: const Icon(Icons.calendar_today_outlined),
+                    label: Text(l.eventAddToCalendar),
+                    onPressed: () => _addToCalendar(context, l),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openInMaps(String location) async {
+    final encoded = Uri.encodeComponent(location);
+    final uri = Uri.parse(
+        'https://www.google.com/maps/search/?api=1&query=$encoded');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _addToCalendar(BuildContext context, AppLocalizations l) async {
+    final start = event.eventDate!;
+    final end = event.eventEndDate ?? start.add(const Duration(hours: 1));
+
+    if (Platform.isWindows) {
+      final ics = _buildIcs(start, end);
+      try {
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/event_${event.id}.ics');
+        await file.writeAsString(ics);
+        await OpenFilex.open(file.path);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(l.eventCalendarExportSuccess)));
+        }
+      } catch (_) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(l.eventCalendarExportError)));
+        }
+      }
+    } else {
+      final calEvent = Event(
+        title: event.title,
+        description: event.content,
+        location: event.location ?? '',
+        startDate: start,
+        endDate: end,
+        allDay: false,
+      );
+      Add2Calendar.addEvent2Cal(calEvent);
+    }
+  }
+
+  String _buildIcs(DateTime start, DateTime end) {
+    String fmt(DateTime dt) {
+      final u = dt.toUtc();
+      return '${u.year.toString().padLeft(4, '0')}'
+          '${u.month.toString().padLeft(2, '0')}'
+          '${u.day.toString().padLeft(2, '0')}'
+          'T${u.hour.toString().padLeft(2, '0')}'
+          '${u.minute.toString().padLeft(2, '0')}00Z';
+    }
+
+    // RFC 5545: escape backslash, newline, comma, semicolon
+    String esc(String v) => v
+        .replaceAll('\\', '\\\\')
+        .replaceAll('\r\n', '\\n')
+        .replaceAll('\n', '\\n')
+        .replaceAll(',', '\\,')
+        .replaceAll(';', '\\;');
+
+    return 'BEGIN:VCALENDAR\r\n'
+        'VERSION:2.0\r\n'
+        'BEGIN:VEVENT\r\n'
+        'SUMMARY:${esc(event.title)}\r\n'
+        'DTSTART:${fmt(start)}\r\n'
+        'DTEND:${fmt(end)}\r\n'
+        'LOCATION:${esc(event.location ?? '')}\r\n'
+        'DESCRIPTION:${esc(event.content)}\r\n'
+        'END:VEVENT\r\n'
+        'END:VCALENDAR';
+  }
+
+}
+
+class _EventInfoRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color? color;
+  final Widget? trailing;
+
+  const _EventInfoRow(
+      {required this.icon, required this.text, this.color, this.trailing});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: color ?? Colors.grey[600]),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(text,
+              style: TextStyle(
+                  fontSize: 14,
+                  color: color ?? Theme.of(context).colorScheme.onSurface)),
+        ),
+        // ignore: use_null_aware_elements
+        if (trailing != null) trailing!,
+      ],
+    );
+  }
+}
+
+class _RsvpButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _RsvpButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: OutlinedButton.icon(
+        icon: Icon(icon, size: 16, color: selected ? Colors.white : color),
+        label: Text(label,
+            style: TextStyle(
+                fontSize: 12, color: selected ? Colors.white : color)),
+        style: OutlinedButton.styleFrom(
+          backgroundColor: selected ? color : null,
+          side: BorderSide(color: color),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+        ),
+        onPressed: onTap,
+      ),
+    );
+  }
+}
+
+class _RsvpDetailList extends ConsumerWidget {
+  final Map<String, String> rsvp;
+  final String orgId;
+  final AppLocalizations l;
+
+  const _RsvpDetailList(
+      {required this.rsvp, required this.orgId, required this.l});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final membersAsync = ref.watch(orgMembersProvider(orgId));
+    final memberMap = {
+      for (final m in membersAsync.asData?.value ?? <OrgMember>[]) m.uid: m
+    };
+
+    final groups = <RsvpStatus, List<String>>{
+      RsvpStatus.yes: [],
+      RsvpStatus.maybe: [],
+      RsvpStatus.no: [],
+    };
+    for (final entry in rsvp.entries) {
+      final status = RsvpStatusX.fromString(entry.value);
+      if (status != null) groups[status]!.add(entry.key);
+    }
+
+    Widget groupTile(RsvpStatus status, List<String> uids) {
+      if (uids.isEmpty) return const SizedBox.shrink();
+      final label = switch (status) {
+        RsvpStatus.yes => l.eventRsvpYesLabel(uids.length),
+        RsvpStatus.no => l.eventRsvpNoLabel(uids.length),
+        RsvpStatus.maybe => l.eventRsvpMaybeLabel(uids.length),
+      };
+      final color = switch (status) {
+        RsvpStatus.yes => Colors.green,
+        RsvpStatus.no => Colors.red,
+        RsvpStatus.maybe => Colors.orange,
+      };
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: TextStyle(
+                  fontSize: 12,
+                  color: color,
+                  fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: uids.map((uid) {
+              final name = memberMap[uid]?.displayName ?? uid;
+              return Chip(
+                label: Text(name, style: const TextStyle(fontSize: 11)),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 8),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        groupTile(RsvpStatus.yes, groups[RsvpStatus.yes]!),
+        groupTile(RsvpStatus.maybe, groups[RsvpStatus.maybe]!),
+        groupTile(RsvpStatus.no, groups[RsvpStatus.no]!),
+      ],
+    );
+  }
+}
+
+class _GuardianChildrenRsvp extends ConsumerWidget {
+  final String orgId;
+  final String currentUid;
+  final Announcement event;
+  final AppLocalizations l;
+
+  const _GuardianChildrenRsvp({
+    required this.orgId,
+    required this.currentUid,
+    required this.event,
+    required this.l,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final membersAsync = ref.watch(orgMembersProvider(orgId));
+    final myChildren = membersAsync.asData?.value
+            .where((m) => m.guardianUids.contains(currentUid))
+            .toList() ??
+        [];
+    if (myChildren.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(),
+        const SizedBox(height: 8),
+        Text(l.eventChildRsvp,
+            style:
+                const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+        const SizedBox(height: 6),
+        for (final child in myChildren)
+          _ChildRsvpRow(
+              child: child,
+              status: event.rsvpStatusFor(child.uid),
+              l: l),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+}
+
+class _ChildRsvpRow extends StatelessWidget {
+  final OrgMember child;
+  final RsvpStatus? status;
+  final AppLocalizations l;
+
+  const _ChildRsvpRow(
+      {required this.child, required this.status, required this.l});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (status) {
+      RsvpStatus.yes => (l.eventRsvpYes, Colors.green),
+      RsvpStatus.no => (l.eventRsvpNo, Colors.red),
+      RsvpStatus.maybe => (l.eventRsvpMaybe, Colors.orange),
+      null => ('–', Colors.grey),
+    };
+    return Row(
+      children: [
+        Text(child.displayName,
+            style: const TextStyle(fontSize: 13)),
+        const Spacer(),
+        Text(label, style: TextStyle(fontSize: 13, color: color)),
+      ],
+    );
   }
 }
 

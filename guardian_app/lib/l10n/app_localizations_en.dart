@@ -805,6 +805,95 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get pinnwandNewAnnouncement => 'Announcement';
+
+  @override
+  String get pinnwandNewEvent => 'Event';
+
+  @override
+  String get eventCreate => 'Create event';
+
+  @override
+  String get eventEdit => 'Edit event';
+
+  @override
+  String get eventDelete => 'Delete event';
+
+  @override
+  String get eventDeleteConfirm => 'Really delete this event?';
+
+  @override
+  String get eventDate => 'Date';
+
+  @override
+  String get eventTime => 'Time';
+
+  @override
+  String get eventEndTime => 'End time (optional)';
+
+  @override
+  String get eventLocation => 'Location (optional)';
+
+  @override
+  String get eventDescription => 'Description (optional)';
+
+  @override
+  String get eventOpenInMaps => 'Open in Maps';
+
+  @override
+  String get eventRsvpYes => 'Accept';
+
+  @override
+  String get eventRsvpNo => 'Decline';
+
+  @override
+  String get eventRsvpMaybe => 'Tentative';
+
+  @override
+  String eventRsvpCount(int yes, int no, int maybe) {
+    return '$yes accepted · $no declined · $maybe tentative';
+  }
+
+  @override
+  String get eventAddToCalendar => 'Add to calendar';
+
+  @override
+  String get eventCalendarExportSuccess => 'Added to calendar';
+
+  @override
+  String get eventCalendarExportError => 'Could not open calendar';
+
+  @override
+  String get eventNoRsvp => 'No responses yet';
+
+  @override
+  String get eventPast => 'Past event';
+
+  @override
+  String get eventRsvpAttendees => 'Responses';
+
+  @override
+  String eventRsvpYesLabel(int count) {
+    return 'Accepted ($count)';
+  }
+
+  @override
+  String eventRsvpNoLabel(int count) {
+    return 'Declined ($count)';
+  }
+
+  @override
+  String eventRsvpMaybeLabel(int count) {
+    return 'Tentative ($count)';
+  }
+
+  @override
+  String get eventChildRsvp => 'Your child\'s response';
+
+  @override
+  String get eventRsvpPublic => 'Show responses to all members';
+
+  @override
   String get scheduleMessage => 'Schedule message';
 
   @override

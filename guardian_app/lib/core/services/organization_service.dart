@@ -796,11 +796,11 @@ class OrganizationService {
 
   // ── Ankündigungen (Pinnwand) ───────────────────────────────────────────────
 
+  CollectionReference<Map<String, dynamic>> _announcementsRef(String orgId) =>
+      _db.collection('organizations').doc(orgId).collection('announcements');
+
   Stream<List<Announcement>> watchAnnouncements(String orgId) {
-    return _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('announcements')
+    return _announcementsRef(orgId)
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((s) => s.docs.map(Announcement.fromFirestore).toList());
@@ -810,11 +810,7 @@ class OrganizationService {
       String orgId, String title, String content,
       {DateTime? expiresAt}) async {
     final user = _auth.currentUser!;
-    final ref = _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('announcements')
-        .doc();
+    final ref = _announcementsRef(orgId).doc();
     await ref.set(Announcement(
       id: ref.id,
       title: title,
@@ -829,12 +825,7 @@ class OrganizationService {
   Future<void> editAnnouncement(
       String orgId, String announcementId, String title, String content,
       {DateTime? expiresAt, bool clearExpiry = false}) async {
-    await _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('announcements')
-        .doc(announcementId)
-        .update({
+    await _announcementsRef(orgId).doc(announcementId).update({
       'title': title,
       'content': content,
       'updatedAt': Timestamp.fromDate(DateTime.now()),
@@ -845,25 +836,81 @@ class OrganizationService {
 
   Future<void> deleteAnnouncement(
       String orgId, String announcementId) async {
-    await _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('announcements')
-        .doc(announcementId)
-        .delete();
+    await _announcementsRef(orgId).doc(announcementId).delete();
   }
 
   Future<void> reactToAnnouncement(
       String orgId, String announcementId, String uid, String? emoji) async {
-    final ref = _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('announcements')
-        .doc(announcementId);
+    final ref = _announcementsRef(orgId).doc(announcementId);
     if (emoji == null) {
       await ref.update({'reactions.$uid': FieldValue.delete()});
     } else {
       await ref.update({'reactions.$uid': emoji});
+    }
+  }
+
+  // ── Termine (Events) ──────────────────────────────────────────────────────
+
+  Future<void> createEvent(
+    String orgId,
+    String title,
+    DateTime eventDate, {
+    String content = '',
+    DateTime? eventEndDate,
+    String? location,
+    bool rsvpPublic = false,
+  }) async {
+    final user = _auth.currentUser!;
+    final ref = _announcementsRef(orgId).doc();
+    await ref.set(Announcement(
+      id: ref.id,
+      title: title,
+      content: content,
+      authorUid: user.uid,
+      authorName: user.displayName ?? user.email ?? '',
+      createdAt: DateTime.now(),
+      type: AnnouncementType.event,
+      eventDate: eventDate,
+      eventEndDate: eventEndDate,
+      location: location,
+      rsvpPublic: rsvpPublic,
+    ).toFirestore());
+  }
+
+  Future<void> editEvent(
+    String orgId,
+    String announcementId,
+    String title,
+    DateTime eventDate, {
+    String content = '',
+    DateTime? eventEndDate,
+    String? location,
+    bool rsvpPublic = false,
+  }) async {
+    await _announcementsRef(orgId).doc(announcementId).update({
+      'title': title,
+      'content': content,
+      'eventDate': Timestamp.fromDate(eventDate),
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+      if (eventEndDate != null)
+        'eventEndDate': Timestamp.fromDate(eventEndDate)
+      else
+        'eventEndDate': FieldValue.delete(),
+      if (location != null && location.isNotEmpty)
+        'location': location
+      else
+        'location': FieldValue.delete(),
+      'rsvpPublic': rsvpPublic,
+    });
+  }
+
+  Future<void> respondToEvent(
+      String orgId, String announcementId, String uid, RsvpStatus? status) async {
+    final ref = _announcementsRef(orgId).doc(announcementId);
+    if (status == null) {
+      await ref.update({'rsvp.$uid': FieldValue.delete()});
+    } else {
+      await ref.update({'rsvp.$uid': status.toFirestore()});
     }
   }
 }

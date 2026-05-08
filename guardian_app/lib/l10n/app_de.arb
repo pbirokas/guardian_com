@@ -324,6 +324,51 @@
     "placeholders": { "name": { "type": "String" } }
   },
 
+  "pinnwandNewAnnouncement": "Ankündigung",
+  "pinnwandNewEvent": "Termin",
+
+  "eventCreate": "Termin erstellen",
+  "eventEdit": "Termin bearbeiten",
+  "eventDelete": "Termin löschen",
+  "eventDeleteConfirm": "Diesen Termin wirklich löschen?",
+  "eventDate": "Datum",
+  "eventTime": "Uhrzeit",
+  "eventEndTime": "Endzeit (optional)",
+  "eventLocation": "Ort (optional)",
+  "eventDescription": "Beschreibung (optional)",
+  "eventOpenInMaps": "In Maps öffnen",
+  "eventRsvpYes": "Zusagen",
+  "eventRsvpNo": "Absagen",
+  "eventRsvpMaybe": "Vorbehalt",
+  "eventRsvpCount": "{yes} Zusagen · {no} Absagen · {maybe} Vorbehalt",
+  "@eventRsvpCount": {
+    "placeholders": {
+      "yes": { "type": "int" },
+      "no": { "type": "int" },
+      "maybe": { "type": "int" }
+    }
+  },
+  "eventAddToCalendar": "Zum Kalender hinzufügen",
+  "eventCalendarExportSuccess": "Zum Kalender hinzugefügt",
+  "eventCalendarExportError": "Kalender konnte nicht geöffnet werden",
+  "eventNoRsvp": "Noch keine Rückmeldungen",
+  "eventPast": "Vergangener Termin",
+  "eventRsvpAttendees": "Rückmeldungen",
+  "eventRsvpYesLabel": "Zusagen ({count})",
+  "@eventRsvpYesLabel": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "eventRsvpNoLabel": "Absagen ({count})",
+  "@eventRsvpNoLabel": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "eventRsvpMaybeLabel": "Vorbehalt ({count})",
+  "@eventRsvpMaybeLabel": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "eventChildRsvp": "Antwort deines Kindes",
+  "eventRsvpPublic": "Rückmeldungen für alle sichtbar",
+
   "scheduleMessage": "Nachricht planen",
   "scheduledMessages": "Geplante Nachrichten ({count})",
   "@scheduledMessages": {

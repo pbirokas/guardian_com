@@ -1538,6 +1538,168 @@ abstract class AppLocalizations {
   /// **'von {name}'**
   String announcementBy(String name);
 
+  /// No description provided for @pinnwandNewAnnouncement.
+  ///
+  /// In de, this message translates to:
+  /// **'Ankündigung'**
+  String get pinnwandNewAnnouncement;
+
+  /// No description provided for @pinnwandNewEvent.
+  ///
+  /// In de, this message translates to:
+  /// **'Termin'**
+  String get pinnwandNewEvent;
+
+  /// No description provided for @eventCreate.
+  ///
+  /// In de, this message translates to:
+  /// **'Termin erstellen'**
+  String get eventCreate;
+
+  /// No description provided for @eventEdit.
+  ///
+  /// In de, this message translates to:
+  /// **'Termin bearbeiten'**
+  String get eventEdit;
+
+  /// No description provided for @eventDelete.
+  ///
+  /// In de, this message translates to:
+  /// **'Termin löschen'**
+  String get eventDelete;
+
+  /// No description provided for @eventDeleteConfirm.
+  ///
+  /// In de, this message translates to:
+  /// **'Diesen Termin wirklich löschen?'**
+  String get eventDeleteConfirm;
+
+  /// No description provided for @eventDate.
+  ///
+  /// In de, this message translates to:
+  /// **'Datum'**
+  String get eventDate;
+
+  /// No description provided for @eventTime.
+  ///
+  /// In de, this message translates to:
+  /// **'Uhrzeit'**
+  String get eventTime;
+
+  /// No description provided for @eventEndTime.
+  ///
+  /// In de, this message translates to:
+  /// **'Endzeit (optional)'**
+  String get eventEndTime;
+
+  /// No description provided for @eventLocation.
+  ///
+  /// In de, this message translates to:
+  /// **'Ort (optional)'**
+  String get eventLocation;
+
+  /// No description provided for @eventDescription.
+  ///
+  /// In de, this message translates to:
+  /// **'Beschreibung (optional)'**
+  String get eventDescription;
+
+  /// No description provided for @eventOpenInMaps.
+  ///
+  /// In de, this message translates to:
+  /// **'In Maps öffnen'**
+  String get eventOpenInMaps;
+
+  /// No description provided for @eventRsvpYes.
+  ///
+  /// In de, this message translates to:
+  /// **'Zusagen'**
+  String get eventRsvpYes;
+
+  /// No description provided for @eventRsvpNo.
+  ///
+  /// In de, this message translates to:
+  /// **'Absagen'**
+  String get eventRsvpNo;
+
+  /// No description provided for @eventRsvpMaybe.
+  ///
+  /// In de, this message translates to:
+  /// **'Vorbehalt'**
+  String get eventRsvpMaybe;
+
+  /// No description provided for @eventRsvpCount.
+  ///
+  /// In de, this message translates to:
+  /// **'{yes} Zusagen · {no} Absagen · {maybe} Vorbehalt'**
+  String eventRsvpCount(int yes, int no, int maybe);
+
+  /// No description provided for @eventAddToCalendar.
+  ///
+  /// In de, this message translates to:
+  /// **'Zum Kalender hinzufügen'**
+  String get eventAddToCalendar;
+
+  /// No description provided for @eventCalendarExportSuccess.
+  ///
+  /// In de, this message translates to:
+  /// **'Zum Kalender hinzugefügt'**
+  String get eventCalendarExportSuccess;
+
+  /// No description provided for @eventCalendarExportError.
+  ///
+  /// In de, this message translates to:
+  /// **'Kalender konnte nicht geöffnet werden'**
+  String get eventCalendarExportError;
+
+  /// No description provided for @eventNoRsvp.
+  ///
+  /// In de, this message translates to:
+  /// **'Noch keine Rückmeldungen'**
+  String get eventNoRsvp;
+
+  /// No description provided for @eventPast.
+  ///
+  /// In de, this message translates to:
+  /// **'Vergangener Termin'**
+  String get eventPast;
+
+  /// No description provided for @eventRsvpAttendees.
+  ///
+  /// In de, this message translates to:
+  /// **'Rückmeldungen'**
+  String get eventRsvpAttendees;
+
+  /// No description provided for @eventRsvpYesLabel.
+  ///
+  /// In de, this message translates to:
+  /// **'Zusagen ({count})'**
+  String eventRsvpYesLabel(int count);
+
+  /// No description provided for @eventRsvpNoLabel.
+  ///
+  /// In de, this message translates to:
+  /// **'Absagen ({count})'**
+  String eventRsvpNoLabel(int count);
+
+  /// No description provided for @eventRsvpMaybeLabel.
+  ///
+  /// In de, this message translates to:
+  /// **'Vorbehalt ({count})'**
+  String eventRsvpMaybeLabel(int count);
+
+  /// No description provided for @eventChildRsvp.
+  ///
+  /// In de, this message translates to:
+  /// **'Antwort deines Kindes'**
+  String get eventChildRsvp;
+
+  /// No description provided for @eventRsvpPublic.
+  ///
+  /// In de, this message translates to:
+  /// **'Rückmeldungen für alle sichtbar'**
+  String get eventRsvpPublic;
+
   /// No description provided for @scheduleMessage.
   ///
   /// In de, this message translates to:

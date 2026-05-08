@@ -112,10 +112,13 @@ service cloud.firestore {
 
         // Only admin and moderators can create, update, delete
         allow create: if isAdminOrMod(orgId);
-        // Admins/mods can update everything; any member can update only reactions
+        // Admins/mods can update everything; any member can update only reactions or rsvp
         allow update: if isAdminOrMod(orgId)
           || (isMember(orgId)
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']));
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']))
+          || (isMember(orgId)
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvp'])
+              && request.resource.data.rsvp.diff(resource.data.rsvp).affectedKeys().hasOnly([request.auth.uid]));
         allow delete: if isAdminOrMod(orgId);
       }
 

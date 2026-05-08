@@ -4,6 +4,25 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-08 (4)
+
+- **Termin-Ort öffnet jetzt Google Maps:** Der „In Maps öffnen"-Button verwendet auf allen Geräten die Google Maps-Website und funktioniert damit zuverlässig, auch ohne installierte Karten-App.
+- **RSVP-Sichtbarkeit steuerbar:** Beim Erstellen oder Bearbeiten eines Termins können Admins/Moderatoren festlegen, ob die Teilnehmernamen für alle Mitglieder sichtbar sind oder nur für Admins/Moderatoren.
+- **Sicherheit:** RSVP-Antworten können jetzt serverseitig nur noch für die eigene Benutzer-ID geschrieben werden – kein Überschreiben fremder Antworten mehr möglich.
+
+---
+
+## 2026-05-08 (3)
+
+- **Gruppen-Events / Termine auf der Pinnwand:** Admins und Moderatoren können neben Ankündigungen jetzt auch Termine erstellen. Der neue Speed-Dial-FAB ("+") bietet die Auswahl zwischen „Ankündigung" und „Termin".
+- Ein Termin enthält Datum, Uhrzeit, optionale Endzeit, Ort und optionale Beschreibung. Der Ort lässt sich direkt in der Maps-App öffnen.
+- Alle Mitglieder (auch Kinder) können auf Termine mit „Zusagen", „Vorbehalt" oder „Absagen" antworten.
+- Die Detailansicht zeigt RSVP-Zähler für alle; Admins/Moderatoren sehen auch Namen. Erziehungsberechtigte sehen die Antwort ihrer verknüpften Kinder.
+- Termine können mit einem Klick in den Geräte-Kalender exportiert werden (Android: nativer Intent, Windows: ICS-Export).
+- Vergangene Termine bleiben auf der Pinnwand archiviert und werden visuell als „Vergangener Termin" markiert.
+
+---
+
 ## 2026-05-08 (2)
 
 - Gruppen können jetzt ein eigenes Bild erhalten: Admins und Moderatoren finden im Menü „Gruppe bearbeiten" und können dort Name und Bild (aus der Galerie) in einem Dialog anpassen

@@ -324,6 +324,51 @@
     "placeholders": { "name": { "type": "String" } }
   },
 
+  "pinnwandNewAnnouncement": "Announcement",
+  "pinnwandNewEvent": "Event",
+
+  "eventCreate": "Create event",
+  "eventEdit": "Edit event",
+  "eventDelete": "Delete event",
+  "eventDeleteConfirm": "Really delete this event?",
+  "eventDate": "Date",
+  "eventTime": "Time",
+  "eventEndTime": "End time (optional)",
+  "eventLocation": "Location (optional)",
+  "eventDescription": "Description (optional)",
+  "eventOpenInMaps": "Open in Maps",
+  "eventRsvpYes": "Accept",
+  "eventRsvpNo": "Decline",
+  "eventRsvpMaybe": "Tentative",
+  "eventRsvpCount": "{yes} accepted · {no} declined · {maybe} tentative",
+  "@eventRsvpCount": {
+    "placeholders": {
+      "yes": { "type": "int" },
+      "no": { "type": "int" },
+      "maybe": { "type": "int" }
+    }
+  },
+  "eventAddToCalendar": "Add to calendar",
+  "eventCalendarExportSuccess": "Added to calendar",
+  "eventCalendarExportError": "Could not open calendar",
+  "eventNoRsvp": "No responses yet",
+  "eventPast": "Past event",
+  "eventRsvpAttendees": "Responses",
+  "eventRsvpYesLabel": "Accepted ({count})",
+  "@eventRsvpYesLabel": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "eventRsvpNoLabel": "Declined ({count})",
+  "@eventRsvpNoLabel": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "eventRsvpMaybeLabel": "Tentative ({count})",
+  "@eventRsvpMaybeLabel": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "eventChildRsvp": "Your child's response",
+  "eventRsvpPublic": "Show responses to all members",
+
   "scheduleMessage": "Schedule message",
   "scheduledMessages": "Scheduled messages ({count})",
   "@scheduledMessages": {

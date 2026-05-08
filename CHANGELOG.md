@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-08
+
+- Aktivitätszusammenfassung für Kinder funktioniert jetzt korrekt: Nachrichten werden angezeigt und die Zeitstempel der letzten Aktivität stimmen
+
+---
+
 ## 2026-05-07 (4)
 
 - Eltern können in „Meine Verknüpfungen" für jedes verknüpfte Kind eine Aktivitätszusammenfassung abrufen (letzten 24 Stunden oder 7 Tage): Anzahl gesendeter und empfangener Nachrichten pro Organisation und Chat, jeweils mit Zeitstempel der letzten Aktivität

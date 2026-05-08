@@ -655,7 +655,7 @@ exports.getChildSummary = onCall({ timeoutSeconds: 60 }, async (request) => {
     const msgSnaps = await Promise.all(
       convDocs.map(c => db.collection('conversations').doc(c.id)
         .collection('messages')
-        .where('timestamp', '>=', cutoffTs)
+        .where('sentAt', '>=', cutoffTs)
         .get())
     );
 
@@ -673,7 +673,7 @@ exports.getChildSummary = onCall({ timeoutSeconds: 60 }, async (request) => {
 
       let lastActive = null;
       for (const m of messages) {
-        const ms = m.timestamp?.toMillis?.() ?? 0;
+        const ms = m.sentAt?.toMillis?.() ?? 0;
         if (lastActive === null || ms > lastActive) lastActive = ms;
       }
 

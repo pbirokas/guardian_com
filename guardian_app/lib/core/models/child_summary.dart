@@ -1,3 +1,7 @@
+int _toInt(dynamic v, [int d = 0]) => (v as num?)?.toInt() ?? d;
+DateTime? _toDateTime(dynamic v) =>
+    v == null ? null : DateTime.fromMillisecondsSinceEpoch((v as num).toInt());
+
 class ChildSummaryChat {
   final String convId;
   final String chatName;
@@ -19,11 +23,9 @@ class ChildSummaryChat {
         convId: map['convId'] as String,
         chatName: map['chatName'] as String,
         isGroup: map['isGroup'] as bool? ?? false,
-        sentCount: map['sentCount'] as int? ?? 0,
-        receivedCount: map['receivedCount'] as int? ?? 0,
-        lastActive: map['lastActive'] != null
-            ? DateTime.fromMillisecondsSinceEpoch(map['lastActive'] as int)
-            : null,
+        sentCount: _toInt(map['sentCount']),
+        receivedCount: _toInt(map['receivedCount']),
+        lastActive: _toDateTime(map['lastActive']),
       );
 }
 
@@ -47,13 +49,11 @@ class ChildSummaryOrg {
   factory ChildSummaryOrg.fromMap(Map<String, dynamic> map) => ChildSummaryOrg(
         orgId: map['orgId'] as String,
         orgName: map['orgName'] as String,
-        sentCount: map['sentCount'] as int? ?? 0,
-        receivedCount: map['receivedCount'] as int? ?? 0,
-        lastActive: map['lastActive'] != null
-            ? DateTime.fromMillisecondsSinceEpoch(map['lastActive'] as int)
-            : null,
+        sentCount: _toInt(map['sentCount']),
+        receivedCount: _toInt(map['receivedCount']),
+        lastActive: _toDateTime(map['lastActive']),
         chats: (map['chats'] as List<dynamic>)
-            .map((c) => ChildSummaryChat.fromMap(c as Map<String, dynamic>))
+            .map((c) => ChildSummaryChat.fromMap(Map<String, dynamic>.from(c as Map)))
             .toList(),
       );
 }
@@ -77,10 +77,9 @@ class ChildSummary {
         childUid: map['childUid'] as String,
         childName: map['childName'] as String,
         period: map['period'] as String,
-        generatedAt:
-            DateTime.fromMillisecondsSinceEpoch(map['generatedAt'] as int),
+        generatedAt: DateTime.fromMillisecondsSinceEpoch((map['generatedAt'] as num).toInt()),
         orgs: (map['orgs'] as List<dynamic>)
-            .map((o) => ChildSummaryOrg.fromMap(o as Map<String, dynamic>))
+            .map((o) => ChildSummaryOrg.fromMap(Map<String, dynamic>.from(o as Map)))
             .toList(),
       );
 }

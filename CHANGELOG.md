@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-08 (2)
+
+- Gruppen können jetzt ein eigenes Bild erhalten: Admins und Moderatoren finden im Menü „Gruppe bearbeiten" und können dort Name und Bild (aus der Galerie) in einem Dialog anpassen
+- Das Gruppenbild erscheint als Avatar in der Chat-Übersicht und im Chat-Header
+- Bild kann auch wieder entfernt werden
+
+---
+
 ## 2026-05-08
 
 - Aktivitätszusammenfassung für Kinder funktioniert jetzt korrekt: Nachrichten werden angezeigt und die Zeitstempel der letzten Aktivität stimmen

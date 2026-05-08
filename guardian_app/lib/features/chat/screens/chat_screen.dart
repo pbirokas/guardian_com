@@ -25,7 +25,9 @@ import '../../../core/providers/chat_font_size_provider.dart';
 import '../../../core/models/app_user.dart';
 import '../../../core/models/org_member.dart';
 import '../../../core/models/scheduled_message.dart';
+import '../../../core/dialogs/edit_group_dialog.dart';
 import '../../../core/providers/share_provider.dart';
+import '../../../core/widgets/group_avatar.dart';
 import '../../../features/organizations/providers/organizations_provider.dart';
 import '../providers/chat_provider.dart';
 
@@ -193,44 +195,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ref.read(chatServiceProvider).markAsRead(widget.chatId).catchError((_) {});
   }
 
-  Future<void> _showRenameDialog(Conversation conv, {required bool isGroup}) async {
+  Future<void> _showEditGroupDialog(Conversation conv) =>
+      showEditGroupDialog(context: context, ref: ref, conv: conv);
+
+  Future<void> _showRenameDialog(Conversation conv) async {
     final l = AppLocalizations.of(context);
     final controller = TextEditingController(
-      text: isGroup
-          ? (conv.name ?? '')
-          : (conv.personalNames[FirebaseAuth.instance.currentUser?.uid ?? ''] ?? ''),
+      text: conv.personalNames[FirebaseAuth.instance.currentUser?.uid ?? ''] ?? '',
     );
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(isGroup ? l.renameGroup : l.personalChatName),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 40,
-          decoration: InputDecoration(
-            hintText: isGroup ? l.chatNameHint : l.personalNameHint,
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(l.personalChatName),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLength: 40,
+            decoration: InputDecoration(hintText: l.personalNameHint),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(l.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(l.save),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l.save),
-          ),
-        ],
-      ),
-    );
-    final name = controller.text;
-    if (confirmed != true) return;
-    final service = ref.read(chatServiceProvider);
-    if (isGroup) {
-      await service.renameConversation(conv.id, name);
-    } else {
-      await service.setPersonalName(conv.id, name);
+      );
+      if (confirmed != true) return;
+      await ref.read(chatServiceProvider).setPersonalName(conv.id, controller.text);
+    } finally {
+      controller.dispose();
     }
   }
 
@@ -1020,7 +1019,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ],
             )
           : AppBar(
-              title: Text(title),
+              title: conv != null && conv.isGroup && conv.imageUrl != null
+                  ? Row(
+                      children: [
+                        GroupAvatar(imageUrl: conv.imageUrl, radius: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(title, overflow: TextOverflow.ellipsis),
+                        ),
+                      ],
+                    )
+                  : Text(title),
               actions: [
                 IconButton(
                   icon: const Icon(Icons.help_outline),
@@ -1073,10 +1082,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     switch (value) {
                       case 'search':
                         setState(() => _isSearching = true);
-                      case 'rename_group':
-                        if (conv != null) { _showRenameDialog(conv, isGroup: true); }
+                      case 'edit_group':
+                        if (conv != null) { _showEditGroupDialog(conv); }
                       case 'rename_personal':
-                        if (conv != null) { _showRenameDialog(conv, isGroup: false); }
+                        if (conv != null) { _showRenameDialog(conv); }
                       case 'members':
                         if (conv != null) {
                           _showMembersDialog(conv, members ?? [],
@@ -1099,10 +1108,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                     if (conv != null && conv.isGroup && isModeratorOrAdmin && !isArchived)
                       PopupMenuItem(
-                        value: 'rename_group',
+                        value: 'edit_group',
                         child: ListTile(
                           leading: const Icon(Icons.edit_outlined),
-                          title: Text(l.renameGroup),
+                          title: Text(l.editGroup),
                           contentPadding: EdgeInsets.zero,
                         ),
                       ),

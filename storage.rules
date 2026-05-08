@@ -35,5 +35,22 @@ service firebase.storage {
                    && fileName.matches(request.auth.uid + '.*')
                    && request.resource.size < 5 * 1024 * 1024;
     }
+
+    // Group avatars — readable by all signed-in users, writable by org admins/mods only
+    match /groupImages/{convId}/avatar {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.resource.size < 2 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*')
+                   && canEditGroupImage(convId);
+    }
+
+    function canEditGroupImage(convId) {
+      let conv = firestore.get(/databases/(default)/documents/conversations/$(convId)).data;
+      let member = firestore.get(/databases/(default)/documents/organizations/$(conv.orgId)/members/$(request.auth.uid)).data;
+      return conv.isGroup == true
+        && (conv.orgAdminUid == request.auth.uid
+          || member.role in ['admin', 'moderator']);
+    }
   }
 }

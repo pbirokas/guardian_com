@@ -1653,6 +1653,15 @@ class AppLocalizationsDe extends AppLocalizations {
       'Dieses Konto ist als Kind-Konto registriert. Bitte wähle die Rolle \'Kind\' und weise mindestens einen Guardian zu.';
 
   @override
+  String get editGroup => 'Gruppe bearbeiten';
+
+  @override
+  String get groupImage => 'Gruppenbild';
+
+  @override
+  String get removeGroupImage => 'Bild entfernen';
+
+  @override
   String get renameGroup => 'Gruppe umbenennen';
 
   @override

@@ -204,12 +204,16 @@ service cloud.firestore {
           (resource.data.orgAdminUid == request.auth.uid ||
            request.auth.uid in resource.data.canApproveUids ||
            isAdminOrMod(resource.data.orgId))) ||
-        // Participants: message preview + rename + mark as read
+        // Participants: message preview + rename + mark as read (imageUrl excluded — admin/mod only)
         (notPinUpdate() &&
           request.auth.uid in resource.data.participantUids &&
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['lastMessageAt', 'lastMessage',
                       'name', 'personalNames', 'lastReadAt'])) ||
+        // Group image: admin/mod only
+        (notPinUpdate() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['imageUrl']) &&
+          isAdminOrMod(resource.data.orgId)) ||
         // Supervisors (guardians, canApprove): mark as read only
         (notPinUpdate() &&
           (request.auth.uid in resource.data.guardianUids ||

@@ -15,6 +15,7 @@ class Conversation {
   final String? lastMessage;
   final DateTime? lastMessageAt;
   final String? name;
+  final String? imageUrl;
   final bool isGroup;
   final String? requestorGuardianUid;
   final List<String> canApproveUids;
@@ -39,6 +40,7 @@ class Conversation {
     this.lastMessage,
     this.lastMessageAt,
     this.name,
+    this.imageUrl,
     this.isGroup = false,
     this.requestorGuardianUid,
     this.canApproveUids = const [],
@@ -91,6 +93,7 @@ class Conversation {
           ? (data['lastMessageAt'] as Timestamp).toDate()
           : null,
       name: data['name'] as String?,
+      imageUrl: data['imageUrl'] as String?,
       isGroup: data['isGroup'] as bool? ?? false,
       requestorGuardianUid: data['requestorGuardianUid'] as String?,
       canApproveUids: List<String>.from(data['canApproveUids'] as List? ?? []),
@@ -119,6 +122,7 @@ class Conversation {
         if (requestorGuardianUid != null)
           'requestorGuardianUid': requestorGuardianUid,
         if (name != null) 'name': name,
+        if (imageUrl != null) 'imageUrl': imageUrl,
         if (approvedBy != null) 'approvedBy': approvedBy,
         if (approvedAt != null) 'approvedAt': Timestamp.fromDate(approvedAt!),
         if (lastMessage != null) 'lastMessage': lastMessage,

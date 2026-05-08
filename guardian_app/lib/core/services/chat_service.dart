@@ -181,6 +181,39 @@ class ChatService {
     await _db.collection('conversations').doc(convId).update({'name': name.trim()});
   }
 
+  Future<String> uploadGroupImage(String convId, Uint8List bytes) async {
+    final compressed = await FlutterImageCompress.compressWithList(
+      bytes,
+      minWidth: 400,
+      minHeight: 400,
+      quality: 80,
+      format: CompressFormat.jpeg,
+    );
+    final ref = FirebaseStorage.instance.ref().child('groupImages/$convId/avatar');
+    await ref.putData(compressed, SettableMetadata(contentType: 'image/jpeg'));
+    try {
+      return await ref.getDownloadURL();
+    } catch (e) {
+      await ref.delete().catchError((_) {});
+      rethrow;
+    }
+  }
+
+  Future<void> updateGroupInfo(
+    String convId, {
+    String? name,
+    String? imageUrl,
+    bool removeImage = false,
+  }) async {
+    final updates = <String, dynamic>{};
+    if (name != null) updates['name'] = name.trim();
+    if (imageUrl != null) updates['imageUrl'] = imageUrl;
+    if (removeImage) updates['imageUrl'] = FieldValue.delete();
+    if (updates.isNotEmpty) {
+      await _db.collection('conversations').doc(convId).update(updates);
+    }
+  }
+
   Future<void> setPersonalName(String convId, String name) async {
     final trimmed = name.trim();
     await _db.collection('conversations').doc(convId).update({

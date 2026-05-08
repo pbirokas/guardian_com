@@ -14,6 +14,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/models/announcement.dart';
 import '../../../core/models/org_audit_entry.dart';
 import '../../../core/models/app_user.dart';
+import '../../../core/dialogs/edit_group_dialog.dart';
+import '../../../core/widgets/group_avatar.dart';
 import '../../../core/widgets/help_sheet.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/models/member_suggestion.dart';
@@ -2344,10 +2346,10 @@ class _ConversationTile extends StatelessWidget {
             if (conv.isGroup && isAdminOrMod)
               ListTile(
                 leading: const Icon(Icons.edit_outlined),
-                title: Text(l.renameGroup),
+                title: Text(l.editGroup),
                 onTap: () {
                   Navigator.pop(ctx);
-                  _showRenameDialog(context, isGroup: true);
+                  _showEditGroupDialog(context);
                 },
               ),
             if (!conv.isGroup && conv.participantUids.contains(currentUid))
@@ -2356,7 +2358,7 @@ class _ConversationTile extends StatelessWidget {
                 title: Text(l.personalChatName),
                 onTap: () {
                   Navigator.pop(ctx);
-                  _showRenameDialog(context, isGroup: false);
+                  _showRenameDialog(context);
                 },
               ),
             if (!isArchived && onArchive != null)
@@ -2514,45 +2516,39 @@ class _ConversationTile extends StatelessWidget {
     );
   }
 
-  Future<void> _showRenameDialog(BuildContext context,
-      {required bool isGroup}) async {
+  Future<void> _showEditGroupDialog(BuildContext context) =>
+      showEditGroupDialog(context: context, ref: ref, conv: conv);
+
+  Future<void> _showRenameDialog(BuildContext context) async {
     final l = AppLocalizations.of(context);
-    final controller = TextEditingController(
-      text: isGroup
-          ? (conv.name ?? '')
-          : (conv.personalNames[currentUid] ?? ''),
-    );
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(isGroup ? l.renameGroup : l.personalChatName),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 40,
-          decoration: InputDecoration(
-            hintText: isGroup ? l.chatNameHint : l.personalNameHint,
+    final controller = TextEditingController(text: conv.personalNames[currentUid] ?? '');
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(l.personalChatName),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLength: 40,
+            decoration: InputDecoration(hintText: l.personalNameHint),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(l.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(l.save),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l.save),
-          ),
-        ],
-      ),
-    );
-    final name = controller.text;
-    if (confirmed != true) return;
-    final service = ref.read(chatServiceProvider);
-    if (isGroup) {
-      await service.renameConversation(conv.id, name);
-    } else {
-      await service.setPersonalName(conv.id, name);
+      );
+      if (confirmed != true) return;
+      await ref.read(chatServiceProvider).setPersonalName(conv.id, controller.text);
+    } finally {
+      controller.dispose();
     }
   }
 
@@ -2565,11 +2561,7 @@ class _ConversationTile extends StatelessWidget {
 
     if (conv.isGroup) {
       title = conv.name ?? 'Gruppe';
-      avatar = CircleAvatar(
-        backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-        child: Icon(Icons.group,
-            color: Theme.of(context).colorScheme.onSecondaryContainer),
-      );
+      avatar = GroupAvatar(imageUrl: conv.imageUrl);
     } else {
       // Bei überwachten Chats immer das Kind anzeigen, unabhängig davon wer
       // schaut – sonst sehen Guardians zufällig den anderen Erwachsenen.
@@ -2730,7 +2722,7 @@ class _ConversationTile extends StatelessWidget {
       ),
       onTap: () => context.push('/chat/${conv.id}', extra: title),
       onLongPress: (!conv.isGroup && conv.participantUids.contains(currentUid) && !isAdminOrMod)
-          ? () => _showRenameDialog(context, isGroup: false)
+          ? () => _showRenameDialog(context)
           : null,
     );
   }

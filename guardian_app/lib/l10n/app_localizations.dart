@@ -2996,6 +2996,24 @@ abstract class AppLocalizations {
   /// **'Dieses Konto ist als Kind-Konto registriert. Bitte wähle die Rolle \'Kind\' und weise mindestens einen Guardian zu.'**
   String get errorChildAccountRoleLocked;
 
+  /// No description provided for @editGroup.
+  ///
+  /// In de, this message translates to:
+  /// **'Gruppe bearbeiten'**
+  String get editGroup;
+
+  /// No description provided for @groupImage.
+  ///
+  /// In de, this message translates to:
+  /// **'Gruppenbild'**
+  String get groupImage;
+
+  /// No description provided for @removeGroupImage.
+  ///
+  /// In de, this message translates to:
+  /// **'Bild entfernen'**
+  String get removeGroupImage;
+
   /// No description provided for @renameGroup.
   ///
   /// In de, this message translates to:

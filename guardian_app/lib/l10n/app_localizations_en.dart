@@ -1644,6 +1644,15 @@ class AppLocalizationsEn extends AppLocalizations {
       'This account is registered as a child account. Please select the role \"Child\" and assign at least one guardian.';
 
   @override
+  String get editGroup => 'Edit group';
+
+  @override
+  String get groupImage => 'Group image';
+
+  @override
+  String get removeGroupImage => 'Remove image';
+
+  @override
   String get renameGroup => 'Rename group';
 
   @override

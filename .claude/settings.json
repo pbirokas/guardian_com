@@ -16,7 +16,18 @@
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
       "Bash(Get-Content \"guardian_app\\\\android\\\\app\\\\src\\\\main\\\\AndroidManifest.xml\")",
-      "Bash(git -C \"C:\\\\Users\\\\pbiro\\\\Documents\\\\git\\\\fist_steps\" show HEAD:functions/index.js)"
+      "Bash(git -C \"C:\\\\Users\\\\pbiro\\\\Documents\\\\git\\\\fist_steps\" show HEAD:functions/index.js)",
+      "PowerShell(git -C \"c:\\\\Users\\\\pbiro\\\\Documents\\\\git\\\\fist_steps\" push origin main)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\pbiro\\\\Documents\\\\git\\\\fist_steps\\\\guardian_app\\\\lib\\\\\" -Recurse -Directory | Select-Object -First 20 FullName)",
+      "Bash(grep -E \"\\\\.dart$\")",
+      "Bash(git add *)",
+      "Bash(Get-ChildItem -Path guardian_app\\\\lib -Directory)",
+      "Bash(Select-Object -ExpandProperty Name)",
+      "Bash(Find guardian_app\\\\lib\\\\features -type f -name \"*.dart\")",
+      "Bash(Select-String -Pattern \"\\(?i\\)\\(pinnwand|announcement|ankündigung\\)\")",
+      "Bash(Select-Object -ExpandProperty Path)",
+      "Bash(Get-Unique)",
+      "Bash(grep -n \"^class _AnnouncementCard\\\\|^}\\\\s*$\" c:/Users/pbiro/Documents/git/fist_steps/guardian_app/lib/features/organizations/screens/organization_detail_screen.dart)"
     ]
   }
 }

@@ -241,10 +241,16 @@ Jeder Screen der App enthält einen kontextsensitiven **`?`-Hilfe-Button**, der 
 
 Die Schritt-für-Schritt-Tour auf der Organisations-Übersicht hebt die wichtigsten UI-Elemente mit dem `showcaseview`-Package hervor und passt sich dynamisch an (aktive Orgs und Kind-Konten werden berücksichtigt).
 
-### Pinnwand — Reaktionen auf Ankündigungen
-- Mitglieder können Ankündigungen per **langem Druck** mit einem Emoji reagieren (👍❤️😂😮😢😡👎)
-- Reaktionen erscheinen als Chips unterhalb des Inhalts; erneutes Antippen entfernt die eigene Reaktion
-- Eigene Reaktion wird farblich hervorgehoben
+### Pinnwand — Ankündigungen & Termine
+- Admins/Moderatoren können über den Speed-Dial-FAB (`+`) zwischen **Ankündigung** und **Termin** wählen
+- **Ankündigungen** unterstützen Titel, Inhalt und optionales Ablaufdatum
+- **Termine** unterstützen Datum, Uhrzeit, optionale Endzeit, Ort (mit Maps-Öffnen-Button) und Beschreibung
+- Alle Mitglieder (auch Kinder) können auf Termine mit **Zusagen / Vorbehalt / Absagen** antworten
+- Die Detailansicht zeigt RSVP-Zähler für alle; Admin/Mod sehen auch die Namen der Antwortenden
+- Erziehungsberechtigte sehen in der Detailansicht die Antwort ihrer verknüpften Kinder
+- Termine können mit einem Klick in den **Geräte-Kalender** exportiert werden (Android: nativer Intent, Windows: ICS-Export)
+- Vergangene Termine bleiben archiviert und werden visuell markiert
+- Reaktionen per **langem Druck** (👍❤️😂😮😢😡👎) funktionieren weiterhin auf Ankündigungen und Terminkarten
 
 ### Änderungsprotokoll (Org-Detail → `⋮`-Menü)
 - Admins und Moderatoren können über das `⋮`-Menü das **Änderungsprotokoll** der Organisation öffnen

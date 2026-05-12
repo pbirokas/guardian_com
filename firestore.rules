@@ -118,7 +118,7 @@ service cloud.firestore {
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']))
           || (isMember(orgId)
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvp'])
-              && request.resource.data.rsvp.diff(resource.data.rsvp).affectedKeys().hasOnly([request.auth.uid]));
+              && request.resource.data.rsvp.diff(resource.data.get('rsvp', {})).affectedKeys().hasOnly([request.auth.uid]));
         allow delete: if isAdminOrMod(orgId);
       }
 

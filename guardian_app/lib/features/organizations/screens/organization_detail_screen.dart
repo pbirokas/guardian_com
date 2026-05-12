@@ -4739,6 +4739,15 @@ class _EventDetailSheet extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
     final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+
+    // Shadow field with live data — only rebuilds when this specific event changes
+    final event = ref.watch(announcementsProvider(orgId).select(
+      (async) =>
+          async.asData?.value.firstWhere((a) => a.id == this.event.id,
+              orElse: () => this.event) ??
+          this.event,
+    ));
+
     final myStatus = event.rsvpStatusFor(currentUid);
 
 
@@ -4882,7 +4891,7 @@ class _EventDetailSheet extends ConsumerWidget {
                   FilledButton.icon(
                     icon: const Icon(Icons.calendar_today_outlined),
                     label: Text(l.eventAddToCalendar),
-                    onPressed: () => _addToCalendar(context, l),
+                    onPressed: () => _addToCalendar(context, l, event),
                   ),
               ],
             ),
@@ -4901,15 +4910,17 @@ class _EventDetailSheet extends ConsumerWidget {
     }
   }
 
-  Future<void> _addToCalendar(BuildContext context, AppLocalizations l) async {
-    final start = event.eventDate!;
-    final end = event.eventEndDate ?? start.add(const Duration(hours: 1));
+  Future<void> _addToCalendar(
+      BuildContext context, AppLocalizations l, Announcement ev) async {
+    if (ev.eventDate == null) return;
+    final start = ev.eventDate!;
+    final end = ev.eventEndDate ?? start.add(const Duration(hours: 1));
 
     if (Platform.isWindows) {
-      final ics = _buildIcs(start, end);
+      final ics = _buildIcs(start, end, ev);
       try {
         final dir = await getTemporaryDirectory();
-        final file = File('${dir.path}/event_${event.id}.ics');
+        final file = File('${dir.path}/event_${ev.id}.ics');
         await file.writeAsString(ics);
         await OpenFilex.open(file.path);
         if (context.mounted) {
@@ -4924,9 +4935,9 @@ class _EventDetailSheet extends ConsumerWidget {
       }
     } else {
       final calEvent = Event(
-        title: event.title,
-        description: event.content,
-        location: event.location ?? '',
+        title: ev.title,
+        description: ev.content,
+        location: ev.location ?? '',
         startDate: start,
         endDate: end,
         allDay: false,
@@ -4935,7 +4946,7 @@ class _EventDetailSheet extends ConsumerWidget {
     }
   }
 
-  String _buildIcs(DateTime start, DateTime end) {
+  String _buildIcs(DateTime start, DateTime end, Announcement ev) {
     String fmt(DateTime dt) {
       final u = dt.toUtc();
       return '${u.year.toString().padLeft(4, '0')}'
@@ -4956,11 +4967,11 @@ class _EventDetailSheet extends ConsumerWidget {
     return 'BEGIN:VCALENDAR\r\n'
         'VERSION:2.0\r\n'
         'BEGIN:VEVENT\r\n'
-        'SUMMARY:${esc(event.title)}\r\n'
+        'SUMMARY:${esc(ev.title)}\r\n'
         'DTSTART:${fmt(start)}\r\n'
         'DTEND:${fmt(end)}\r\n'
-        'LOCATION:${esc(event.location ?? '')}\r\n'
-        'DESCRIPTION:${esc(event.content)}\r\n'
+        'LOCATION:${esc(ev.location ?? '')}\r\n'
+        'DESCRIPTION:${esc(ev.content)}\r\n'
         'END:VEVENT\r\n'
         'END:VCALENDAR';
   }

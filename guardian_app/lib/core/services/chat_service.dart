@@ -343,42 +343,42 @@ class ChatService {
   // Maximale Dateigröße für Chat-Bilder: 2 MB
   static const int _maxImageBytes = 2 * 1024 * 1024;
 
-  /// Gibt komprimierte JPEG-Bytes zurück (auf Web: Bytes unverändert).
-  /// Verringert Qualität schrittweise bis das Bild unter [_maxImageBytes] liegt.
-  /// Wirft eine Exception wenn das Bild auch bei minimaler Qualität zu groß ist.
+  /// Gibt die Bild-Bytes für den Upload zurück.
+  /// Ist das Bild bereits unter 2 MB, wird es unverändert zurückgegeben.
+  /// Sonst wird die Qualität schrittweise reduziert bis es passt.
   Future<Uint8List> _prepareImageForUpload(Uint8List bytes) async {
-    // flutter_image_compress unterstützt kein Web und kein Windows → Bytes direkt verwenden
+    // Bereits klein genug — unverändert zurückgeben
+    if (bytes.length <= _maxImageBytes) return bytes;
+
+    // flutter_image_compress unterstützt kein Web und kein Windows
     if (kIsWeb || _isDesktop) {
-      if (bytes.length > _maxImageBytes) {
-        throw Exception(
-            'Das Bild ist zu groß (max. ${_maxImageBytes ~/ (1024 * 1024)} MB).');
-      }
-      return bytes;
+      throw Exception(
+          'Das Bild ist zu groß (max. ${_maxImageBytes ~/ (1024 * 1024)} MB).');
     }
 
-    const maxDimension = 1024;
-    final qualities = [80, 65, 50, 35];
-
-    for (final quality in qualities) {
+    // Erst ohne Dimensionsänderung versuchen (nur JPEG-Qualität reduzieren)
+    for (final quality in [85, 70, 55, 40]) {
       final result = await FlutterImageCompress.compressWithList(
         bytes,
-        minWidth: maxDimension,
-        minHeight: maxDimension,
+        minWidth: 4096,
+        minHeight: 4096,
         quality: quality,
         format: CompressFormat.jpeg,
       );
       if (result.length <= _maxImageBytes) return result;
     }
 
-    // Letzte Chance: sehr kleine Auflösung
-    final fallback = await FlutterImageCompress.compressWithList(
-      bytes,
-      minWidth: 512,
-      minHeight: 512,
-      quality: 25,
-      format: CompressFormat.jpeg,
-    );
-    if (fallback.length <= _maxImageBytes) return fallback;
+    // Fallback: Dimensionen auf max. 1920px begrenzen
+    for (final quality in [80, 60, 40]) {
+      final result = await FlutterImageCompress.compressWithList(
+        bytes,
+        minWidth: 1920,
+        minHeight: 1920,
+        quality: quality,
+        format: CompressFormat.jpeg,
+      );
+      if (result.length <= _maxImageBytes) return result;
+    }
 
     throw Exception(
         'Das Bild ist zu groß (max. ${_maxImageBytes ~/ (1024 * 1024)} MB). '

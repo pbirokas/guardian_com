@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-12
+
+- **Bilder werden nicht mehr unnötig komprimiert:** Bilder unter 2 MB werden jetzt unverändert hochgeladen. Nur größere Dateien werden schrittweise komprimiert, wobei erst die Qualität reduziert wird, bevor die Auflösung verringert wird.
+- **RSVP-Rückmeldungen werden sofort angezeigt:** Die Stimmabgabe in der Termin-Detailansicht aktualisiert sich jetzt in Echtzeit, ohne das Modal schließen zu müssen.
+- **RSVP-Berechtigung korrigiert:** Mitglieder konnten in bestimmten Fällen keine Rückmeldung abgeben (Fehler: fehlende Berechtigungen). Dieser Fehler wurde behoben.
+
+---
+
 ## 2026-05-08 (4)
 
 - **Termin-Ort öffnet jetzt Google Maps:** Der „In Maps öffnen"-Button verwendet auf allen Geräten die Google Maps-Website und funktioniert damit zuverlässig, auch ohne installierte Karten-App.

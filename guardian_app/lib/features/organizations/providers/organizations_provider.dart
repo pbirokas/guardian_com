@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/announcement.dart';
 import '../../../core/models/app_user.dart';
@@ -30,23 +29,15 @@ final orgMembersProvider =
   return ref.watch(organizationServiceProvider).watchMembers(orgId);
 });
 
-/// Aktueller eingeloggter AppUser (mit Memberships)
-final currentAppUserProvider = StreamProvider<AppUser?>((ref) {
-  ref.watch(authStateProvider);
-  final uid = FirebaseAuth.instance.currentUser?.uid;
-  if (uid == null) return Stream.value(null);
-  return FirebaseFirestore.instance
-      .collection('users')
-      .doc(uid)
-      .snapshots()
-      .map((s) => s.exists ? AppUser.fromFirestore(s) : null);
+/// Aktueller eingeloggter AppUser — abgeleitet aus dem Appwrite Auth-State
+final currentAppUserProvider = Provider<AsyncValue<AppUser?>>((ref) {
+  return ref.watch(authStateProvider);
 });
 
 /// Ausstehende Kind-Einladungen für den aktuellen Guardian in einer Org
 final pendingChildInvitesProvider =
     StreamProvider.family<List<OrgMember>, String>((ref, orgId) {
-  ref.watch(authStateProvider);
-  final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = ref.watch(authStateProvider).value?.uid;
   if (uid == null) return Stream.value([]);
   return ref
       .watch(organizationServiceProvider)
@@ -56,8 +47,7 @@ final pendingChildInvitesProvider =
 /// Ausstehende Pre-Registration Einladungen für den aktuellen Guardian
 final pendingPreRegInvitesProvider =
     StreamProvider.family<List<Map<String, dynamic>>, String>((ref, orgId) {
-  ref.watch(authStateProvider);
-  final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = ref.watch(authStateProvider).value?.uid;
   if (uid == null) return Stream.value([]);
   return ref
       .watch(organizationServiceProvider)
@@ -76,8 +66,7 @@ final pendingMemberSuggestionsProvider =
 /// Globale Benachrichtigungseinstellungen des eingeloggten Nutzers
 final notificationSettingsProvider =
     StreamProvider<NotificationSettings>((ref) {
-  ref.watch(authStateProvider);
-  final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = ref.watch(authStateProvider).value?.uid;
   if (uid == null) return Stream.value(const NotificationSettings());
   return FirebaseFirestore.instance
       .collection('users')
@@ -91,8 +80,7 @@ final notificationSettingsProvider =
 /// Benachrichtigungsintervall für eine bestimmte Org (eigener Member-Doc-Eintrag)
 final orgMessageIntervalProvider =
     StreamProvider.family<MessageAlertInterval, String>((ref, orgId) {
-  ref.watch(authStateProvider);
-  final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = ref.watch(authStateProvider).value?.uid;
   if (uid == null) return Stream.value(MessageAlertInterval.always);
   return FirebaseFirestore.instance
       .collection('organizations')

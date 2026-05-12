@@ -320,6 +320,30 @@ abstract class AppLocalizations {
   /// **'Anmelden'**
   String get signIn;
 
+  /// No description provided for @password.
+  ///
+  /// In de, this message translates to:
+  /// **'Passwort'**
+  String get password;
+
+  /// No description provided for @register.
+  ///
+  /// In de, this message translates to:
+  /// **'Registrieren'**
+  String get register;
+
+  /// No description provided for @noAccount.
+  ///
+  /// In de, this message translates to:
+  /// **'Noch kein Konto? Registrieren'**
+  String get noAccount;
+
+  /// No description provided for @alreadyHaveAccount.
+  ///
+  /// In de, this message translates to:
+  /// **'Bereits ein Konto? Anmelden'**
+  String get alreadyHaveAccount;
+
   /// No description provided for @mobileLinkInstructions.
   ///
   /// In de, this message translates to:

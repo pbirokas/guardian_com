@@ -128,6 +128,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get signIn => 'Sign in';
 
   @override
+  String get password => 'Password';
+
+  @override
+  String get register => 'Register';
+
+  @override
+  String get noAccount => 'No account? Register';
+
+  @override
+  String get alreadyHaveAccount => 'Already have an account? Sign in';
+
+  @override
   String get mobileLinkInstructions =>
       'Open the email and tap the link to sign in.';
 

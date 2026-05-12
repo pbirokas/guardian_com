@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum OrgRole { admin, moderator, member, child }
@@ -82,6 +84,39 @@ class AppUser {
       hideEmail: data['hideEmail'] as bool? ?? false,
     );
   }
+
+  factory AppUser.fromAppwrite(Map<String, dynamic> data) {
+    final membershipsRaw = data['membershipsJson'] as String? ?? '[]';
+    final List<dynamic> decoded = jsonDecode(membershipsRaw);
+    return AppUser(
+      uid: data[r'$id'] as String,
+      email: data['email'] as String,
+      displayName: data['displayName'] as String,
+      photoUrl: data['photoUrl'] as String?,
+      memberships:
+          decoded.map((m) => OrgMembership.fromMap(m as Map<String, dynamic>)).toList(),
+      createdAt: DateTime.parse(data['createdAt'] as String),
+      isChild: data['isChild'] as bool? ?? false,
+      verifiedParentUids:
+          List<String>.from(data['verifiedParentUids'] as List? ?? []),
+      verifiedChildUids:
+          List<String>.from(data['verifiedChildUids'] as List? ?? []),
+      hideEmail: data['hideEmail'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toAppwrite() => {
+        'email': email,
+        'displayName': displayName,
+        if (photoUrl != null) 'photoUrl': photoUrl,
+        'membershipsJson':
+            jsonEncode(memberships.map((m) => m.toMap()).toList()),
+        'createdAt': createdAt.toIso8601String(),
+        'isChild': isChild,
+        'verifiedParentUids': verifiedParentUids,
+        'verifiedChildUids': verifiedChildUids,
+        'hideEmail': hideEmail,
+      };
 
   Map<String, dynamic> toFirestore() => {
         'email': email,

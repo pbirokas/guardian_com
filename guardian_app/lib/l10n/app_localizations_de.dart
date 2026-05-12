@@ -128,6 +128,18 @@ class AppLocalizationsDe extends AppLocalizations {
   String get signIn => 'Anmelden';
 
   @override
+  String get password => 'Passwort';
+
+  @override
+  String get register => 'Registrieren';
+
+  @override
+  String get noAccount => 'Noch kein Konto? Registrieren';
+
+  @override
+  String get alreadyHaveAccount => 'Bereits ein Konto? Anmelden';
+
+  @override
   String get mobileLinkInstructions =>
       'Öffne die E-Mail und tippe auf den Link um dich anzumelden.';
 

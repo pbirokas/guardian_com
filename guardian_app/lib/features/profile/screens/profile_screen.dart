@@ -1,6 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -11,7 +8,6 @@ import '../../../core/providers/locale_provider.dart';
 import '../../../core/providers/scale_provider.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../features/auth/providers/auth_provider.dart';
-import '../../../features/organizations/providers/organizations_provider.dart';
 import '../../../core/widgets/help_sheet.dart';
 import '../../../core/providers/chat_font_size_provider.dart';
 
@@ -31,8 +27,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    final user = FirebaseAuth.instance.currentUser;
-    _nameController = TextEditingController(text: user?.displayName ?? '');
+    final displayName = ref.read(authStateProvider).value?.displayName ?? '';
+    _nameController = TextEditingController(text: displayName);
   }
 
   @override
@@ -66,33 +62,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (name.isEmpty) return;
     setState(() => _saving = true);
     try {
-      final user = FirebaseAuth.instance.currentUser!;
-      String? photoUrl;
-
-      if (_pickedImageBytes != null) {
-        final storageRef = FirebaseStorage.instance
-            .ref()
-            .child('profileImages/${user.uid}');
-        await storageRef.putData(
-          _pickedImageBytes!,
-          SettableMetadata(contentType: 'image/jpeg'),
-        );
-        photoUrl = await storageRef.getDownloadURL();
-        await user.updatePhotoURL(photoUrl);
-      }
-
-      await user.updateDisplayName(name);
-
-      final updates = <String, dynamic>{'displayName': name};
-      if (photoUrl != null) updates['photoUrl'] = photoUrl;
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .update(updates);
-
-      await ref
-          .read(organizationServiceProvider)
-          .updateMyMemberProfile(name, photoUrl: photoUrl);
+      final uid = ref.read(authStateProvider).value!.uid;
+      // TODO Phase 3: Foto-Upload auf Appwrite Storage migrieren
+      await ref.read(authStateProvider.notifier).updateProfile(uid, name);
 
       if (mounted) {
         setState(() => _pickedImageBytes = null);
@@ -116,18 +88,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final user = FirebaseAuth.instance.currentUser;
+    final appUser = ref.watch(authStateProvider).value;
 
     ImageProvider? avatarImage;
     if (_pickedImageBytes != null) {
       avatarImage = MemoryImage(_pickedImageBytes!);
-    } else if (user?.photoURL != null) {
-      avatarImage = NetworkImage(user!.photoURL!);
+    } else if (appUser?.photoUrl != null) {
+      avatarImage = NetworkImage(appUser!.photoUrl!);
     }
 
-    final initials = ((user?.displayName?.isNotEmpty == true
-                ? user!.displayName!
-                : user?.email ?? '?')[0])
+    final initials = ((appUser?.displayName.isNotEmpty == true
+                ? appUser!.displayName
+                : appUser?.email ?? '?')[0])
         .toUpperCase();
 
     return Scaffold(
@@ -224,7 +196,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           const SizedBox(height: 8),
           Center(
             child: Text(
-              user?.email ?? '',
+              appUser?.email ?? '',
               style: const TextStyle(color: Colors.grey),
             ),
           ),
@@ -289,7 +261,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             leading: const Icon(Icons.logout, color: Colors.red),
             title: Text(l.signOut,
                 style: const TextStyle(color: Colors.red)),
-            onTap: () => ref.read(authServiceProvider).signOut(),
+            onTap: () => ref.read(authStateProvider.notifier).signOut(),
           ),
         ],
       ),

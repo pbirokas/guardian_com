@@ -1,0 +1,1772 @@
+{
+    "projectId": "6a02e4160023948ef257",
+    "projectName": "Guardian Com",
+    "settings": {
+        "services": {
+            "account": true,
+            "avatars": true,
+            "databases": true,
+            "locale": true,
+            "health": true,
+            "storage": true,
+            "teams": true,
+            "users": true,
+            "sites": true,
+            "functions": true,
+            "graphql": true,
+            "messaging": true
+        },
+        "protocols": {},
+        "auth": {
+            "methods": {
+                "jwt": true,
+                "phone": true,
+                "invites": true,
+                "anonymous": true,
+                "email-otp": true,
+                "magic-url": true,
+                "email-password": true
+            },
+            "security": {
+                "duration": 31536000,
+                "limit": 0,
+                "sessionsLimit": 10,
+                "passwordHistory": 0,
+                "passwordDictionary": false,
+                "personalDataCheck": false,
+                "sessionAlerts": false,
+                "mockNumbers": []
+            }
+        }
+    },
+    "tablesDB": [
+        {
+            "$id": "guardian",
+            "name": "Guardian",
+            "enabled": true
+        }
+    ],
+    "tables": [
+        {
+            "$id": "users",
+            "$permissions": [],
+            "databaseId": "guardian",
+            "name": "Users",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "email",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 255,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "displayName",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 100,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "photoUrl",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 512,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "isChild",
+                    "type": "boolean",
+                    "required": false,
+                    "array": false,
+                    "default": false
+                },
+                {
+                    "key": "hideEmail",
+                    "type": "boolean",
+                    "required": false,
+                    "array": false,
+                    "default": false
+                },
+                {
+                    "key": "createdAt",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "verifiedParentUids",
+                    "type": "string",
+                    "required": false,
+                    "array": true,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "verifiedChildUids",
+                    "type": "string",
+                    "required": false,
+                    "array": true,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "membershipsJson",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 65535,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "email_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "email"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "isChild_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "isChild"
+                    ],
+                    "orders": []
+                }
+            ]
+        },
+        {
+            "$id": "organizations",
+            "$permissions": [],
+            "databaseId": "guardian",
+            "name": "Organizations",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "name",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 100,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "adminUid",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "tag",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 20,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "memberUids",
+                    "type": "string",
+                    "required": false,
+                    "array": true,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "createdAt",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "isArchived",
+                    "type": "boolean",
+                    "required": false,
+                    "array": false,
+                    "default": false
+                },
+                {
+                    "key": "messageRetentionDays",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": 90,
+                    "min": 30,
+                    "max": 365
+                },
+                {
+                    "key": "keywords",
+                    "type": "string",
+                    "required": false,
+                    "array": true,
+                    "size": 100,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "adminUid_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "adminUid"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "isArchived_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "isArchived"
+                    ],
+                    "orders": []
+                }
+            ]
+        },
+        {
+            "$id": "members",
+            "$permissions": [],
+            "databaseId": "guardian",
+            "name": "Members",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "orgId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "uid",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "displayName",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 100,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "email",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 255,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "photoUrl",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 512,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "role",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 20,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "status",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 20,
+                    "default": "active",
+                    "encrypt": false
+                },
+                {
+                    "key": "joinedAt",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "guardianUids",
+                    "type": "string",
+                    "required": false,
+                    "array": true,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "childAlertInterval",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 20,
+                    "default": "hourly",
+                    "encrypt": false
+                },
+                {
+                    "key": "messageAlertInterval",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 20,
+                    "default": "always",
+                    "encrypt": false
+                },
+                {
+                    "key": "notificationsEnabled",
+                    "type": "boolean",
+                    "required": false,
+                    "array": false,
+                    "default": true
+                },
+                {
+                    "key": "hideEmail",
+                    "type": "boolean",
+                    "required": false,
+                    "array": false,
+                    "default": false
+                },
+                {
+                    "key": "lastChildAlertAtJson",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 4096,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "orgId_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "orgId"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "uid_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "uid"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "orgId_uid_idx",
+                    "type": "unique",
+                    "status": "available",
+                    "columns": [
+                        "orgId",
+                        "uid"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "orgId_role_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "orgId",
+                        "role"
+                    ],
+                    "orders": []
+                }
+            ]
+        },
+        {
+            "$id": "conversations",
+            "$permissions": [],
+            "databaseId": "guardian",
+            "name": "Conversations",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "orgId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "orgAdminUid",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 36,
+                    "default": "",
+                    "encrypt": false
+                },
+                {
+                    "key": "participantUids",
+                    "type": "string",
+                    "required": false,
+                    "array": true,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "requestedBy",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "status",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 20,
+                    "default": "pending",
+                    "encrypt": false
+                },
+                {
+                    "key": "createdAt",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "approvedBy",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "approvedAt",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "lastMessage",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 500,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "lastMessageAt",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "name",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 100,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "imageUrl",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 512,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "isGroup",
+                    "type": "boolean",
+                    "required": false,
+                    "array": false,
+                    "default": false
+                },
+                {
+                    "key": "requestorGuardianUid",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "canApproveUids",
+                    "type": "string",
+                    "required": false,
+                    "array": true,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "guardianUids",
+                    "type": "string",
+                    "required": false,
+                    "array": true,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "pinnedMessageId",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "pinnedMessageText",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 500,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "lastReadAtJson",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 8192,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "personalNamesJson",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 4096,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "orgId_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "orgId"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "status_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "status"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "lastMessageAt_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "lastMessageAt"
+                    ],
+                    "orders": [
+                        "DESC"
+                    ]
+                },
+                {
+                    "key": "orgId_status_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "orgId",
+                        "status"
+                    ],
+                    "orders": []
+                }
+            ]
+        },
+        {
+            "$id": "messages",
+            "$permissions": [],
+            "databaseId": "guardian",
+            "name": "Messages",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "convId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "orgId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "senderUid",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "senderName",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 100,
+                    "default": "",
+                    "encrypt": false
+                },
+                {
+                    "key": "text",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 4096,
+                    "default": "",
+                    "encrypt": false
+                },
+                {
+                    "key": "sentAt",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "imageUrl",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 512,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "audioUrl",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 512,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "audioDurationMs",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
+                },
+                {
+                    "key": "pollId",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "fileUrl",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 512,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "fileName",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 255,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "fileSizeBytes",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
+                },
+                {
+                    "key": "editedAt",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "isArchived",
+                    "type": "boolean",
+                    "required": false,
+                    "array": false,
+                    "default": false
+                },
+                {
+                    "key": "archivedByUid",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "archivedByName",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 100,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "replyToId",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "replyToSenderName",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 100,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "replyToText",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 500,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "type",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 20,
+                    "default": "user",
+                    "encrypt": false
+                },
+                {
+                    "key": "systemEvent",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 50,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "systemActorName",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 100,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "systemTargetName",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 100,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "isGif",
+                    "type": "boolean",
+                    "required": false,
+                    "array": false,
+                    "default": false
+                },
+                {
+                    "key": "deletedAt",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "deletedBy",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "reactionsJson",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 4096,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "convId_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "convId"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "convId_sentAt_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "convId",
+                        "sentAt"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                },
+                {
+                    "key": "senderUid_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "senderUid"
+                    ],
+                    "orders": []
+                }
+            ]
+        },
+        {
+            "$id": "polls",
+            "$permissions": [],
+            "databaseId": "guardian",
+            "name": "Polls",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "convId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "orgId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "question",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 500,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "createdBy",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "createdByName",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 100,
+                    "default": "",
+                    "encrypt": false
+                },
+                {
+                    "key": "createdAt",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "multipleChoice",
+                    "type": "boolean",
+                    "required": false,
+                    "array": false,
+                    "default": false
+                },
+                {
+                    "key": "isClosed",
+                    "type": "boolean",
+                    "required": false,
+                    "array": false,
+                    "default": false
+                },
+                {
+                    "key": "isAnonymous",
+                    "type": "boolean",
+                    "required": false,
+                    "array": false,
+                    "default": false
+                },
+                {
+                    "key": "expiresAt",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "optionsJson",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 8192,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "votesJson",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 65535,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "convId_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "convId"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "isClosed_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "isClosed"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "expiresAt_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "expiresAt"
+                    ],
+                    "orders": []
+                }
+            ]
+        },
+        {
+            "$id": "claim_requests",
+            "$permissions": [],
+            "databaseId": "guardian",
+            "name": "ClaimRequests",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "fromUid",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "fromName",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 100,
+                    "default": "",
+                    "encrypt": false
+                },
+                {
+                    "key": "fromEmail",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 255,
+                    "default": "",
+                    "encrypt": false
+                },
+                {
+                    "key": "toUid",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "toEmail",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 255,
+                    "default": "",
+                    "encrypt": false
+                },
+                {
+                    "key": "status",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 20,
+                    "default": "pending",
+                    "encrypt": false
+                },
+                {
+                    "key": "createdAt",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "expiresAt",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "fromUid_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "fromUid"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "toUid_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "toUid"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "status_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "status"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "expiresAt_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "expiresAt"
+                    ],
+                    "orders": []
+                }
+            ]
+        },
+        {
+            "$id": "scheduled_messages",
+            "$permissions": [],
+            "databaseId": "guardian",
+            "name": "ScheduledMessages",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "convId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "text",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 4096,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "senderUid",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "senderName",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 100,
+                    "default": "",
+                    "encrypt": false
+                },
+                {
+                    "key": "scheduledFor",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "createdAt",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "convId_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "convId"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "scheduledFor_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "scheduledFor"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                },
+                {
+                    "key": "senderUid_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "senderUid"
+                    ],
+                    "orders": []
+                }
+            ]
+        },
+        {
+            "$id": "announcements",
+            "$permissions": [],
+            "databaseId": "guardian",
+            "name": "Announcements",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "orgId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "title",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 200,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "content",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 10000,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "authorUid",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "authorName",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 100,
+                    "default": "",
+                    "encrypt": false
+                },
+                {
+                    "key": "createdAt",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "updatedAt",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "expiresAt",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "type",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 20,
+                    "default": "announcement",
+                    "encrypt": false
+                },
+                {
+                    "key": "eventDate",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "eventEndDate",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "location",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 300,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "rsvpPublic",
+                    "type": "boolean",
+                    "required": false,
+                    "array": false,
+                    "default": false
+                },
+                {
+                    "key": "reactionsJson",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 4096,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "rsvpJson",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 8192,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "orgId_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "orgId"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "type_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "type"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "createdAt_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "createdAt"
+                    ],
+                    "orders": [
+                        "DESC"
+                    ]
+                },
+                {
+                    "key": "expiresAt_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "expiresAt"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "eventDate_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "eventDate"
+                    ],
+                    "orders": []
+                }
+            ]
+        }
+    ],
+    "functions": [
+        {
+            "$id": "on-claim-request",
+            "name": "on-claim-request",
+            "runtime": "node-16.0",
+            "execute": [],
+            "events": [
+                "databases.guardian.collections.claim_requests.documents.*.create"
+            ],
+            "schedule": "",
+            "timeout": 30,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/on-claim-request",
+            "vars": {}
+        },
+        {
+            "$id": "on-claim-confirmed",
+            "name": "on-claim-confirmed",
+            "runtime": "node-16.0",
+            "execute": [],
+            "events": [
+                "databases.guardian.collections.claim_requests.documents.*.update"
+            ],
+            "schedule": "",
+            "timeout": 30,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/on-claim-confirmed",
+            "vars": {}
+        },
+        {
+            "$id": "on-member-guardians-changed",
+            "name": "on-member-guardians-changed",
+            "runtime": "node-16.0",
+            "execute": [],
+            "events": [
+                "databases.guardian.collections.members.documents.*.update"
+            ],
+            "schedule": "",
+            "timeout": 60,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/on-member-guardians-changed",
+            "vars": {}
+        },
+        {
+            "$id": "cleanup-old-messages",
+            "name": "cleanup-old-messages",
+            "runtime": "node-16.0",
+            "execute": [],
+            "events": [],
+            "schedule": "30 3 * * *",
+            "timeout": 300,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/cleanup-old-messages",
+            "vars": {}
+        },
+        {
+            "$id": "cleanup-expired-announcements",
+            "name": "cleanup-expired-announcements",
+            "runtime": "node-16.0",
+            "execute": [],
+            "events": [],
+            "schedule": "0 3 * * *",
+            "timeout": 60,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/cleanup-expired-announcements",
+            "vars": {}
+        },
+        {
+            "$id": "cleanup-expired-polls",
+            "name": "cleanup-expired-polls",
+            "runtime": "node-16.0",
+            "execute": [],
+            "events": [],
+            "schedule": "5 3 * * *",
+            "timeout": 60,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/cleanup-expired-polls",
+            "vars": {}
+        },
+        {
+            "$id": "on-org-admin-transferred",
+            "name": "on-org-admin-transferred",
+            "runtime": "node-16.0",
+            "execute": [],
+            "events": [
+                "databases.guardian.collections.organizations.documents.*.update"
+            ],
+            "schedule": "",
+            "timeout": 60,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/on-org-admin-transferred",
+            "vars": {}
+        },
+        {
+            "$id": "on-new-report",
+            "name": "on-new-report",
+            "runtime": "node-16.0",
+            "execute": [],
+            "events": [
+                "databases.guardian.collections.reports.documents.*.create"
+            ],
+            "schedule": "",
+            "timeout": 30,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/on-new-report",
+            "vars": {}
+        },
+        {
+            "$id": "on-child-org-invite",
+            "name": "on-child-org-invite",
+            "runtime": "node-16.0",
+            "execute": [],
+            "events": [
+                "databases.guardian.collections.org_invite_consents.documents.*.create"
+            ],
+            "schedule": "",
+            "timeout": 30,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/on-child-org-invite",
+            "vars": {}
+        },
+        {
+            "$id": "on-new-announcement",
+            "name": "on-new-announcement",
+            "runtime": "node-16.0",
+            "execute": [],
+            "events": [
+                "databases.guardian.collections.announcements.documents.*.create"
+            ],
+            "schedule": "",
+            "timeout": 30,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/on-new-announcement",
+            "vars": {}
+        },
+        {
+            "$id": "on-new-conversation-request",
+            "name": "on-new-conversation-request",
+            "runtime": "node-16.0",
+            "execute": [],
+            "events": [
+                "databases.guardian.collections.conversations.documents.*.create"
+            ],
+            "schedule": "",
+            "timeout": 30,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/on-new-conversation-request",
+            "vars": {}
+        },
+        {
+            "$id": "on-parent-consent",
+            "name": "on-parent-consent",
+            "runtime": "node-16.0",
+            "execute": [],
+            "events": [
+                "databases.guardian.collections.org_invite_consents.documents.*.update"
+            ],
+            "schedule": "",
+            "timeout": 30,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/on-parent-consent",
+            "vars": {}
+        },
+        {
+            "$id": "on-new-invitation",
+            "name": "on-new-invitation",
+            "runtime": "node-16.0",
+            "execute": [],
+            "events": [
+                "databases.guardian.collections.invitations.documents.*.create"
+            ],
+            "schedule": "",
+            "timeout": 30,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/on-new-invitation",
+            "vars": {}
+        },
+        {
+            "$id": "on-poll-vote",
+            "name": "on-poll-vote",
+            "runtime": "node-16.0",
+            "execute": [],
+            "events": [
+                "databases.guardian.collections.polls.documents.*.update"
+            ],
+            "schedule": "",
+            "timeout": 30,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/on-poll-vote",
+            "vars": {}
+        },
+        {
+            "$id": "on-new-message",
+            "name": "on-new-message",
+            "runtime": "node-16.0",
+            "execute": [],
+            "events": [
+                "databases.guardian.collections.messages.documents.*.create"
+            ],
+            "schedule": "",
+            "timeout": 60,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/on-new-message",
+            "vars": {}
+        },
+        {
+            "$id": "get-child-summary",
+            "name": "get-child-summary",
+            "runtime": "node-16.0",
+            "execute": ["users"],
+            "events": [],
+            "schedule": "",
+            "timeout": 60,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/get-child-summary",
+            "vars": {}
+        },
+        {
+            "$id": "process-my-invitations",
+            "name": "process-my-invitations",
+            "runtime": "node-16.0",
+            "execute": ["users"],
+            "events": [],
+            "schedule": "",
+            "timeout": 60,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/process-my-invitations",
+            "vars": {}
+        }
+    ],
+    "buckets": [
+        {
+            "$id": "6a02e524000954c9f1de",
+            "$permissions": [],
+            "fileSecurity": false,
+            "name": "media",
+            "enabled": true,
+            "maximumFileSize": 30000000,
+            "allowedFileExtensions": [],
+            "compression": "none",
+            "encryption": true,
+            "antivirus": true
+        }
+    ]
+}

@@ -61,5 +61,11 @@ ui-debug.log
 guardian_app/lib/firebase_options.dart
 guardian_app/android/key.properties
 
+# Appwrite
+appwrite/node_modules/
+appwrite/functions/**/node_modules/
+appwrite/functions/**/.appwrite/
+# appwrite/.env ist bereits durch .env-Regel oben abgedeckt
+
 # Claude Code
 .claude/settings.local.json

@@ -1,0 +1,39 @@
+#cloud-config
+
+# Grundlegendes Server-Setup für Appwrite auf Ubuntu 24.04
+# Dieses Script läuft einmalig beim ersten Boot.
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - curl
+  - git
+  - ufw
+  - fail2ban
+  - unattended-upgrades
+
+runcmd:
+  # ── Firewall ────────────────────────────────────────────────────────────────
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow ssh
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw --force enable
+
+  # ── Docker installieren (Appwrite-Voraussetzung) ─────────────────────────
+  - curl -fsSL https://get.docker.com | sh
+  - systemctl enable docker
+  - systemctl start docker
+
+  # ── Appwrite installieren ────────────────────────────────────────────────
+  - docker run -it --rm --publish 20080:20080 --volume /var/run/docker.sock:/var/run/docker.sock --volume "$(pwd)"/appwrite:/usr/src/code/appwrite:rw --entrypoint="install" appwrite/appwrite:1.9.0
+
+  # ── Automatische Sicherheitsupdates aktivieren ───────────────────────────
+  - systemctl enable unattended-upgrades
+  - systemctl start unattended-upgrades
+
+  # ── fail2ban aktivieren (Brute-Force-Schutz) ─────────────────────────────
+  - systemctl enable fail2ban
+  - systemctl start fail2ban

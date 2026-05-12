@@ -1,4 +1,4 @@
-const { Client, Databases, Users, Query } = require('node-appwrite');
+const { Client, Databases, Users, Query, Permission, Role } = require('node-appwrite');
 
 const DB_ID = 'guardian';
 const COL_USERS = 'users';
@@ -93,7 +93,10 @@ module.exports = async ({ req, res, log, error }) => {
     };
     if (userData?.photoUrl) memberData.photoUrl = userData.photoUrl;
 
-    await db.createDocument(DB_ID, COL_MEMBERS, memberId, memberData);
+    await db.createDocument(DB_ID, COL_MEMBERS, memberId, memberData, [
+      Permission.read(Role.user(uid)),
+      Permission.update(Role.user(uid)),
+    ]);
 
     if (!isChild) {
       // Zu org.memberUids hinzufügen (manuelles arrayUnion)

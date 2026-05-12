@@ -33,6 +33,13 @@ module.exports = async ({ req, res, log, error }) => {
     return res.empty();
   }
 
+  // Vuln 4 fix: only the child (toUid) may confirm their own claim request.
+  const requestingUid = req.headers['x-appwrite-user-id'];
+  if (!requestingUid || requestingUid !== childUid) {
+    error(`Unauthorized: requester=${requestingUid || 'none'} expected toUid=${childUid}`);
+    return res.empty();
+  }
+
   // Idempotenz-Check: falls Verknüpfung bereits besteht, überspringen
   const childUserResult = await db.listDocuments(DB_ID, COL_USERS, [
     Query.equal('$id', childUid),

@@ -54,7 +54,7 @@ export const COL = {
 async function createCollection(id, name, permissions = []) {
   if (DRY_RUN) { console.log(`[DRY] createCollection: ${id}`); return; }
   try {
-    await db.createCollection(DB_ID, id, name, permissions);
+    await db.createCollection(DB_ID, id, name, permissions, true);
     console.log(`✓ Collection: ${id}`);
   } catch (e) {
     if (e.code === 409) console.log(`~ Collection exists: ${id}`);

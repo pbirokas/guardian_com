@@ -1,19 +1,23 @@
-import 'dart:async' show unawaited;
+import 'dart:async';
+import 'dart:convert';
 
 import 'package:appwrite/appwrite.dart';
 import 'package:appwrite/models.dart' as aw;
 import '../models/app_user.dart';
+import '../models/notification_settings.dart';
 import 'notification_service.dart';
 
 class AuthService {
   AuthService(Client client)
       : _account = Account(client),
         _db = Databases(client),
-        _functions = Functions(client);
+        _functions = Functions(client),
+        _realtime = Realtime(client);
 
   final Account _account;
   final Databases _db;
   final Functions _functions;
+  final Realtime _realtime;
 
   static const _dbId = 'guardian';
   static const _colUsers = 'users';
@@ -67,7 +71,7 @@ class AuthService {
   Future<AppUser> _afterAuth(aw.User account) async {
     final user = await _getOrCreateUserDoc(account);
     unawaited(_callProcessMyInvitations());
-    await NotificationService().initialize();
+    await NotificationService().initialize(_db, account.$id);
     return user;
   }
 
@@ -101,6 +105,49 @@ class AuthService {
       );
       return AppUser.fromAppwrite({r'$id': doc.$id, ...doc.data});
     }
+  }
+
+  Stream<NotificationSettings> watchNotificationSettings(String uid) {
+    late StreamController<NotificationSettings> ctrl;
+    RealtimeSubscription? sub;
+
+    Future<void> reload() async {
+      if (ctrl.isClosed) return;
+      try {
+        final doc = await _db.getDocument(
+          databaseId: _dbId,
+          collectionId: _colUsers,
+          documentId: uid,
+        );
+        final raw = doc.data['notificationSettingsJson'] as String?;
+        final map = raw != null ? jsonDecode(raw) as Map<String, dynamic>? : null;
+        if (!ctrl.isClosed) ctrl.add(NotificationSettings.fromMap(map));
+      } catch (_) {
+        if (!ctrl.isClosed) ctrl.add(const NotificationSettings());
+      }
+    }
+
+    void dispose() {
+      sub?.close();
+      ctrl.close();
+    }
+
+    ctrl = StreamController(onCancel: dispose);
+    sub = _realtime.subscribe(
+        ['databases.$_dbId.collections.$_colUsers.documents.$uid']);
+    sub.stream.listen((_) => reload(), onDone: dispose, onError: (_) {});
+    reload();
+    return ctrl.stream;
+  }
+
+  Future<void> saveNotificationSettings(
+      String uid, NotificationSettings settings) async {
+    await _db.updateDocument(
+      databaseId: _dbId,
+      collectionId: _colUsers,
+      documentId: uid,
+      data: {'notificationSettingsJson': jsonEncode(settings.toMap())},
+    );
   }
 
   Future<void> _callProcessMyInvitations() async {

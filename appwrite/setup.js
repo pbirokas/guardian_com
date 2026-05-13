@@ -125,8 +125,9 @@ async function setupUsers() {
   await str(COL.USERS,  'verifiedChildUids',  36,  false, null, true);
   // memberships: Array von OrgMembership-Objekten → als JSON-String gespeichert
   // (orgId, role, supervisorId — zu komplex für flat attributes)
-  await str(COL.USERS,  'membershipsJson',    65535);
-  await str(COL.USERS,  'fcmToken',          512);
+  await str(COL.USERS,  'membershipsJson',         65535);
+  await str(COL.USERS,  'notificationSettingsJson', 1024);
+  await str(COL.USERS,  'fcmToken',                 512);
   // Indexes
   await idx(COL.USERS, 'email_idx',      'key',      ['email']);
   await idx(COL.USERS, 'isChild_idx',    'key',      ['isChild']);
@@ -352,12 +353,17 @@ async function setupOrgInviteConsents() {
   await str('org_invite_consents', 'orgId',                36,  true);
   await str('org_invite_consents', 'orgName',              100, false, '');
   await str('org_invite_consents', 'invitedByUid',         36);
+  await str('org_invite_consents', 'invitedByName',        100, false, '');
   await str('org_invite_consents', 'parentUids',           36,  false, null, true);
   await str('org_invite_consents', 'proposedGuardianUids', 36,  false, null, true);
+  await str('org_invite_consents', 'approvedBy',           36);
+  await str('org_invite_consents', 'vetoedBy',             36);
   await str('org_invite_consents', 'status',               20,  false, 'pending');
   await dt('org_invite_consents',  'createdAt',            true);
-  await idx('org_invite_consents', 'childUid_idx', 'key', ['childUid']);
-  await idx('org_invite_consents', 'status_idx',   'key', ['status']);
+  await dt('org_invite_consents',  'expiresAt',            false);
+  await idx('org_invite_consents', 'childUid_idx',   'key', ['childUid']);
+  await idx('org_invite_consents', 'status_idx',     'key', ['status']);
+  await idx('org_invite_consents', 'parentUids_idx', 'key', ['parentUids']);
 }
 
 async function setupReports() {

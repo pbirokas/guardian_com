@@ -6,3 +6,11 @@ final appwriteClientProvider = Provider<Client>((ref) {
       .setEndpoint('https://appwrite.guardian-com.de/v1')
       .setProject('6a02e4160023948ef257');
 });
+
+final appwriteRealtimeProvider = Provider<Realtime>((ref) {
+  return Realtime(ref.watch(appwriteClientProvider));
+});
+
+final appwriteStorageProvider = Provider<Storage>((ref) {
+  return Storage(ref.watch(appwriteClientProvider));
+});

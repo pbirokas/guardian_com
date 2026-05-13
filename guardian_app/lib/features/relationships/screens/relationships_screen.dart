@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -74,16 +73,11 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
         [];
 
     if (affectedMemberships.isNotEmpty) {
-      // Fetch org names for the warning dialog
-      final db = FirebaseFirestore.instance;
-      final orgDocs = await Future.wait(
-        affectedMemberships.map((m) =>
-            db.collection('organizations').doc(m.orgId).get()),
-      );
-      final orgNames = orgDocs
-          .where((d) => d.exists)
-          .map((d) =>
-              (d.data() as Map<String, dynamic>)['name'] as String? ?? d.id)
+      // Resolve org names from already-loaded provider (no extra network call)
+      final myOrgs = ref.read(myOrganizationsProvider).value ?? [];
+      final orgNames = affectedMemberships
+          .map((m) =>
+              myOrgs.where((o) => o.id == m.orgId).firstOrNull?.name ?? m.orgId)
           .toList();
 
       if (!mounted) return;

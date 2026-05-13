@@ -1,8 +1,9 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io' show Platform;
 import 'dart:typed_data';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:appwrite/appwrite.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
@@ -12,16 +13,31 @@ import '../models/poll.dart';
 import '../models/scheduled_message.dart';
 
 class ChatService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  ChatService({
+    required Client client,
+    required String uid,
+    required String displayName,
+  })  : _db = Databases(client),
+        _realtime = Realtime(client),
+        _uid = uid,
+        _displayName = displayName;
 
-  String get _uid => _auth.currentUser!.uid;
+  final Databases _db;
+  final Realtime _realtime;
+  final String _uid;
+  final String _displayName;
+
+  static const _dbId = 'guardian';
+  static const _colConvs = 'conversations';
+  static const _colMessages = 'messages';
+  static const _colPolls = 'polls';
+  static const _colScheduled = 'scheduled_messages';
+  static const _colMembers = 'members';
+  static const _colOrgs = 'organizations';
+  static const _colReports = 'reports';
 
   static bool get _isDesktop =>
       !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
-
-  String get _senderName =>
-      _auth.currentUser!.displayName ?? 'Unbekannt';
 
   static int _byLastMessageDesc(Conversation a, Conversation b) {
     if (a.lastMessageAt == null) return 1;
@@ -29,102 +45,239 @@ class ChatService {
     return b.lastMessageAt!.compareTo(a.lastMessageAt!);
   }
 
-  /// Swallows Firestore permission-denied errors on a stream so non-admins
-  /// get an empty list instead of an exception propagating to the UI.
-  Stream<T> _swallowPermissionDenied<T>(Stream<T> stream) =>
-      stream.handleError(
-        (_) {},
-        test: (e) => e is FirebaseException && e.code == 'permission-denied',
-      );
+  // ── Realtime helpers ───────────────────────────────────────────────────────
 
-  void _updateLastMessage(WriteBatch batch, String convId, String preview) {
-    batch.update(_db.collection('conversations').doc(convId), {
-      'lastMessage': preview,
-      'lastMessageAt': Timestamp.fromDate(DateTime.now()),
-    });
-  }
+  Stream<List<T>> _watchQuery<T>(
+    String collectionId,
+    T Function(Map<String, dynamic>) fromDoc,
+    List<String> queries,
+    int Function(T, T)? sort,
+  ) {
+    late StreamController<List<T>> ctrl;
+    RealtimeSubscription? sub;
 
-  Future<String> _getOrgAdminUid(String orgId) async {
-    final doc = await _db.collection('organizations').doc(orgId).get();
-    return doc.data()!['adminUid'] as String;
-  }
-
-  /// Erstellt die Listen für canApproveUids (Admin + Moderatoren) und guardianUids (Guardians der Kind-Teilnehmer)
-  Future<({List<String> canApproveUids, List<String> guardianUids})>
-      _buildSupervisorUids(
-          String orgId, List<String> participantUids) async {
-    final orgAdminUid = await _getOrgAdminUid(orgId);
-
-    final moderatorsSnap = await _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('members')
-        .where('role', isEqualTo: 'moderator')
-        .get();
-    final moderatorUids = moderatorsSnap.docs.map((d) => d.id).toList();
-
-    // Guardians aller Kind-Teilnehmer ermitteln
-    final guardianUids = <String>[];
-    for (final uid in participantUids) {
-      final memberDoc = await _db
-          .collection('organizations')
-          .doc(orgId)
-          .collection('members')
-          .doc(uid)
-          .get();
-      final data = memberDoc.data();
-      if (data == null) continue;
-      // Support both legacy singular field and current plural list
-      final singular = data['guardianUid'] as String?;
-      final plural = List<String>.from(data['guardianUids'] as List? ?? []);
-      final allGuardians = {singular, ...plural}.whereType<String>();
-      for (final g in allGuardians) {
-        if (!guardianUids.contains(g)) guardianUids.add(g);
+    Future<void> reload() async {
+      if (ctrl.isClosed) return;
+      try {
+        final result = await _db.listDocuments(
+          databaseId: _dbId,
+          collectionId: collectionId,
+          queries: [...queries, Query.limit(500)],
+        );
+        var items = result.documents
+            .map((d) => fromDoc({r'$id': d.$id, ...d.data}))
+            .toList();
+        if (sort != null) items.sort(sort);
+        if (!ctrl.isClosed) ctrl.add(items);
+      } catch (e) {
+        if (!ctrl.isClosed) ctrl.addError(e);
       }
     }
 
-    return (
-      canApproveUids: {orgAdminUid, ...moderatorUids}.toList(),
-      guardianUids: guardianUids,
+    void dispose() {
+      sub?.close();
+      ctrl.close();
+    }
+
+    ctrl = StreamController(onCancel: dispose);
+    sub = _realtime
+        .subscribe(['databases.$_dbId.collections.$collectionId.documents']);
+    sub.stream.listen((_) => reload(), onDone: dispose, onError: (_) {});
+    reload();
+    return ctrl.stream;
+  }
+
+  Stream<T?> _watchDocument<T>(
+    String collectionId,
+    String docId,
+    T Function(Map<String, dynamic>) fromDoc,
+  ) {
+    late StreamController<T?> ctrl;
+    RealtimeSubscription? sub;
+
+    Future<void> reload() async {
+      if (ctrl.isClosed) return;
+      try {
+        final doc = await _db.getDocument(
+            databaseId: _dbId,
+            collectionId: collectionId,
+            documentId: docId);
+        if (!ctrl.isClosed) {
+          ctrl.add(fromDoc({r'$id': doc.$id, ...doc.data}));
+        }
+      } on AppwriteException catch (e) {
+        if (e.code == 404) {
+          if (!ctrl.isClosed) ctrl.add(null);
+        } else {
+          if (!ctrl.isClosed) ctrl.addError(e);
+        }
+      }
+    }
+
+    void dispose() {
+      sub?.close();
+      ctrl.close();
+    }
+
+    ctrl = StreamController(onCancel: dispose);
+    sub = _realtime.subscribe(
+        ['databases.$_dbId.collections.$collectionId.documents.$docId']);
+    sub.stream.listen((_) => reload(), onDone: dispose, onError: (_) {});
+    reload();
+    return ctrl.stream;
+  }
+
+  // ── Konversations-Abfragen ─────────────────────────────────────────────────
+
+  Stream<List<Conversation>> watchOrgConversations(String orgId) {
+    return _watchQuery(
+      _colConvs,
+      Conversation.fromAppwrite,
+      [Query.contains('participantUids', [_uid]), Query.equal('orgId', orgId)],
+      _byLastMessageDesc,
     );
   }
 
-  /// Guardian-Modus: Anfrage stellen
+  Stream<List<Conversation>> watchAllMyApprovedConversations() {
+    return _watchQuery(
+      _colConvs,
+      Conversation.fromAppwrite,
+      [
+        Query.contains('participantUids', [_uid]),
+        Query.equal('status', 'approved'),
+      ],
+      _byLastMessageDesc,
+    );
+  }
+
+  Stream<List<Conversation>> watchAdminConversations(String orgId) {
+    return _watchQuery(
+      _colConvs,
+      Conversation.fromAppwrite,
+      [Query.equal('orgId', orgId)],
+      _byLastMessageDesc,
+    );
+  }
+
+  Stream<List<Conversation>> watchPendingRequests(String orgId) {
+    return _watchQuery(
+      _colConvs,
+      Conversation.fromAppwrite,
+      [Query.equal('orgId', orgId), Query.equal('status', 'pending')],
+      null,
+    );
+  }
+
+  Stream<List<Conversation>> watchModeratorPendingRequests(String orgId) {
+    return _watchQuery(
+      _colConvs,
+      Conversation.fromAppwrite,
+      [
+        Query.contains('canApproveUids', [_uid]),
+        Query.equal('orgId', orgId),
+        Query.equal('status', 'pending'),
+      ],
+      null,
+    );
+  }
+
+  Stream<List<Conversation>> watchGuardianPendingRequests(String orgId) {
+    return _watchQuery(
+      _colConvs,
+      Conversation.fromAppwrite,
+      [
+        Query.contains('guardianUids', [_uid]),
+        Query.equal('orgId', orgId),
+        Query.equal('status', 'pending'),
+      ],
+      null,
+    ).map((list) => list.where((c) => c.orgAdminUid != _uid).toList());
+  }
+
+  Stream<List<Conversation>> watchSupervisorConversations(String orgId) {
+    return _watchQuery(
+      _colConvs,
+      Conversation.fromAppwrite,
+      [
+        Query.contains('canApproveUids', [_uid]),
+        Query.equal('orgId', orgId),
+        Query.equal('status', 'approved'),
+      ],
+      _byLastMessageDesc,
+    ).map((list) =>
+        list.where((c) => !c.participantUids.contains(_uid)).toList());
+  }
+
+  Stream<List<Conversation>> watchGuardianSupervisorConversations(
+      String orgId) {
+    return _watchQuery(
+      _colConvs,
+      Conversation.fromAppwrite,
+      [
+        Query.contains('guardianUids', [_uid]),
+        Query.equal('orgId', orgId),
+        Query.equal('status', 'approved'),
+      ],
+      _byLastMessageDesc,
+    );
+  }
+
+  Stream<List<Conversation>> watchShelteredModeratorConversations(
+      String orgId, String adminUid) {
+    return _watchQuery(
+      _colConvs,
+      Conversation.fromAppwrite,
+      [
+        Query.equal('orgId', orgId),
+        Query.equal('orgAdminUid', adminUid),
+        Query.equal('status', 'approved'),
+      ],
+      _byLastMessageDesc,
+    ).map((list) =>
+        list.where((c) => !c.participantUids.contains(_uid)).toList());
+  }
+
+  Stream<Conversation?> watchConversation(String convId) {
+    return _watchDocument(_colConvs, convId, Conversation.fromAppwrite);
+  }
+
+  // ── Konversations-Aktionen ─────────────────────────────────────────────────
+
   Future<Conversation> requestConversation(
       String orgId, String targetUid) async {
-    final existing = await _db
-        .collection('conversations')
-        .where('participantUids', arrayContains: _uid)
-        .get();
-
-    for (final doc in existing.docs) {
-      final conv = Conversation.fromFirestore(doc);
-      if (conv.orgId == orgId && conv.participantUids.contains(targetUid)) {
-        // Abgelehnte oder archivierte Einträge ignorieren — neue Anfrage erlauben
-        if (conv.status == ConversationStatus.rejected ||
-            conv.status == ConversationStatus.archived) {
-          continue;
-        }
+    final existing = await _db.listDocuments(
+      databaseId: _dbId,
+      collectionId: _colConvs,
+      queries: [
+        Query.contains('participantUids', [_uid]),
+        Query.equal('orgId', orgId),
+        Query.limit(100),
+      ],
+    );
+    for (final doc in existing.documents) {
+      final conv = Conversation.fromAppwrite({r'$id': doc.$id, ...doc.data});
+      if (conv.participantUids.contains(targetUid) &&
+          conv.status != ConversationStatus.rejected &&
+          conv.status != ConversationStatus.archived) {
         throw Exception('Eine Konversation mit dieser Person existiert bereits.');
       }
     }
 
-    // Guardian des Antragstellers ermitteln (für requestorGuardianUid)
-    final memberDoc = await _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('members')
-        .doc(_uid)
-        .get();
-    final guardianUid = memberDoc.data()?['guardianUid'] as String?;
+    final memberDoc = await _safeGetDocument(
+        _colMembers, '${orgId}_$_uid');
+    final guardianUid = memberDoc?.data['guardianUids'] is List &&
+            (memberDoc!.data['guardianUids'] as List).isNotEmpty
+        ? (memberDoc.data['guardianUids'] as List).first as String?
+        : null;
 
-    final orgAdminUid = await _getOrgAdminUid(orgId);
-    final supervisors =
-        await _buildSupervisorUids(orgId, [_uid, targetUid]);
+    final orgDoc = await _db.getDocument(
+        databaseId: _dbId, collectionId: _colOrgs, documentId: orgId);
+    final orgAdminUid = orgDoc.data['adminUid'] as String;
+    final supervisors = await _buildSupervisorUids(orgId, [_uid, targetUid]);
 
-    final ref = _db.collection('conversations').doc();
+    final convId = ID.unique();
     final conv = Conversation(
-      id: ref.id,
+      id: convId,
       orgId: orgId,
       orgAdminUid: orgAdminUid,
       participantUids: [_uid, targetUid],
@@ -135,33 +288,46 @@ class ChatService {
       canApproveUids: supervisors.canApproveUids,
       guardianUids: supervisors.guardianUids,
     );
-    await ref.set(conv.toFirestore());
+    await _db.createDocument(
+      databaseId: _dbId,
+      collectionId: _colConvs,
+      documentId: convId,
+      data: conv.toAppwrite(),
+      permissions: [
+        Permission.read(Role.users()),
+        Permission.update(Role.users()),
+      ],
+    );
     return conv;
   }
 
-  /// Sheltered-Modus: Admin erstellt Verbindung direkt (sofort approved)
   Future<Conversation> createApprovedConversation(
       String orgId, String targetUid) async {
-    final existing = await _db
-        .collection('conversations')
-        .where('participantUids', arrayContains: _uid)
-        .get();
-
-    for (final doc in existing.docs) {
-      final conv = Conversation.fromFirestore(doc);
-      if (conv.orgId == orgId &&
-          conv.participantUids.contains(targetUid) &&
-          !conv.isGroup) {
+    final existing = await _db.listDocuments(
+      databaseId: _dbId,
+      collectionId: _colConvs,
+      queries: [
+        Query.contains('participantUids', [_uid]),
+        Query.equal('orgId', orgId),
+        Query.limit(100),
+      ],
+    );
+    for (final doc in existing.documents) {
+      final conv = Conversation.fromAppwrite({r'$id': doc.$id, ...doc.data});
+      if (conv.participantUids.contains(targetUid) && !conv.isGroup) {
         return conv;
       }
     }
 
-    final orgAdminUid = await _getOrgAdminUid(orgId);
+    final orgDoc = await _db.getDocument(
+        databaseId: _dbId, collectionId: _colOrgs, documentId: orgId);
+    final orgAdminUid = orgDoc.data['adminUid'] as String;
     final supervisors =
         await _buildSupervisorUids(orgId, [_uid, targetUid]);
-    final ref = _db.collection('conversations').doc();
+
+    final convId = ID.unique();
     final conv = Conversation(
-      id: ref.id,
+      id: convId,
       orgId: orgId,
       orgAdminUid: orgAdminUid,
       participantUids: [_uid, targetUid],
@@ -173,12 +339,218 @@ class ChatService {
       canApproveUids: supervisors.canApproveUids,
       guardianUids: supervisors.guardianUids,
     );
-    await ref.set(conv.toFirestore());
+    await _db.createDocument(
+      databaseId: _dbId,
+      collectionId: _colConvs,
+      documentId: convId,
+      data: conv.toAppwrite(),
+      permissions: [
+        Permission.read(Role.users()),
+        Permission.update(Role.users()),
+      ],
+    );
     return conv;
   }
 
+  Future<Conversation> createGroupChat(
+      String orgId, String name, List<String> memberUids) async {
+    final orgDoc = await _db.getDocument(
+        databaseId: _dbId, collectionId: _colOrgs, documentId: orgId);
+    final orgAdminUid = orgDoc.data['adminUid'] as String;
+    final supervisors = await _buildSupervisorUids(orgId, memberUids);
+
+    final convId = ID.unique();
+    final conv = Conversation(
+      id: convId,
+      orgId: orgId,
+      orgAdminUid: orgAdminUid,
+      participantUids: memberUids,
+      requestedBy: _uid,
+      status: ConversationStatus.approved,
+      createdAt: DateTime.now(),
+      approvedBy: _uid,
+      approvedAt: DateTime.now(),
+      name: name,
+      isGroup: true,
+      canApproveUids: supervisors.canApproveUids,
+      guardianUids: supervisors.guardianUids,
+    );
+    await _db.createDocument(
+      databaseId: _dbId,
+      collectionId: _colConvs,
+      documentId: convId,
+      data: conv.toAppwrite(),
+      permissions: [
+        Permission.read(Role.users()),
+        Permission.update(Role.users()),
+      ],
+    );
+    return conv;
+  }
+
+  Future<void> approveConversation(String convId) async {
+    await _db.updateDocument(
+      databaseId: _dbId,
+      collectionId: _colConvs,
+      documentId: convId,
+      data: {
+        'status': ConversationStatus.approved.name,
+        'approvedBy': _uid,
+        'approvedAt': DateTime.now().toIso8601String(),
+      },
+    );
+  }
+
+  Future<void> rejectConversation(String convId) async {
+    await _db.deleteDocument(
+        databaseId: _dbId, collectionId: _colConvs, documentId: convId);
+  }
+
+  Future<void> archiveConversation(String convId) async {
+    await _db.updateDocument(
+      databaseId: _dbId,
+      collectionId: _colConvs,
+      documentId: convId,
+      data: {'status': ConversationStatus.archived.name},
+    );
+  }
+
+  Future<void> deleteConversation(String convId) async {
+    // Nachrichten löschen (in Batches à 100)
+    while (true) {
+      final msgs = await _db.listDocuments(
+        databaseId: _dbId,
+        collectionId: _colMessages,
+        queries: [Query.equal('convId', convId), Query.limit(100)],
+      );
+      if (msgs.documents.isEmpty) break;
+      for (final doc in msgs.documents) {
+        await _db.deleteDocument(
+            databaseId: _dbId,
+            collectionId: _colMessages,
+            documentId: doc.$id);
+      }
+    }
+    await _db.deleteDocument(
+        databaseId: _dbId, collectionId: _colConvs, documentId: convId);
+  }
+
   Future<void> renameConversation(String convId, String name) async {
-    await _db.collection('conversations').doc(convId).update({'name': name.trim()});
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colConvs,
+        documentId: convId,
+        data: {'name': name.trim()});
+  }
+
+  Future<void> markAsRead(String convId) async {
+    final doc = await _db.getDocument(
+        databaseId: _dbId, collectionId: _colConvs, documentId: convId);
+    final conv = Conversation.fromAppwrite({r'$id': doc.$id, ...doc.data});
+    final lastReadAt = Map<String, String>.from(
+      conv.lastReadAt.map((k, v) => MapEntry(k, v.toIso8601String())),
+    );
+    lastReadAt[_uid] = DateTime.now().toIso8601String();
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colConvs,
+        documentId: convId,
+        data: {'lastReadAtJson': jsonEncode(lastReadAt)});
+  }
+
+  Future<void> setPersonalName(String convId, String name) async {
+    final doc = await _db.getDocument(
+        databaseId: _dbId, collectionId: _colConvs, documentId: convId);
+    final conv = Conversation.fromAppwrite({r'$id': doc.$id, ...doc.data});
+    final names = Map<String, String>.from(conv.personalNames);
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) {
+      names.remove(_uid);
+    } else {
+      names[_uid] = trimmed;
+    }
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colConvs,
+        documentId: convId,
+        data: {'personalNamesJson': jsonEncode(names)});
+  }
+
+  Future<void> pinMessage(String convId, String msgId, String text) async {
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colConvs,
+        documentId: convId,
+        data: {
+          'pinnedMessageId': msgId,
+          'pinnedMessageText':
+              text.length > 120 ? '${text.substring(0, 120)}…' : text,
+        });
+  }
+
+  Future<void> unpinMessage(String convId) async {
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colConvs,
+        documentId: convId,
+        data: {'pinnedMessageId': null, 'pinnedMessageText': null});
+  }
+
+  Future<void> setTyping(String convId, bool isTyping) async {
+    // Typing-Indikator ist in Appwrite realtime-only — nicht in DB persistiert
+  }
+
+  // ── Gruppen-Chat Mitglieder ────────────────────────────────────────────────
+
+  Future<void> removeMemberFromConversation(
+      String convId, String memberUid, {String memberName = ''}) async {
+    final doc = await _db.getDocument(
+        databaseId: _dbId, collectionId: _colConvs, documentId: convId);
+    final conv = Conversation.fromAppwrite({r'$id': doc.$id, ...doc.data});
+    final newUids = conv.participantUids.where((u) => u != memberUid).toList();
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colConvs,
+        documentId: convId,
+        data: {'participantUids': newUids});
+    if (memberName.isNotEmpty) {
+      await _postSystemMessage(convId, 'memberRemoved', memberName);
+    }
+  }
+
+  Future<void> addMembersToConversation(
+      String convId, String orgId, List<String> newMemberUids) async {
+    final doc = await _db.getDocument(
+        databaseId: _dbId, collectionId: _colConvs, documentId: convId);
+    final conv = Conversation.fromAppwrite({r'$id': doc.$id, ...doc.data});
+
+    final newGuardianUids = <String>[];
+    final addedNames = <String>[];
+    for (final uid in newMemberUids) {
+      final memberDoc =
+          await _safeGetDocument(_colMembers, '${orgId}_$uid');
+      if (memberDoc == null) continue;
+      final guardians = List<String>.from(
+          memberDoc.data['guardianUids'] as List? ?? []);
+      newGuardianUids.addAll(guardians);
+      final name = memberDoc.data['displayName'] as String? ?? '';
+      if (name.isNotEmpty) addedNames.add(name);
+    }
+
+    final updatedUids = {...conv.participantUids, ...newMemberUids}.toList();
+    final updatedGuardians =
+        {...conv.guardianUids, ...newGuardianUids}.toList();
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colConvs,
+        documentId: convId,
+        data: {
+          'participantUids': updatedUids,
+          'guardianUids': updatedGuardians,
+        });
+    for (final name in addedNames) {
+      await _postSystemMessage(convId, 'memberAdded', name);
+    }
   }
 
   Future<String> uploadGroupImage(String convId, Uint8List bytes) async {
@@ -189,8 +561,12 @@ class ChatService {
       quality: 80,
       format: CompressFormat.jpeg,
     );
-    final ref = FirebaseStorage.instance.ref().child('groupImages/$convId/avatar');
-    await ref.putData(compressed, SettableMetadata(contentType: 'image/jpeg'));
+    // TODO(vuln6): migrate to Appwrite Storage once media bucket is secured
+    final ref = FirebaseStorage.instance
+        .ref()
+        .child('groupImages/$convId/avatar');
+    await ref.putData(compressed,
+        SettableMetadata(contentType: 'image/jpeg'));
     try {
       return await ref.getDownloadURL();
     } catch (e) {
@@ -208,71 +584,29 @@ class ChatService {
     final updates = <String, dynamic>{};
     if (name != null) updates['name'] = name.trim();
     if (imageUrl != null) updates['imageUrl'] = imageUrl;
-    if (removeImage) updates['imageUrl'] = FieldValue.delete();
+    if (removeImage) updates['imageUrl'] = null;
     if (updates.isNotEmpty) {
-      await _db.collection('conversations').doc(convId).update(updates);
+      await _db.updateDocument(
+          databaseId: _dbId,
+          collectionId: _colConvs,
+          documentId: convId,
+          data: updates);
     }
   }
 
-  Future<void> setPersonalName(String convId, String name) async {
-    final trimmed = name.trim();
-    await _db.collection('conversations').doc(convId).update({
-      'personalNames.$_uid': trimmed.isEmpty ? FieldValue.delete() : trimmed,
-    });
-  }
+  // ── Nachrichten ────────────────────────────────────────────────────────────
 
-  Future<void> approveConversation(String convId) async {
-    await _db.collection('conversations').doc(convId).update({
-      'status': ConversationStatus.approved.name,
-      'approvedBy': _uid,
-      'approvedAt': Timestamp.fromDate(DateTime.now()),
-    });
-  }
-
-  Future<void> markAsRead(String convId) async {
-    await _db.collection('conversations').doc(convId).update({
-      'lastReadAt.$_uid': Timestamp.fromDate(DateTime.now()),
-    });
-  }
-
-  Future<void> archiveConversation(String convId) async {
-    await _db.collection('conversations').doc(convId).update({
-      'status': ConversationStatus.archived.name,
-    });
-  }
-
-  Future<void> deleteConversation(String convId) async {
-    final messagesRef = _db
-        .collection('conversations')
-        .doc(convId)
-        .collection('messages');
-
-    // Nachrichten in Batches à 400 löschen (Firestore-Limit: 500 ops/batch)
-    while (true) {
-      final snap = await messagesRef.limit(400).get();
-      if (snap.docs.isEmpty) break;
-      final batch = _db.batch();
-      for (final doc in snap.docs) {
-        batch.delete(doc.reference);
-      }
-      await batch.commit();
-    }
-
-    await _db.collection('conversations').doc(convId).delete();
-  }
-
-  Stream<Conversation?> watchConversation(String convId) {
-    return _db
-        .collection('conversations')
-        .doc(convId)
-        .snapshots()
-        .map((s) => s.exists ? Conversation.fromFirestore(s) : null);
-  }
-
-  Future<void> rejectConversation(String convId) async {
-    // Abgelehnte Anfragen werden gelöscht, damit dieselbe Anfrage später
-    // erneut gestellt werden kann.
-    await _db.collection('conversations').doc(convId).delete();
+  Stream<List<Message>> watchMessages(String convId, {int limit = 30}) {
+    return _watchQuery(
+      _colMessages,
+      Message.fromAppwrite,
+      [
+        Query.equal('convId', convId),
+        Query.orderAsc('sentAt'),
+        Query.limit(limit),
+      ],
+      null,
+    );
   }
 
   Future<void> sendMessage(
@@ -282,32 +616,26 @@ class ChatService {
     String? replyToSenderName,
     String? replyToText,
   }) async {
-    final msgRef =
-        _db.collection('conversations').doc(convId).collection('messages').doc();
-    final batch = _db.batch();
-
-    batch.set(msgRef, Message(
-      id: msgRef.id,
+    final msgId = ID.unique();
+    final msg = Message(
+      id: msgId,
       senderUid: _uid,
-      senderName: _senderName,
+      senderName: _displayName,
       text: text,
       sentAt: DateTime.now(),
       replyToId: replyToId,
       replyToSenderName: replyToSenderName,
       replyToText: replyToText,
-    ).toFirestore());
-
-    _updateLastMessage(
-        batch, convId, text.length > 200 ? '${text.substring(0, 200)}…' : text);
-
-    await batch.commit();
+    );
+    await _db.createDocument(
+      databaseId: _dbId,
+      collectionId: _colMessages,
+      documentId: msgId,
+      data: {...msg.toAppwrite(), 'convId': convId},
+    );
+    await _updateLastMessage(
+        convId, text.length > 200 ? '${text.substring(0, 200)}…' : text);
   }
-
-  DocumentReference _msgRef(String convId, String messageId) => _db
-      .collection('conversations')
-      .doc(convId)
-      .collection('messages')
-      .doc(messageId);
 
   Future<void> editMessage(
     String convId,
@@ -317,69 +645,81 @@ class ChatService {
     String? archivedByUid,
     String? archivedByName,
   }) async {
-    await _msgRef(convId, messageId).update({
-      'text': newText,
-      'editedAt': Timestamp.now(),
-      if (archive) 'isArchived': true,
-      if (archive && archivedByUid != null) 'archivedByUid': archivedByUid,
-      if (archive && archivedByName != null) 'archivedByName': archivedByName,
-    });
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colMessages,
+        documentId: messageId,
+        data: {
+          'text': newText,
+          'editedAt': DateTime.now().toIso8601String(),
+          if (archive) 'isArchived': true,
+          if (archive && archivedByUid != null) 'archivedByUid': archivedByUid,
+          if (archive && archivedByName != null)
+            'archivedByName': archivedByName,
+        });
   }
 
   Future<void> softDeleteMessage(String convId, String messageId) async {
-    await _msgRef(convId, messageId).update({
-      'deletedAt': Timestamp.now(),
-      'deletedBy': _uid,
-    });
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colMessages,
+        documentId: messageId,
+        data: {
+          'deletedAt': DateTime.now().toIso8601String(),
+          'deletedBy': _uid,
+        });
   }
 
   Future<void> undoDeleteMessage(String convId, String messageId) async {
-    await _msgRef(convId, messageId).update({
-      'deletedAt': FieldValue.delete(),
-      'deletedBy': FieldValue.delete(),
-    });
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colMessages,
+        documentId: messageId,
+        data: {'deletedAt': null, 'deletedBy': null});
   }
 
-  // Maximale Dateigröße für Chat-Bilder: 2 MB
+  Future<void> setReaction(
+      String convId, String msgId, String? emoji) async {
+    final doc = await _db.getDocument(
+        databaseId: _dbId, collectionId: _colMessages, documentId: msgId);
+    final msg = Message.fromAppwrite({r'$id': doc.$id, ...doc.data});
+    final reactions = Map<String, String>.from(msg.reactions);
+    if (emoji == null) {
+      reactions.remove(_uid);
+    } else {
+      reactions[_uid] = emoji;
+    }
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colMessages,
+        documentId: msgId,
+        data: {'reactionsJson': jsonEncode(reactions)});
+  }
+
+  // ── Medien (Firebase Storage — TODO: Appwrite Storage nach Vuln-6-Fix) ─────
+
   static const int _maxImageBytes = 2 * 1024 * 1024;
 
-  /// Gibt die Bild-Bytes für den Upload zurück.
-  /// Ist das Bild bereits unter 2 MB, wird es unverändert zurückgegeben.
-  /// Sonst wird die Qualität schrittweise reduziert bis es passt.
   Future<Uint8List> _prepareImageForUpload(Uint8List bytes) async {
-    // Bereits klein genug — unverändert zurückgeben
     if (bytes.length <= _maxImageBytes) return bytes;
-
-    // flutter_image_compress unterstützt kein Web und kein Windows
     if (kIsWeb || _isDesktop) {
       throw Exception(
           'Das Bild ist zu groß (max. ${_maxImageBytes ~/ (1024 * 1024)} MB).');
     }
-
-    // Erst ohne Dimensionsänderung versuchen (nur JPEG-Qualität reduzieren)
     for (final quality in [85, 70, 55, 40]) {
       final result = await FlutterImageCompress.compressWithList(
-        bytes,
-        minWidth: 4096,
-        minHeight: 4096,
-        quality: quality,
-        format: CompressFormat.jpeg,
+        bytes, minWidth: 4096, minHeight: 4096,
+        quality: quality, format: CompressFormat.jpeg,
       );
       if (result.length <= _maxImageBytes) return result;
     }
-
-    // Fallback: Dimensionen auf max. 1920px begrenzen
     for (final quality in [80, 60, 40]) {
       final result = await FlutterImageCompress.compressWithList(
-        bytes,
-        minWidth: 1920,
-        minHeight: 1920,
-        quality: quality,
-        format: CompressFormat.jpeg,
+        bytes, minWidth: 1920, minHeight: 1920,
+        quality: quality, format: CompressFormat.jpeg,
       );
       if (result.length <= _maxImageBytes) return result;
     }
-
     throw Exception(
         'Das Bild ist zu groß (max. ${_maxImageBytes ~/ (1024 * 1024)} MB). '
         'Bitte wähle ein kleineres Bild.');
@@ -388,33 +728,32 @@ class ChatService {
   Future<void> sendVoiceMessage(
       String convId, Uint8List audioBytes, int durationMs,
       {String contentType = 'audio/m4a'}) async {
-    final msgRef =
-        _db.collection('conversations').doc(convId).collection('messages').doc();
-
+    final msgId = ID.unique();
     final ext = contentType.contains('webm') ? 'webm' : 'm4a';
+    // TODO(vuln6): migrate to Appwrite Storage
     final storageRef = FirebaseStorage.instance
         .ref()
-        .child('voiceMessages/$convId/${_uid}_${msgRef.id}.$ext');
-    await storageRef.putData(
-      audioBytes,
-      SettableMetadata(contentType: contentType),
-    );
+        .child('voiceMessages/$convId/${_uid}_$msgId.$ext');
+    await storageRef.putData(audioBytes,
+        SettableMetadata(contentType: contentType));
     final audioUrl = await storageRef.getDownloadURL();
 
-    final batch = _db.batch();
-    batch.set(
-        msgRef,
-        Message(
-          id: msgRef.id,
-          senderUid: _uid,
-          senderName: _senderName,
-          text: '',
-          sentAt: DateTime.now(),
-          audioUrl: audioUrl,
-          audioDurationMs: durationMs,
-        ).toFirestore());
-    _updateLastMessage(batch, convId, '🎤 Sprachnachricht');
-    await batch.commit();
+    final msg = Message(
+      id: msgId,
+      senderUid: _uid,
+      senderName: _displayName,
+      text: '',
+      sentAt: DateTime.now(),
+      audioUrl: audioUrl,
+      audioDurationMs: durationMs,
+    );
+    await _db.createDocument(
+      databaseId: _dbId,
+      collectionId: _colMessages,
+      documentId: msgId,
+      data: {...msg.toAppwrite(), 'convId': convId},
+    );
+    await _updateLastMessage(convId, '🎤 Sprachnachricht');
   }
 
   Future<void> sendImage(String convId, Uint8List imageBytes,
@@ -426,22 +765,17 @@ class ChatService {
     if (!allowedMimeTypes.any((t) => normalizedMime.startsWith(t))) {
       throw Exception('Nicht unterstützter Dateityp: $mimeType');
     }
-
-    final msgRef =
-        _db.collection('conversations').doc(convId).collection('messages').doc();
-
+    final msgId = ID.unique();
     final isGif = normalizedMime.startsWith('image/gif');
     final Uint8List uploadBytes;
     final String ext;
     final String uploadContentType;
 
     if (isGif) {
-      // GIFs nicht komprimieren — JPEG-Konvertierung würde Animation zerstören
       const maxGifBytes = 5 * 1024 * 1024;
       if (imageBytes.length > maxGifBytes) {
         throw Exception('Das GIF ist zu groß (max. 5 MB).');
       }
-      // Magic-Byte-Check: GIF87a = 47 49 46 38 37 61 / GIF89a = 47 49 46 38 39 61
       if (imageBytes.length < 6 ||
           imageBytes[0] != 0x47 || imageBytes[1] != 0x49 ||
           imageBytes[2] != 0x46 || imageBytes[3] != 0x38) {
@@ -456,368 +790,71 @@ class ChatService {
       uploadContentType = 'image/jpeg';
     }
 
+    // TODO(vuln6): migrate to Appwrite Storage
     final storageRef = FirebaseStorage.instance
         .ref()
-        .child('chatImages/$convId/${_uid}_${msgRef.id}.$ext');
+        .child('chatImages/$convId/${_uid}_$msgId.$ext');
     await storageRef.putData(
-      uploadBytes,
-      SettableMetadata(contentType: uploadContentType),
-    );
+        uploadBytes, SettableMetadata(contentType: uploadContentType));
     final imageUrl = await storageRef.getDownloadURL();
 
-    final batch = _db.batch();
-    batch.set(msgRef, Message(
-      id: msgRef.id,
+    final msg = Message(
+      id: msgId,
       senderUid: _uid,
-      senderName: _senderName,
+      senderName: _displayName,
       text: '',
       sentAt: DateTime.now(),
       imageUrl: imageUrl,
       isGif: isGif,
-    ).toFirestore());
-    _updateLastMessage(batch, convId, '[Bild]');
-    await batch.commit();
+    );
+    await _db.createDocument(
+      databaseId: _dbId,
+      collectionId: _colMessages,
+      documentId: msgId,
+      data: {...msg.toAppwrite(), 'convId': convId},
+    );
+    await _updateLastMessage(convId, '[Bild]');
   }
 
-  /// Datei (max. 5 MB) in den Chat senden.
   Future<void> sendFile(
       String convId, Uint8List fileBytes, String fileName, int fileSize) async {
-    const maxBytes = 5 * 1024 * 1024; // 5 MB
+    const maxBytes = 5 * 1024 * 1024;
     if (fileSize > maxBytes) {
       throw Exception('Die Datei ist zu groß (max. 5 MB).');
     }
-
-    final msgRef =
-        _db.collection('conversations').doc(convId).collection('messages').doc();
-
+    final msgId = ID.unique();
     final ext = fileName.contains('.') ? fileName.split('.').last : '';
+    // TODO(vuln6): migrate to Appwrite Storage
     final storageRef = FirebaseStorage.instance
         .ref()
-        .child('chatFiles/$convId/${_uid}_${msgRef.id}${ext.isNotEmpty ? '.$ext' : ''}');
+        .child(
+            'chatFiles/$convId/${_uid}_$msgId${ext.isNotEmpty ? '.$ext' : ''}');
     await storageRef.putData(fileBytes);
     final fileUrl = await storageRef.getDownloadURL();
 
-    final batch = _db.batch();
-    batch.set(msgRef, Message(
-      id: msgRef.id,
+    final msg = Message(
+      id: msgId,
       senderUid: _uid,
-      senderName: _senderName,
+      senderName: _displayName,
       text: '',
       sentAt: DateTime.now(),
       fileUrl: fileUrl,
       fileName: fileName,
       fileSizeBytes: fileSize,
-    ).toFirestore());
-    _updateLastMessage(batch, convId, '📎 $fileName');
-    await batch.commit();
-  }
-
-  Stream<List<Conversation>> watchOrgConversations(String orgId) {
-    return _db
-        .collection('conversations')
-        .where('participantUids', arrayContains: _uid)
-        .snapshots()
-        .map((s) {
-      final all = s.docs.map(Conversation.fromFirestore).toList();
-      // Client-seitig nach Org filtern und nach letzter Nachricht sortieren
-      final filtered =
-          all.where((c) => c.orgId == orgId).toList();
-      filtered.sort(_byLastMessageDesc);
-      return filtered;
-    });
-  }
-
-  /// Alle genehmigten Konversationen des aktuellen Nutzers (org-übergreifend, für Share-Target)
-  Stream<List<Conversation>> watchAllMyApprovedConversations() {
-    return _db
-        .collection('conversations')
-        .where('participantUids', arrayContains: _uid)
-        .snapshots()
-        .map((s) {
-      final all = s.docs.map(Conversation.fromFirestore).toList();
-      final filtered = all
-          .where((c) => c.status == ConversationStatus.approved)
-          .toList()
-        ..sort(_byLastMessageDesc);
-      return filtered;
-    });
-  }
-
-  /// Alle Konversationen einer Org — nur für Admins.
-  /// Queried by orgId (not orgAdminUid) so that conversations created before
-  /// an admin transfer are also visible to the current admin.
-  /// Non-admins get an empty list (permission denied is swallowed).
-  Stream<List<Conversation>> watchAdminConversations(String orgId) {
-    final raw = _db
-        .collection('conversations')
-        .where('orgId', isEqualTo: orgId)
-        .snapshots()
-        .map((s) {
-      final all = s.docs.map(Conversation.fromFirestore).toList();
-      all.sort(_byLastMessageDesc);
-      return all;
-    });
-    return _swallowPermissionDenied(raw);
-  }
-
-  Stream<List<Conversation>> watchPendingRequests(String orgId) {
-    final raw = _db
-        .collection('conversations')
-        .where('orgId', isEqualTo: orgId)
-        .snapshots()
-        .map((s) {
-      final all = s.docs.map(Conversation.fromFirestore).toList();
-      return all
-          .where((c) => c.status == ConversationStatus.pending)
-          .toList();
-    });
-    return _swallowPermissionDenied(raw);
-  }
-
-  /// Ausstehende Anfragen für Moderatoren (canApproveUids enthält ihre UID)
-  Stream<List<Conversation>> watchModeratorPendingRequests(String orgId) {
-    return _db
-        .collection('conversations')
-        .where('canApproveUids', arrayContains: _uid)
-        .snapshots()
-        .map((s) {
-      final all = s.docs.map(Conversation.fromFirestore).toList();
-      return all
-          .where((c) =>
-              c.orgId == orgId && c.status == ConversationStatus.pending)
-          .toList();
-    });
-  }
-
-  /// Ausstehende Anfragen für Guardians (via guardianUids, pending only)
-  Stream<List<Conversation>> watchGuardianPendingRequests(String orgId) {
-    return _db
-        .collection('conversations')
-        .where('guardianUids', arrayContains: _uid)
-        .snapshots()
-        .map((s) {
-      final all = s.docs.map(Conversation.fromFirestore).toList();
-      // Nur Konversationen wo der Guardian nicht auch Admin/Moderator ist
-      // und status pending ist
-      return all
-          .where((c) =>
-              c.orgId == orgId &&
-              c.status == ConversationStatus.pending &&
-              c.orgAdminUid != _uid)
-          .toList();
-    });
-  }
-
-  /// Alle überwachten Konversationen (für Moderatoren + Guardians, approved)
-  Stream<List<Conversation>> watchSupervisorConversations(String orgId) {
-    return _db
-        .collection('conversations')
-        .where('canApproveUids', arrayContains: _uid)
-        .snapshots()
-        .map((s) {
-      final all = s.docs.map(Conversation.fromFirestore).toList();
-      final filtered = all
-          .where((c) =>
-              c.orgId == orgId &&
-              c.status == ConversationStatus.approved &&
-              !c.participantUids.contains(_uid))
-          .toList();
-      filtered.sort(_byLastMessageDesc);
-      return filtered;
-    });
-  }
-
-  Future<Conversation> createGroupChat(
-      String orgId, String name, List<String> memberUids) async {
-    final orgAdminUid = await _getOrgAdminUid(orgId);
-    final supervisors = await _buildSupervisorUids(orgId, memberUids);
-    final ref = _db.collection('conversations').doc();
-    final conv = Conversation(
-      id: ref.id,
-      orgId: orgId,
-      orgAdminUid: orgAdminUid,
-      participantUids: memberUids,
-      requestedBy: _uid,
-      status: ConversationStatus.approved,
-      createdAt: DateTime.now(),
-      approvedBy: _uid,
-      approvedAt: DateTime.now(),
-      name: name,
-      isGroup: true,
-      canApproveUids: supervisors.canApproveUids,
-      guardianUids: supervisors.guardianUids,
     );
-    await ref.set(conv.toFirestore());
-    return conv;
+    await _db.createDocument(
+      databaseId: _dbId,
+      collectionId: _colMessages,
+      documentId: msgId,
+      data: {...msg.toAppwrite(), 'convId': convId},
+    );
+    await _updateLastMessage(convId, '📎 $fileName');
   }
 
-  /// Postet eine System-Nachricht (z.B. Mitglied hinzugefügt/entfernt) in den Chat.
-  Future<void> _postSystemMessage(
-      String convId, String event, String targetName) async {
-    final msgRef =
-        _db.collection('conversations').doc(convId).collection('messages').doc();
-    final actor = _auth.currentUser;
-    await msgRef.set({
-      'type': 'system',
-      'systemEvent': event,
-      'systemActorName': actor?.displayName ?? actor?.email ?? '',
-      'systemTargetName': targetName,
-      'senderUid': 'system',
-      'senderName': 'system',
-      'text': '',
-      'sentAt': Timestamp.fromDate(DateTime.now()),
-      'isArchived': false,
-    });
-  }
+  // ── Abstimmungen ───────────────────────────────────────────────────────────
 
-  /// Entfernt ein Mitglied aus einem Gruppen-Chat (Sheltered-Modus).
-  Future<void> removeMemberFromConversation(
-      String convId, String memberUid, {String memberName = ''}) async {
-    await _db.collection('conversations').doc(convId).update({
-      'participantUids': FieldValue.arrayRemove([memberUid]),
-    });
-    if (memberName.isNotEmpty) {
-      await _postSystemMessage(convId, 'memberRemoved', memberName);
-    }
-  }
-
-  /// Fügt neue Mitglieder zu einem bestehenden Gruppen-Chat hinzu (Sheltered-Modus).
-  /// Aktualisiert participantUids und guardianUids der Konversation.
-  Future<void> addMembersToConversation(
-      String convId, String orgId, List<String> newMemberUids) async {
-    final newGuardianUids = <String>[];
-    final addedNames = <String>[];
-    for (final uid in newMemberUids) {
-      final memberDoc = await _db
-          .collection('organizations')
-          .doc(orgId)
-          .collection('members')
-          .doc(uid)
-          .get();
-      final data = memberDoc.data();
-      if (data == null) continue;
-      final singular = data['guardianUid'] as String?;
-      final plural = List<String>.from(data['guardianUids'] as List? ?? []);
-      newGuardianUids.addAll({singular, ...plural}.whereType<String>());
-      final name = data['displayName'] as String? ?? '';
-      if (name.isNotEmpty) addedNames.add(name);
-    }
-
-    await _db.collection('conversations').doc(convId).update({
-      'participantUids': FieldValue.arrayUnion(newMemberUids),
-      if (newGuardianUids.isNotEmpty)
-        'guardianUids': FieldValue.arrayUnion(newGuardianUids),
-    });
-
-    for (final name in addedNames) {
-      await _postSystemMessage(convId, 'memberAdded', name);
-    }
-  }
-
-  /// Überwachte Konversationen für Guardians (via guardianUids, approved)
-  Stream<List<Conversation>> watchGuardianSupervisorConversations(
-      String orgId) {
-    return _db
-        .collection('conversations')
-        .where('guardianUids', arrayContains: _uid)
-        .where('status', isEqualTo: 'approved')
-        .snapshots()
-        .map((s) {
-      final all = s.docs.map(Conversation.fromFirestore).toList();
-      // UI deduplicates against participantUids-based approved list,
-      // so we don't filter by !participantUids here — otherwise a guardian
-      // who was removed from a group (but child still in it) would lose
-      // the supervised view.
-      final filtered = all.where((c) => c.orgId == orgId).toList();
-      filtered.sort(_byLastMessageDesc);
-      return filtered;
-    });
-  }
-
-  /// Sheltered-Modus: Moderator sieht alle Chats der Org (via Admin-UID)
-  Stream<List<Conversation>> watchShelteredModeratorConversations(
-      String orgId, String adminUid) {
-    return _db
-        .collection('conversations')
-        .where('orgId', isEqualTo: orgId)
-        .where('orgAdminUid', isEqualTo: adminUid)
-        .snapshots()
-        .map((s) {
-      final all = s.docs.map(Conversation.fromFirestore).toList();
-      final filtered = all
-          .where((c) =>
-              c.status == ConversationStatus.approved &&
-              !c.participantUids.contains(_uid))
-          .toList();
-      filtered.sort(_byLastMessageDesc);
-      return filtered;
-    });
-  }
-
-  Stream<List<Message>> watchMessages(String convId, {int limit = 30}) {
-    return _db
-        .collection('conversations')
-        .doc(convId)
-        .collection('messages')
-        .orderBy('sentAt')
-        .limitToLast(limit)
-        .snapshots()
-        .map((s) => s.docs.map(Message.fromFirestore).toList());
-  }
-
-  Future<void> reportMessage({
-    required String convId,
-    required String orgId,
-    required String orgAdminUid,
-    required Message message,
-  }) async {
-    await _db.collection('reports').add({
-      'convId': convId,
-      'msgId': message.id,
-      'orgId': orgId,
-      'orgAdminUid': orgAdminUid,
-      'reportedBy': _uid,
-      'reportedAt': Timestamp.now(),
-      'messageText': message.text,
-      'messageSenderUid': message.senderUid,
-      'messageSenderName': message.senderName,
-      'status': 'pending',
-    });
-  }
-
-  Stream<List<Map<String, dynamic>>> watchReports(String orgId) {
-    return _db
-        .collection('reports')
-        .where('orgId', isEqualTo: orgId)
-        .orderBy('reportedAt', descending: true)
-        .snapshots()
-        .map((s) => s.docs
-            .map((d) => {'id': d.id, ...d.data()})
-            .toList());
-  }
-
-  Future<void> markReportReviewed(String reportId) async {
-    await _db.collection('reports').doc(reportId).update({'status': 'reviewed'});
-  }
-
-  // ── Polls ──────────────────────────────────────────────────────────────────
-
-  // ── Angepinnte Nachricht ──────────────────────────────────────────────────
-
-  Future<void> pinMessage(
-      String convId, String msgId, String text) async {
-    await _db.collection('conversations').doc(convId).update({
-      'pinnedMessageId': msgId,
-      'pinnedMessageText':
-          text.length > 120 ? '${text.substring(0, 120)}…' : text,
-    });
-  }
-
-  Future<void> unpinMessage(String convId) async {
-    await _db.collection('conversations').doc(convId).update({
-      'pinnedMessageId': FieldValue.delete(),
-      'pinnedMessageText': FieldValue.delete(),
-    });
+  Stream<Poll?> watchPoll(String convId, String pollId) {
+    return _watchDocument(_colPolls, pollId, Poll.fromAppwrite);
   }
 
   Future<void> createPoll(
@@ -827,20 +864,12 @@ class ChatService {
     required bool multipleChoice,
     bool isAnonymous = false,
     DateTime? expiresAt,
+    required String orgId,
   }) async {
-    final pollRef = _db
-        .collection('conversations')
-        .doc(convId)
-        .collection('polls')
-        .doc();
-    final msgRef = _db
-        .collection('conversations')
-        .doc(convId)
-        .collection('messages')
-        .doc();
-
+    final pollId = ID.unique();
+    final msgId = ID.unique();
     final poll = Poll(
-      id: pollRef.id,
+      id: pollId,
       convId: convId,
       question: question,
       options: optionTexts
@@ -849,173 +878,260 @@ class ChatService {
           .map((e) => PollOption(id: '${e.key}', text: e.value))
           .toList(),
       createdBy: _uid,
-      createdByName: _senderName,
+      createdByName: _displayName,
       createdAt: DateTime.now(),
       multipleChoice: multipleChoice,
       isAnonymous: isAnonymous,
       expiresAt: expiresAt,
     );
-
     final preview = question.length > 60
         ? '📊 ${question.substring(0, 60)}…'
         : '📊 $question';
 
-    final batch = _db.batch();
-    batch.set(pollRef, poll.toFirestore());
-    batch.set(
-      msgRef,
-      Message(
-        id: msgRef.id,
-        senderUid: _uid,
-        senderName: _senderName,
-        text: preview,
-        sentAt: DateTime.now(),
-        pollId: pollRef.id,
-      ).toFirestore(),
+    await _db.createDocument(
+      databaseId: _dbId,
+      collectionId: _colPolls,
+      documentId: pollId,
+      data: {...poll.toAppwrite(), 'orgId': orgId},
     );
-    _updateLastMessage(batch, convId, preview);
-    await batch.commit();
+    final msg = Message(
+      id: msgId,
+      senderUid: _uid,
+      senderName: _displayName,
+      text: preview,
+      sentAt: DateTime.now(),
+      pollId: pollId,
+    );
+    await _db.createDocument(
+      databaseId: _dbId,
+      collectionId: _colMessages,
+      documentId: msgId,
+      data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
+    );
+    await _updateLastMessage(convId, preview);
   }
 
-  Future<void> castVote(
-      String convId, String pollId, String optionId) async {
-    final pollRef = _db
-        .collection('conversations')
-        .doc(convId)
-        .collection('polls')
-        .doc(pollId);
+  Future<void> castVote(String convId, String pollId, String optionId) async {
+    final doc = await _db.getDocument(
+        databaseId: _dbId, collectionId: _colPolls, documentId: pollId);
+    final poll = Poll.fromAppwrite({r'$id': doc.$id, ...doc.data});
 
-    final snap = await pollRef.get();
-    if (!snap.exists) return;
-    final data = snap.data() as Map<String, dynamic>;
-    final multipleChoice = data['multipleChoice'] as bool? ?? false;
-    final rawVotes =
-        Map<String, dynamic>.from(data['votes'] as Map? ?? {});
-    final optionIds = (data['options'] as List)
-        .map((o) => (o as Map)['id'] as String)
-        .toList();
+    final votes = Map<String, List<String>>.from(
+      poll.votes.map((k, v) => MapEntry(k, List<String>.from(v))),
+    );
 
-    final updates = <String, dynamic>{};
-
-    if (multipleChoice) {
-      final voters =
-          List<String>.from(rawVotes[optionId] as List? ?? []);
+    if (poll.multipleChoice) {
+      final voters = votes[optionId] ?? [];
       if (voters.contains(_uid)) {
-        updates['votes.$optionId'] = FieldValue.arrayRemove([_uid]);
+        voters.remove(_uid);
       } else {
-        updates['votes.$optionId'] = FieldValue.arrayUnion([_uid]);
+        voters.add(_uid);
       }
+      votes[optionId] = voters;
     } else {
-      // Find which option (if any) the user previously voted for
-      final previousOptionId = optionIds.where((id) {
-        final voters = List<String>.from(rawVotes[id] as List? ?? []);
-        return voters.contains(_uid);
-      }).firstOrNull;
-
+      final previousOptionId = poll.options
+          .map((o) => o.id)
+          .where((id) => (votes[id] ?? []).contains(_uid))
+          .firstOrNull;
       if (previousOptionId == optionId) {
-        // Same option tapped again → toggle off (remove vote)
-        updates['votes.$optionId'] = FieldValue.arrayRemove([_uid]);
+        votes[optionId] = (votes[optionId] ?? [])..remove(_uid);
       } else {
-        // Different option → move vote
         if (previousOptionId != null) {
-          updates['votes.$previousOptionId'] = FieldValue.arrayRemove([_uid]);
+          votes[previousOptionId] =
+              (votes[previousOptionId] ?? [])..remove(_uid);
         }
-        updates['votes.$optionId'] = FieldValue.arrayUnion([_uid]);
+        votes[optionId] = [...(votes[optionId] ?? []), _uid];
       }
     }
 
-    if (updates.isNotEmpty) await pollRef.update(updates);
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colPolls,
+        documentId: pollId,
+        data: {'votesJson': jsonEncode(votes)});
   }
 
   Future<void> closePoll(String convId, String pollId) async {
-    await _db
-        .collection('conversations')
-        .doc(convId)
-        .collection('polls')
-        .doc(pollId)
-        .update({'isClosed': true});
-  }
-
-  Stream<Poll?> watchPoll(String convId, String pollId) {
-    return _db
-        .collection('conversations')
-        .doc(convId)
-        .collection('polls')
-        .doc(pollId)
-        .snapshots()
-        .map((s) => s.exists ? Poll.fromFirestore(s) : null);
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colPolls,
+        documentId: pollId,
+        data: {'isClosed': true});
   }
 
   // ── Geplante Nachrichten ───────────────────────────────────────────────────
 
   Stream<List<ScheduledMessage>> watchScheduledMessages(String convId) {
-    return _db
-        .collection('conversations')
-        .doc(convId)
-        .collection('scheduledMessages')
-        .where('senderUid', isEqualTo: _uid)
-        .orderBy('scheduledFor')
-        .snapshots()
-        .map((s) => s.docs.map(ScheduledMessage.fromFirestore).toList());
+    return _watchQuery(
+      _colScheduled,
+      ScheduledMessage.fromAppwrite,
+      [
+        Query.equal('convId', convId),
+        Query.equal('senderUid', _uid),
+        Query.orderAsc('scheduledFor'),
+      ],
+      null,
+    );
   }
 
   Future<void> scheduleMessage(
       String convId, String text, DateTime scheduledFor) async {
-    final user = _auth.currentUser!;
-    final ref = _db
-        .collection('conversations')
-        .doc(convId)
-        .collection('scheduledMessages')
-        .doc();
-    await ref.set(ScheduledMessage(
-      id: ref.id,
+    final smId = ID.unique();
+    final sm = ScheduledMessage(
+      id: smId,
       convId: convId,
       text: text,
-      senderUid: user.uid,
-      senderName: user.displayName ?? user.email ?? '',
+      senderUid: _uid,
+      senderName: _displayName,
       scheduledFor: scheduledFor,
       createdAt: DateTime.now(),
-    ).toFirestore());
+    );
+    await _db.createDocument(
+      databaseId: _dbId,
+      collectionId: _colScheduled,
+      documentId: smId,
+      data: sm.toAppwrite(),
+    );
   }
 
   Future<void> deleteScheduledMessage(
       String convId, String scheduledMessageId) async {
-    await _db
-        .collection('conversations')
-        .doc(convId)
-        .collection('scheduledMessages')
-        .doc(scheduledMessageId)
-        .delete();
+    await _db.deleteDocument(
+        databaseId: _dbId,
+        collectionId: _colScheduled,
+        documentId: scheduledMessageId);
   }
 
-  /// Sendet eine geplante Nachricht und löscht den Eintrag danach.
   Future<void> sendScheduledMessage(ScheduledMessage sm) async {
     await sendMessage(sm.convId, sm.text);
     await deleteScheduledMessage(sm.convId, sm.id);
   }
 
-  // ── Tipp-Indikator ────────────────────────────────────────────────────────
+  // ── Reports ────────────────────────────────────────────────────────────────
 
-  /// Setzt oder löscht den Tipp-Indikator für den aktuellen Benutzer.
-  Future<void> setTyping(String convId, bool isTyping) async {
-    await _db.collection('conversations').doc(convId).update({
-      'typingUsers.$_uid': isTyping
-          ? Timestamp.fromDate(DateTime.now())
-          : FieldValue.delete(),
-    });
+  Future<void> reportMessage({
+    required String convId,
+    required String orgId,
+    required String orgAdminUid,
+    required Message message,
+  }) async {
+    await _db.createDocument(
+      databaseId: _dbId,
+      collectionId: _colReports,
+      documentId: ID.unique(),
+      data: {
+        'convId': convId,
+        'orgId': orgId,
+        'orgAdminUid': orgAdminUid,
+        'reportedByUid': _uid,
+        'messageText': message.text,
+        'messageSenderName': message.senderName,
+        'createdAt': DateTime.now().toIso8601String(),
+      },
+    );
   }
 
-  // ── Nachrichten-Reaktionen ────────────────────────────────────────────────
+  Stream<List<Map<String, dynamic>>> watchReports(String orgId) {
+    return _watchQuery<Map<String, dynamic>>(
+      _colReports,
+      (data) => {r'$id': data[r'$id'], ...data},
+      [Query.equal('orgId', orgId), Query.orderDesc('createdAt')],
+      null,
+    );
+  }
 
-  /// Setzt oder entfernt eine Reaktion (Emoji) des aktuellen Benutzers.
-  /// [emoji] == null → Reaktion entfernen.
-  Future<void> setReaction(
-      String convId, String msgId, String? emoji) async {
-    final msgRef = _msgRef(convId, msgId);
-    if (emoji == null) {
-      await msgRef.update({'reactions.$_uid': FieldValue.delete()});
-    } else {
-      await msgRef.update({'reactions.$_uid': emoji});
+  Future<void> deleteMessage(String convId, String msgId) async {
+    await _db.deleteDocument(
+        databaseId: _dbId, collectionId: _colMessages, documentId: msgId);
+  }
+
+  Future<void> markReportReviewed(String reportId) async {
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colReports,
+        documentId: reportId,
+        data: {'status': 'reviewed'});
+  }
+
+  // ── Hilfsmethoden ──────────────────────────────────────────────────────────
+
+  Future<void> _updateLastMessage(String convId, String preview) async {
+    await _db.updateDocument(
+      databaseId: _dbId,
+      collectionId: _colConvs,
+      documentId: convId,
+      data: {
+        'lastMessage': preview,
+        'lastMessageAt': DateTime.now().toIso8601String(),
+      },
+    );
+  }
+
+  Future<void> _postSystemMessage(
+      String convId, String event, String targetName) async {
+    final msgId = ID.unique();
+    final msg = Message(
+      id: msgId,
+      senderUid: 'system',
+      senderName: 'system',
+      text: '',
+      sentAt: DateTime.now(),
+      type: 'system',
+      systemEvent: event,
+      systemActorName: _displayName,
+      systemTargetName: targetName,
+    );
+    await _db.createDocument(
+      databaseId: _dbId,
+      collectionId: _colMessages,
+      documentId: msgId,
+      data: {...msg.toAppwrite(), 'convId': convId},
+    );
+  }
+
+  Future<({List<String> canApproveUids, List<String> guardianUids})>
+      _buildSupervisorUids(String orgId, List<String> participantUids) async {
+    final orgDoc = await _db.getDocument(
+        databaseId: _dbId, collectionId: _colOrgs, documentId: orgId);
+    final orgAdminUid = orgDoc.data['adminUid'] as String;
+
+    final modsResult = await _db.listDocuments(
+      databaseId: _dbId,
+      collectionId: _colMembers,
+      queries: [
+        Query.equal('orgId', orgId),
+        Query.equal('role', 'moderator'),
+        Query.limit(100),
+      ],
+    );
+    final moderatorUids =
+        modsResult.documents.map((d) => d.data['uid'] as String).toList();
+
+    final guardianUids = <String>[];
+    for (final uid in participantUids) {
+      final memberDoc =
+          await _safeGetDocument(_colMembers, '${orgId}_$uid');
+      if (memberDoc == null) continue;
+      final guards = List<String>.from(
+          memberDoc.data['guardianUids'] as List? ?? []);
+      for (final g in guards) {
+        if (!guardianUids.contains(g)) guardianUids.add(g);
+      }
+    }
+
+    return (
+      canApproveUids: {orgAdminUid, ...moderatorUids}.toList(),
+      guardianUids: guardianUids,
+    );
+  }
+
+  Future<dynamic> _safeGetDocument(String col, String docId) async {
+    try {
+      return await _db.getDocument(
+          databaseId: _dbId, collectionId: col, documentId: docId);
+    } on AppwriteException catch (e) {
+      if (e.code == 404) return null;
+      rethrow;
     }
   }
 }

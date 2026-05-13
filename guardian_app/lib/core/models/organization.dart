@@ -96,4 +96,29 @@ class Organization {
         'keywords': keywords,
         'messageRetentionDays': messageRetentionDays,
       };
+
+  factory Organization.fromAppwrite(Map<String, dynamic> data) => Organization(
+        id: data[r'$id'] as String,
+        name: data['name'] as String,
+        adminUid: data['adminUid'] as String,
+        tag: OrgTag.values.byName(data['tag'] as String? ?? 'sonstiges'),
+        memberUids: List<String>.from(data['memberUids'] as List? ?? []),
+        createdAt: DateTime.parse(data['createdAt'] as String),
+        isArchived: data['isArchived'] as bool? ?? false,
+        keywords: List<String>.from(data['keywords'] as List? ?? []),
+        messageRetentionDays:
+            (data['messageRetentionDays'] as int? ?? retentionDefault)
+                .clamp(retentionMin, retentionMax),
+      );
+
+  Map<String, dynamic> toAppwrite() => {
+        'name': name,
+        'adminUid': adminUid,
+        'tag': tag.name,
+        'memberUids': memberUids,
+        'createdAt': createdAt.toIso8601String(),
+        'isArchived': isArchived,
+        'keywords': keywords,
+        'messageRetentionDays': messageRetentionDays,
+      };
 }

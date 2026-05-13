@@ -5,7 +5,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:firebase_auth/firebase_auth.dart';
+import '../../auth/providers/auth_provider.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
@@ -185,7 +185,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   bool get _isParticipant {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = ref.read(authStateProvider).value?.uid;
     if (uid == null) return false;
     final conv = ref.read(conversationProvider(widget.chatId)).value;
     return conv != null && conv.participantUids.contains(uid);
@@ -201,7 +201,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _showRenameDialog(Conversation conv) async {
     final l = AppLocalizations.of(context);
     final controller = TextEditingController(
-      text: conv.personalNames[FirebaseAuth.instance.currentUser?.uid ?? ''] ?? '',
+      text: conv.personalNames[ref.read(authStateProvider).value?.uid ?? ''] ?? '',
     );
     try {
       final confirmed = await showDialog<bool>(
@@ -860,7 +860,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       itemBuilder: (_, i) {
                         final m = participants[i];
                         final isSelf =
-                            m.uid == FirebaseAuth.instance.currentUser?.uid;
+                            m.uid == ref.read(authStateProvider).value?.uid;
                         return ListTile(
                           contentPadding: EdgeInsets.zero,
                           leading: CircleAvatar(
@@ -954,7 +954,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         messagesProvider((convId: widget.chatId, limit: _limit)));
     final conv = ref.watch(conversationProvider(widget.chatId)).value;
     final isArchived = conv?.status == ConversationStatus.archived;
-    final currentUid = FirebaseAuth.instance.currentUser!.uid;
+    final currentUid = ref.read(authStateProvider).value!.uid;
 
     final members = conv == null
         ? null
@@ -1421,7 +1421,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 2     = alle haben gelesen
   int _readStatus(Conversation conv, Message msg) {
     final others = conv.participantUids
-        .where((uid) => uid != FirebaseAuth.instance.currentUser!.uid)
+        .where((uid) => uid != ref.read(authStateProvider).value!.uid)
         .toList();
     if (others.isEmpty) return 2;
     final readCount = others
@@ -1475,7 +1475,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (newText.isEmpty || newText == msg.text) return;
     final l = AppLocalizations.of(context);
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = ref.read(authStateProvider).value;
       await ref.read(chatServiceProvider).editMessage(
             widget.chatId,
             msg.id,
@@ -2951,7 +2951,7 @@ class _PollBubbleState extends ConsumerState<_PollBubble> {
     final l = AppLocalizations.of(context);
     final pollAsync = ref.watch(
         pollProvider((convId: widget.convId, pollId: widget.pollId)));
-    final currentUid = FirebaseAuth.instance.currentUser!.uid;
+    final currentUid = ref.read(authStateProvider).value!.uid;
     final scheme = Theme.of(context).colorScheme;
     final onColor = widget.isMe ? scheme.onPrimary : null;
     final labelColor = onColor ?? scheme.onSurface;

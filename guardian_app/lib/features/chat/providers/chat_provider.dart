@@ -1,5 +1,5 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/appwrite_client.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/models/message.dart';
 import '../../../core/models/poll.dart';
@@ -7,8 +7,15 @@ import '../../../core/models/scheduled_message.dart';
 import '../../../core/services/chat_service.dart';
 import '../../auth/providers/auth_provider.dart';
 
-final chatServiceProvider =
-    Provider<ChatService>((ref) => ChatService());
+final chatServiceProvider = Provider<ChatService>((ref) {
+  final user = ref.watch(authStateProvider).value;
+  final client = ref.watch(appwriteClientProvider);
+  return ChatService(
+    client: client,
+    uid: user?.uid ?? '',
+    displayName: user?.displayName ?? '',
+  );
+});
 
 final orgConversationsProvider =
     StreamProvider.family<List<Conversation>, String>((ref, orgId) {
@@ -64,7 +71,7 @@ final shelteredModeratorConversationsProvider = StreamProvider.family<
 
 /// Anzahl ungelesener Chats in einer Org (für Badge auf dem Startbildschirm)
 final unreadOrgCountProvider = Provider.family<int, String>((ref, orgId) {
-  final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+  final currentUid = ref.watch(authStateProvider).value?.uid ?? '';
   final ownConvs = ref.watch(orgConversationsProvider(orgId)).value ?? [];
   final adminConvs =
       ref.watch(adminConversationsProvider(orgId)).value ?? [];

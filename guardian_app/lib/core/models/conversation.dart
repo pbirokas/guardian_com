@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum ConversationStatus { pending, approved, rejected, archived }
@@ -134,4 +135,73 @@ class Conversation {
 
   String otherUid(String myUid) =>
       participantUids.firstWhere((uid) => uid != myUid);
+
+  factory Conversation.fromAppwrite(Map<String, dynamic> data) {
+    final lastReadJson = data['lastReadAtJson'] as String?;
+    final lastReadAt = (lastReadJson != null && lastReadJson.isNotEmpty)
+        ? (jsonDecode(lastReadJson) as Map<String, dynamic>)
+            .map((k, v) => MapEntry(k, DateTime.parse(v as String)))
+        : <String, DateTime>{};
+    final namesJson = data['personalNamesJson'] as String?;
+    final personalNames = (namesJson != null && namesJson.isNotEmpty)
+        ? Map<String, String>.from(jsonDecode(namesJson) as Map)
+        : <String, String>{};
+    return Conversation(
+      id: data[r'$id'] as String,
+      orgId: data['orgId'] as String,
+      orgAdminUid: data['orgAdminUid'] as String? ?? '',
+      participantUids:
+          List<String>.from(data['participantUids'] as List? ?? []),
+      requestedBy: data['requestedBy'] as String,
+      status: ConversationStatus.values
+          .byName(data['status'] as String? ?? 'pending'),
+      createdAt: DateTime.parse(data['createdAt'] as String),
+      approvedBy: data['approvedBy'] as String?,
+      approvedAt: data['approvedAt'] != null
+          ? DateTime.parse(data['approvedAt'] as String)
+          : null,
+      lastMessage: data['lastMessage'] as String?,
+      lastMessageAt: data['lastMessageAt'] != null
+          ? DateTime.parse(data['lastMessageAt'] as String)
+          : null,
+      name: data['name'] as String?,
+      imageUrl: data['imageUrl'] as String?,
+      isGroup: data['isGroup'] as bool? ?? false,
+      requestorGuardianUid: data['requestorGuardianUid'] as String?,
+      canApproveUids: List<String>.from(data['canApproveUids'] as List? ?? []),
+      guardianUids: List<String>.from(data['guardianUids'] as List? ?? []),
+      lastReadAt: lastReadAt,
+      typingUsers: const {},
+      pinnedMessageId: data['pinnedMessageId'] as String?,
+      pinnedMessageText: data['pinnedMessageText'] as String?,
+      personalNames: personalNames,
+    );
+  }
+
+  Map<String, dynamic> toAppwrite() => {
+        'orgId': orgId,
+        'orgAdminUid': orgAdminUid,
+        'participantUids': participantUids,
+        'requestedBy': requestedBy,
+        'status': status.name,
+        'createdAt': createdAt.toIso8601String(),
+        'isGroup': isGroup,
+        'canApproveUids': canApproveUids,
+        'guardianUids': guardianUids,
+        'lastReadAtJson': jsonEncode(
+          lastReadAt.map((k, v) => MapEntry(k, v.toIso8601String())),
+        ),
+        'personalNamesJson': jsonEncode(personalNames),
+        if (requestorGuardianUid != null)
+          'requestorGuardianUid': requestorGuardianUid,
+        if (name != null) 'name': name,
+        if (imageUrl != null) 'imageUrl': imageUrl,
+        if (approvedBy != null) 'approvedBy': approvedBy,
+        if (approvedAt != null) 'approvedAt': approvedAt!.toIso8601String(),
+        if (lastMessage != null) 'lastMessage': lastMessage,
+        if (lastMessageAt != null)
+          'lastMessageAt': lastMessageAt!.toIso8601String(),
+        if (pinnedMessageId != null) 'pinnedMessageId': pinnedMessageId,
+        if (pinnedMessageText != null) 'pinnedMessageText': pinnedMessageText,
+      };
 }

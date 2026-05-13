@@ -1,7 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:appwrite/appwrite.dart';
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:local_notifier/local_notifier.dart';
@@ -13,17 +13,19 @@ import 'tray_service.dart';
 ///
 /// - Lauscht auf neue Nachrichten → zeigt Toast-Notifications
 /// - Verfolgt ungelesene Chats → aktualisiert Tray-Badge
+///
+/// Verwendung: [initialize] einmalig beim Start, danach [startListening] mit
+/// uid aufrufen wenn der Nutzer eingeloggt ist, [stopListening] beim Logout.
 class DesktopNotificationService {
   static GoRouter? _router;
   static void setRouter(GoRouter router) => _router = router;
 
   static bool _initialized = false;
 
-  final _db = FirebaseFirestore.instance;
-  final _auth = FirebaseAuth.instance;
+  Databases? _db;
+  Realtime? _realtime;
 
-  StreamSubscription? _authSub;
-  StreamSubscription? _convListSub;
+  StreamSubscription? _convSub;
   StreamSubscription? _unreadSub;
 
   /// convId → aktive Message-Subscription (für Toast-Notifications)
@@ -35,68 +37,104 @@ class DesktopNotificationService {
   Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
-
     await localNotifier.setup(appName: 'Guardian Com');
-
-    _authSub = _auth.authStateChanges().listen((user) {
-      _stopListening();
-      if (user != null) {
-        _startListening(user.uid);
-        _startUnreadTracking(user.uid);
-      }
-    });
-
     debugPrint('DesktopNotificationService initialized');
+  }
+
+  void startListening(Client client, String uid) {
+    stopListening();
+    _db = Databases(client);
+    _realtime = Realtime(client);
+    _uid = uid;
+    _startConversationTracking(uid);
+    _startUnreadTracking(uid);
+  }
+
+  void stopListening() {
+    _convSub?.cancel();
+    _convSub = null;
+    _unreadSub?.cancel();
+    _unreadSub = null;
+    for (final sub in _msgSubs.values) {
+      sub.cancel();
+    }
+    _msgSubs.clear();
+    _unreadCount = 0;
+    TrayService.instance.updateBadge(0);
+    _db = null;
+    _realtime = null;
   }
 
   // ── Toast-Notifications ────────────────────────────────────────────────────
 
-  void _startListening(String uid) {
-    _convListSub = _db
-        .collection('conversations')
-        .where('participantUids', arrayContains: uid)
-        .where('status', isEqualTo: 'approved')
-        .snapshots()
-        .listen((snap) {
-      final currentIds = snap.docs.map((d) => d.id).toSet();
+  void _startConversationTracking(String uid) {
+    final db = _db!;
+    final realtime = _realtime!;
+    final convSub = realtime.subscribe(
+        ['databases.guardian.collections.conversations.documents']);
 
-      for (final doc in snap.docs) {
-        if (!_msgSubs.containsKey(doc.id)) {
-          _watchMessages(
-            convId: doc.id,
-            convName: doc.data()['name'] as String?,
-            currentUid: uid,
-          );
+    Future<void> refresh() async {
+      try {
+        final result = await db.listDocuments(
+          databaseId: 'guardian',
+          collectionId: 'conversations',
+          queries: [
+            Query.contains('participantUids', [uid]),
+            Query.equal('status', 'approved'),
+            Query.limit(200),
+          ],
+        );
+        final currentIds = result.documents.map((d) => d.$id).toSet();
+
+        for (final doc in result.documents) {
+          if (!_msgSubs.containsKey(doc.$id)) {
+            _watchMessages(
+              realtime: realtime,
+              convId: doc.$id,
+              convName: doc.data['name'] as String?,
+              currentUid: uid,
+            );
+          }
         }
-      }
 
-      final removed = _msgSubs.keys.toSet().difference(currentIds);
-      for (final convId in removed) {
-        _msgSubs[convId]?.cancel();
-        _msgSubs.remove(convId);
-      }
-    });
+        final removed = _msgSubs.keys.toSet().difference(currentIds);
+        for (final convId in removed) {
+          _msgSubs[convId]?.cancel();
+          _msgSubs.remove(convId);
+        }
+      } catch (_) {}
+    }
+
+    _convSub = convSub.stream.listen((_) => refresh());
+    refresh();
   }
 
   void _watchMessages({
+    required Realtime realtime,
     required String convId,
     required String? convName,
     required String currentUid,
   }) {
-    final startTime = Timestamp.now();
+    final startTime = DateTime.now();
 
-    final sub = _db
-        .collection('conversations')
-        .doc(convId)
-        .collection('messages')
-        .where('sentAt', isGreaterThan: startTime)
-        .orderBy('sentAt', descending: true)
-        .limit(1)
-        .snapshots()
-        .listen((snap) {
-      if (snap.docs.isEmpty) return;
+    final sub = realtime
+        .subscribe(['databases.guardian.collections.messages.documents'])
+        .stream
+        .listen((event) {
+      // Only care about newly created messages in this conversation
+      final isCreate =
+          event.events.any((e) => e.endsWith('.create'));
+      if (!isCreate) return;
 
-      final data = snap.docs.first.data();
+      final data = event.payload;
+      if (data['convId'] != convId) return;
+
+      final sentAtRaw = data['sentAt'] as String?;
+      if (sentAtRaw != null) {
+        final sentAt = DateTime.tryParse(sentAtRaw);
+        if (sentAt != null && sentAt.isBefore(startTime)) return;
+      }
+
       final senderUid = data['senderUid'] as String?;
       if (senderUid == null || senderUid == currentUid) return;
       if (data['isArchived'] == true) return;
@@ -114,7 +152,8 @@ class DesktopNotificationService {
                   ? '${text.substring(0, 100)}…'
                   : text;
 
-      final title = convName != null ? '$convName: $senderName' : senderName;
+      final title =
+          convName != null ? '$convName: $senderName' : senderName;
       final chatTitle = convName ?? senderName;
 
       _showNotification(
@@ -146,51 +185,55 @@ class DesktopNotificationService {
   // ── Unread-Tracking für Tray-Badge ─────────────────────────────────────────
 
   void _startUnreadTracking(String uid) {
-    _unreadSub = _db
-        .collection('conversations')
-        .where('participantUids', arrayContains: uid)
-        .where('status', isEqualTo: 'approved')
-        .snapshots()
-        .listen((snap) {
-      int count = 0;
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        final lastMessageAt = data['lastMessageAt'] as Timestamp?;
-        if (lastMessageAt == null) continue;
+    final db = _db!;
+    final realtime = _realtime!;
+    final convSub = realtime.subscribe(
+        ['databases.guardian.collections.conversations.documents']);
 
-        final lastReadMap = data['lastReadAt'] as Map<String, dynamic>?;
-        final lastRead = lastReadMap?[uid] as Timestamp?;
+    Future<void> recalculate() async {
+      try {
+        final result = await db.listDocuments(
+          databaseId: 'guardian',
+          collectionId: 'conversations',
+          queries: [
+            Query.contains('participantUids', [uid]),
+            Query.equal('status', 'approved'),
+            Query.limit(200),
+          ],
+        );
 
-        final hasUnread = lastRead == null ||
-            lastMessageAt.toDate().isAfter(lastRead.toDate());
-        if (hasUnread) count++;
-      }
+        int count = 0;
+        for (final doc in result.documents) {
+          final data = doc.data;
+          final lastMessageAtRaw = data['lastMessageAt'] as String?;
+          if (lastMessageAtRaw == null) continue;
+          final lastMessageAt = DateTime.tryParse(lastMessageAtRaw);
+          if (lastMessageAt == null) continue;
 
-      if (count != _unreadCount) {
-        _unreadCount = count;
-        TrayService.instance.updateBadge(count);
-      }
-    });
-  }
+          final lastReadJson = data['lastReadAtJson'] as String?;
+          DateTime? lastRead;
+          if (lastReadJson != null) {
+            final map = jsonDecode(lastReadJson) as Map<String, dynamic>?;
+            final raw = map?[uid] as String?;
+            if (raw != null) lastRead = DateTime.tryParse(raw);
+          }
 
-  // ── Cleanup ────────────────────────────────────────────────────────────────
+          if (lastRead == null || lastMessageAt.isAfter(lastRead)) count++;
+        }
 
-  void _stopListening() {
-    _convListSub?.cancel();
-    _convListSub = null;
-    _unreadSub?.cancel();
-    _unreadSub = null;
-    for (final sub in _msgSubs.values) {
-      sub.cancel();
+        if (count != _unreadCount) {
+          _unreadCount = count;
+          TrayService.instance.updateBadge(count);
+        }
+      } catch (_) {}
     }
-    _msgSubs.clear();
-    _unreadCount = 0;
-    TrayService.instance.updateBadge(0);
+
+    _unreadSub = convSub.stream.listen((_) => recalculate());
+    recalculate();
   }
 
   void dispose() {
-    _authSub?.cancel();
-    _stopListening();
+    stopListening();
     _initialized = false;
   }
 }

@@ -5,7 +5,9 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'package:appwrite/appwrite.dart' show Databases;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/appwrite_client.dart';
 import 'core/models/app_user.dart';
 import 'core/providers/connectivity_provider.dart';
 import 'core/providers/share_provider.dart';
@@ -136,10 +138,17 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
     NotificationService.setRouter(router);
     if (_isDesktop) DesktopNotificationService.setRouter(router);
 
-    // FCM-Token bei jedem Kalt-Start refreshen, damit veraltete Tokens in
-    // Firestore aktualisiert werden (Token-Rotation durch Google möglich).
+    // FCM-Token bei jedem Auth-State-Wechsel refreshen (Token-Rotation).
+    // Desktop: Realtime-Listener starten/stoppen je nach Login-Status.
     ref.listen<AsyncValue<AppUser?>>(authStateProvider, (_, next) {
-      if (next.value != null) NotificationService().initialize();
+      final user = next.value;
+      final client = ref.read(appwriteClientProvider);
+      if (user != null) {
+        NotificationService().initialize(Databases(client), user.uid);
+        if (_isDesktop) DesktopNotificationService().startListening(client, user.uid);
+      } else {
+        if (_isDesktop) DesktopNotificationService().stopListening();
+      }
     });
 
     const seedColor = Colors.blue;

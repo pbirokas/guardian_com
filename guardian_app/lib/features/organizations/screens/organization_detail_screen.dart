@@ -1,10 +1,8 @@
 import 'dart:io';
 
 import 'package:add_2_calendar/add_2_calendar.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
@@ -25,6 +23,7 @@ import '../../../core/models/notification_settings.dart';
 import '../../../core/models/org_member.dart';
 
 import '../../../core/models/organization.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../chat/providers/chat_provider.dart';
 import '../providers/organizations_provider.dart';
 import 'bulk_import_screen.dart';
@@ -55,7 +54,7 @@ class _OrganizationDetailScreenState
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final orgAsync = ref.watch(organizationProvider(orgId));
-    final currentUid = FirebaseAuth.instance.currentUser!.uid;
+    final currentUid = ref.read(authStateProvider).value!.uid;
 
     final membersAsync = ref.watch(orgMembersProvider(orgId));
 
@@ -1298,7 +1297,7 @@ class _MembersTab extends ConsumerWidget {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text(l.errorMessage(e.toString()))),
       data: (members) {
-        final currentUid = FirebaseAuth.instance.currentUser!.uid;
+        final currentUid = ref.read(authStateProvider).value!.uid;
         final currentMember =
             members.where((m) => m.uid == currentUid).firstOrNull;
         final isRegularMember = !isAdmin &&
@@ -1388,7 +1387,7 @@ class _MembersTab extends ConsumerWidget {
                                   isAdmin: isAdmin,
                                   ref: widgetRef,
                                   allMembers: members,
-                                  currentUid: FirebaseAuth.instance.currentUser!.uid,
+                                  currentUid: ref.read(authStateProvider).value!.uid,
                                 ),
                                 if (i < activeMembers.length - 1)
                                   const Divider(height: 1),
@@ -1877,7 +1876,7 @@ class _MembersTab extends ConsumerWidget {
   Future<void> _showChatRequestDialog(
       BuildContext context, WidgetRef ref, List<OrgMember> members) async {
     final l = AppLocalizations.of(context);
-    final currentUid = FirebaseAuth.instance.currentUser!.uid;
+    final currentUid = ref.read(authStateProvider).value!.uid;
     final others = members.where((m) => m.uid != currentUid).toList();
     if (others.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -3571,12 +3570,11 @@ class _ReportsTabLabel extends ConsumerWidget {
 
 final _pendingReportsCountProvider =
     StreamProvider.family<int, String>((ref, orgId) {
-  return FirebaseFirestore.instance
-      .collection('reports')
-      .where('orgId', isEqualTo: orgId)
-      .where('status', isEqualTo: 'pending')
-      .snapshots()
-      .map((s) => s.docs.length);
+  return ref.watch(chatServiceProvider).watchReports(orgId).map(
+        (reports) => reports
+            .where((r) => (r['status'] as String?) == 'pending')
+            .length,
+      );
 });
 
 // ── Reports Tab ───────────────────────────────────────────────────────────────
@@ -3777,12 +3775,7 @@ class _ReportsTabState extends ConsumerState<_ReportsTab> {
     final reportId = report['id'] as String;
 
     if (convId != null && msgId != null) {
-      await FirebaseFirestore.instance
-          .collection('conversations')
-          .doc(convId)
-          .collection('messages')
-          .doc(msgId)
-          .delete();
+      await ref.read(chatServiceProvider).deleteMessage(convId, msgId);
     }
     await ref.read(chatServiceProvider).markReportReviewed(reportId);
   }
@@ -4406,7 +4399,7 @@ class _AnnouncementCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
-    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final currentUid = ref.read(authStateProvider).value?.uid ?? '';
 
     final isEvent = announcement.isEvent;
     final isPast = announcement.isPastEvent;
@@ -4738,7 +4731,7 @@ class _EventDetailSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
-    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final currentUid = ref.read(authStateProvider).value?.uid ?? '';
 
     // Shadow field with live data — only rebuilds when this specific event changes
     final event = ref.watch(announcementsProvider(orgId).select(

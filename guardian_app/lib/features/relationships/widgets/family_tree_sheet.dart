@@ -1,11 +1,10 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../l10n/app_localizations.dart';
-import '../providers/relationships_provider.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../organizations/providers/organizations_provider.dart';
+import '../providers/relationships_provider.dart';
 
 /// Modal bottom sheet that gives a quick overview of the user's verified
 /// family connections:
@@ -23,7 +22,7 @@ class FamilyTreeSheet extends ConsumerWidget {
     final appUser = ref.watch(currentAppUserProvider).value;
     final childrenAsync = ref.watch(myChildrenProvider);
     final parentsAsync = ref.watch(myParentsProvider);
-    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final currentUid = ref.watch(authStateProvider).value?.uid ?? '';
 
     final isChild = appUser?.isChild ?? false;
 
@@ -276,29 +275,21 @@ class _ChildWithCoParentsTile extends StatelessWidget {
 
 // ─── Co-parents subtitle row (async) ─────────────────────────────────────────
 
-class _CoParentsSubtitle extends StatelessWidget {
+class _CoParentsSubtitle extends ConsumerWidget {
   final List<String> uids;
   final AppLocalizations l;
 
   const _CoParentsSubtitle({required this.uids, required this.l});
 
-  Future<List<String>> _loadNames() async {
-    final db = FirebaseFirestore.instance;
-    final docs = await Future.wait(
-        uids.map((u) => db.collection('users').doc(u).get()));
-    return docs
-        .where((d) => d.exists)
-        .map((d) =>
-            (d.data() as Map<String, dynamic>)['displayName'] as String? ??
-            (d.data() as Map<String, dynamic>)['email'] as String? ??
-            '?')
-        .toList();
+  Future<List<String>> _loadNames(WidgetRef ref) {
+    final service = ref.read(organizationServiceProvider);
+    return Future.wait(uids.map((u) => service.getUserDisplayName(u)));
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return FutureBuilder<List<String>>(
-      future: _loadNames(),
+      future: _loadNames(ref),
       builder: (ctx, snap) {
         final names = snap.data;
         final text = names == null

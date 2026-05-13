@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class PollOption {
@@ -98,5 +99,46 @@ class Poll {
         if (expiresAt != null) 'expiresAt': Timestamp.fromDate(expiresAt!),
         // Initialise every option with an empty voter list
         'votes': {for (final o in options) o.id: <String>[]},
+      };
+
+  factory Poll.fromAppwrite(Map<String, dynamic> data) {
+    final options = (jsonDecode(data['optionsJson'] as String) as List)
+        .map((o) => PollOption.fromMap(Map<String, dynamic>.from(o as Map)))
+        .toList();
+    final votesJson = data['votesJson'] as String?;
+    final votes = (votesJson != null && votesJson.isNotEmpty)
+        ? (jsonDecode(votesJson) as Map<String, dynamic>).map(
+            (k, v) => MapEntry(k, List<String>.from(v as List? ?? [])))
+        : <String, List<String>>{};
+    return Poll(
+      id: data[r'$id'] as String,
+      convId: data['convId'] as String,
+      question: data['question'] as String,
+      options: options,
+      createdBy: data['createdBy'] as String,
+      createdByName: data['createdByName'] as String? ?? '',
+      createdAt: DateTime.parse(data['createdAt'] as String),
+      multipleChoice: data['multipleChoice'] as bool? ?? false,
+      isClosed: data['isClosed'] as bool? ?? false,
+      isAnonymous: data['isAnonymous'] as bool? ?? false,
+      expiresAt: data['expiresAt'] != null
+          ? DateTime.parse(data['expiresAt'] as String)
+          : null,
+      votes: votes,
+    );
+  }
+
+  Map<String, dynamic> toAppwrite() => {
+        'convId': convId,
+        'question': question,
+        'optionsJson': jsonEncode(options.map((o) => o.toMap()).toList()),
+        'createdBy': createdBy,
+        'createdByName': createdByName,
+        'createdAt': createdAt.toIso8601String(),
+        'multipleChoice': multipleChoice,
+        'isClosed': isClosed,
+        'isAnonymous': isAnonymous,
+        if (expiresAt != null) 'expiresAt': expiresAt!.toIso8601String(),
+        'votesJson': jsonEncode({for (final o in options) o.id: <String>[]}),
       };
 }

@@ -1,9 +1,9 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/models/conversation.dart';
 import '../../core/models/organization.dart';
+import '../auth/providers/auth_provider.dart';
 import '../../core/providers/share_provider.dart';
 import '../../core/services/share_service.dart';
 import '../../l10n/app_localizations.dart';
@@ -23,7 +23,7 @@ class _SharePickerSheetState extends ConsumerState<SharePickerSheet> {
   String? _sendingConvId;
 
   String _partnerUid(Conversation conv) {
-    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final uid = ref.read(authStateProvider).value?.uid ?? '';
     return conv.participantUids.firstWhere((u) => u != uid, orElse: () => uid);
   }
 
@@ -214,7 +214,7 @@ class _ShareConvTile extends ConsumerWidget {
   });
 
   String _resolveTitle(WidgetRef ref) {
-    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final uid = ref.read(authStateProvider).value?.uid ?? '';
     final personal = conv.personalNames[uid];
     if (personal != null && personal.isNotEmpty) return personal;
     if (conv.isGroup) return conv.name ?? '';

@@ -4,9 +4,9 @@ import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:appwrite/appwrite.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import '../appwrite_client.dart';
 import '../models/conversation.dart';
 import '../models/message.dart';
 import '../models/poll.dart';
@@ -18,11 +18,13 @@ class ChatService {
     required String uid,
     required String displayName,
   })  : _db = Databases(client),
+        _storage = Storage(client),
         _realtime = Realtime(client),
         _uid = uid,
         _displayName = displayName;
 
   final Databases _db;
+  final Storage _storage;
   final Realtime _realtime;
   final String _uid;
   final String _displayName;
@@ -561,18 +563,19 @@ class ChatService {
       quality: 80,
       format: CompressFormat.jpeg,
     );
-    // TODO(vuln6): migrate to Appwrite Storage once media bucket is secured
-    final ref = FirebaseStorage.instance
-        .ref()
-        .child('groupImages/$convId/avatar');
-    await ref.putData(compressed,
-        SettableMetadata(contentType: 'image/jpeg'));
-    try {
-      return await ref.getDownloadURL();
-    } catch (e) {
-      await ref.delete().catchError((_) {});
-      rethrow;
-    }
+    final file = await _storage.createFile(
+      bucketId: appwriteMediaBucketId,
+      fileId: ID.unique(),
+      file: InputFile.fromBytes(
+          bytes: compressed,
+          filename: 'avatar.jpg',
+          contentType: 'image/jpeg'),
+      permissions: [
+        Permission.read(Role.users()),
+        Permission.delete(Role.user(_uid)),
+      ],
+    );
+    return '$appwriteEndpoint/storage/buckets/$appwriteMediaBucketId/files/${file.$id}/view?project=$appwriteProjectId';
   }
 
   Future<void> updateGroupInfo(
@@ -730,13 +733,19 @@ class ChatService {
       {String contentType = 'audio/m4a'}) async {
     final msgId = ID.unique();
     final ext = contentType.contains('webm') ? 'webm' : 'm4a';
-    // TODO(vuln6): migrate to Appwrite Storage
-    final storageRef = FirebaseStorage.instance
-        .ref()
-        .child('voiceMessages/$convId/${_uid}_$msgId.$ext');
-    await storageRef.putData(audioBytes,
-        SettableMetadata(contentType: contentType));
-    final audioUrl = await storageRef.getDownloadURL();
+    final file = await _storage.createFile(
+      bucketId: appwriteMediaBucketId,
+      fileId: ID.unique(),
+      file: InputFile.fromBytes(
+          bytes: audioBytes,
+          filename: '${_uid}_$msgId.$ext',
+          contentType: contentType),
+      permissions: [
+        Permission.read(Role.users()),
+        Permission.delete(Role.user(_uid)),
+      ],
+    );
+    final audioUrl = '$appwriteEndpoint/storage/buckets/$appwriteMediaBucketId/files/${file.$id}/view?project=$appwriteProjectId';
 
     final msg = Message(
       id: msgId,
@@ -790,13 +799,19 @@ class ChatService {
       uploadContentType = 'image/jpeg';
     }
 
-    // TODO(vuln6): migrate to Appwrite Storage
-    final storageRef = FirebaseStorage.instance
-        .ref()
-        .child('chatImages/$convId/${_uid}_$msgId.$ext');
-    await storageRef.putData(
-        uploadBytes, SettableMetadata(contentType: uploadContentType));
-    final imageUrl = await storageRef.getDownloadURL();
+    final file = await _storage.createFile(
+      bucketId: appwriteMediaBucketId,
+      fileId: ID.unique(),
+      file: InputFile.fromBytes(
+          bytes: uploadBytes,
+          filename: '${_uid}_$msgId.$ext',
+          contentType: uploadContentType),
+      permissions: [
+        Permission.read(Role.users()),
+        Permission.delete(Role.user(_uid)),
+      ],
+    );
+    final imageUrl = '$appwriteEndpoint/storage/buckets/$appwriteMediaBucketId/files/${file.$id}/view?project=$appwriteProjectId';
 
     final msg = Message(
       id: msgId,
@@ -823,14 +838,18 @@ class ChatService {
       throw Exception('Die Datei ist zu groß (max. 5 MB).');
     }
     final msgId = ID.unique();
-    final ext = fileName.contains('.') ? fileName.split('.').last : '';
-    // TODO(vuln6): migrate to Appwrite Storage
-    final storageRef = FirebaseStorage.instance
-        .ref()
-        .child(
-            'chatFiles/$convId/${_uid}_$msgId${ext.isNotEmpty ? '.$ext' : ''}');
-    await storageRef.putData(fileBytes);
-    final fileUrl = await storageRef.getDownloadURL();
+    final awFile = await _storage.createFile(
+      bucketId: appwriteMediaBucketId,
+      fileId: ID.unique(),
+      file: InputFile.fromBytes(
+          bytes: fileBytes,
+          filename: fileName),
+      permissions: [
+        Permission.read(Role.users()),
+        Permission.delete(Role.user(_uid)),
+      ],
+    );
+    final fileUrl = '$appwriteEndpoint/storage/buckets/$appwriteMediaBucketId/files/${awFile.$id}/view?project=$appwriteProjectId';
 
     final msg = Message(
       id: msgId,

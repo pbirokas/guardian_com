@@ -1,5 +1,6 @@
 /**
- * One-time script: enable documentSecurity on all existing Appwrite collections.
+ * One-time script: enable documentSecurity on all existing Appwrite collections
+ * and apply correct permissions to the media storage bucket.
  *
  * Run ONCE against the live instance after updating setup.js.
  * Safe to re-run (idempotent).
@@ -12,7 +13,7 @@
  */
 
 import { config } from 'dotenv';
-import { Client, Databases, Permission, Role } from 'node-appwrite';
+import { Client, Databases, Storage, Permission, Role } from 'node-appwrite';
 
 config();
 
@@ -22,7 +23,9 @@ const client = new Client()
   .setKey(process.env.APPWRITE_API_KEY);
 
 const db = new Databases(client);
+const storage = new Storage(client);
 const DB_ID = 'guardian';
+const BUCKET_MEDIA = 'media';
 
 const collections = [
   { id: 'users',              name: 'Users' },
@@ -46,7 +49,7 @@ const collectionPermissionOverrides = {
   users: [Permission.read(Role.users())],
 };
 
-async function main() {
+async function fixCollections() {
   console.log('Enabling documentSecurity on all collections...\n');
   for (const col of collections) {
     try {
@@ -64,6 +67,31 @@ async function main() {
   }
   console.log('\nDone. All existing documents without explicit permissions are now inaccessible');
   console.log('to clients (Cloud Functions with API key are unaffected).');
+}
+
+// Vuln 6: media-Bucket braucht explizite Permissions, damit authentifizierte Nutzer
+// Dateien lesen und hochladen können. Löschen bleibt per File-Permission (beim Upload gesetzt).
+async function fixMediaBucket() {
+  console.log('\nFixing media bucket permissions...');
+  const permissions = [
+    Permission.read(Role.users()),
+    Permission.create(Role.users()),
+  ];
+  try {
+    await storage.updateBucket(BUCKET_MEDIA, 'Media', permissions, true);
+    console.log('✓ media bucket: permissions updated, documentSecurity enabled');
+  } catch (e) {
+    if (e.code === 404) {
+      console.log('~ media bucket: not found — create it manually or run setup.js');
+    } else {
+      console.error(`✗ media bucket: ${e.message}`);
+    }
+  }
+}
+
+async function main() {
+  await fixCollections();
+  await fixMediaBucket();
 }
 
 main().catch(console.error);

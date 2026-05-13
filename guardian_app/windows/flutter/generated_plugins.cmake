@@ -12,7 +12,6 @@ list(APPEND FLUTTER_PLUGIN_LIST
   file_selector_windows
   firebase_auth
   firebase_core
-  firebase_storage
   local_notifier
   record_windows
   screen_retriever_windows

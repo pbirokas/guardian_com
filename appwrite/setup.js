@@ -17,7 +17,7 @@
  */
 
 import { config } from 'dotenv';
-import { Client, Databases, ID, Permission, Role } from 'node-appwrite';
+import { Client, Databases, Storage, ID, Permission, Role } from 'node-appwrite';
 
 config();
 
@@ -29,6 +29,7 @@ const client = new Client()
   .setKey(process.env.APPWRITE_API_KEY);
 
 const db = new Databases(client);
+const storage = new Storage(client);
 
 // ─── Datenbank ────────────────────────────────────────────────────────────────
 
@@ -381,6 +382,32 @@ async function setupReports() {
   await idx('reports', 'createdAt_idx', 'key', ['createdAt'], ['DESC']);
 }
 
+// ─── Storage ──────────────────────────────────────────────────────────────────
+
+export const BUCKET_MEDIA = 'media';
+
+async function setupMediaBucket() {
+  if (DRY_RUN) { console.log('[DRY] setupMediaBucket'); return; }
+  const permissions = [
+    // All authenticated users can read (view images/files/voice in chat).
+    Permission.read(Role.users()),
+    // All authenticated users can upload.
+    Permission.create(Role.users()),
+    // Deletion is controlled per-file via document security (uploader sets own delete permission).
+  ];
+  try {
+    await storage.createBucket(BUCKET_MEDIA, 'Media', permissions, true);
+    console.log('✓ Bucket: media');
+  } catch (e) {
+    if (e.code === 409) {
+      await storage.updateBucket(BUCKET_MEDIA, 'Media', permissions, true);
+      console.log('~ Bucket media: permissions updated');
+    } else {
+      throw e;
+    }
+  }
+}
+
 // ─── Hauptprogramm ────────────────────────────────────────────────────────────
 
 async function main() {
@@ -410,13 +437,13 @@ async function main() {
   await setupInvitations();
   await setupOrgInviteConsents();
   await setupReports();
+  await setupMediaBucket();
 
   console.log('\n✅ Setup abgeschlossen.');
   console.log('\nNächste Schritte:');
   console.log('  1. FCM-Provider in Appwrite Console unter Messaging konfigurieren');
   console.log('  2. Auth-Provider (Email/Password) in Appwrite Console aktivieren');
-  console.log('  3. Storage-Bucket "media" anlegen (für Bilder, Dateien, Sprachnachrichten)');
-  console.log('  4. Migrations-Skript ausführen: node migrate.js');
+  console.log('  3. Migrations-Skript ausführen: node migrate.js');
 }
 
 main().catch(console.error);

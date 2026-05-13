@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 const appwriteEndpoint = 'https://appwrite.guardian-com.de/v1';
 const appwriteProjectId = '6a02e4160023948ef257';
-const appwriteMediaBucketId = 'media';
+const appwriteMediaBucketId = '6a02e524000954c9f1de';
 
 final appwriteClientProvider = Provider<Client>((ref) {
   return Client()

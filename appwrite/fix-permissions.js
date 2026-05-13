@@ -25,7 +25,7 @@ const client = new Client()
 const db = new Databases(client);
 const storage = new Storage(client);
 const DB_ID = 'guardian';
-const BUCKET_MEDIA = 'media';
+const BUCKET_MEDIA = '6a02e524000954c9f1de'; // Live-Bucket-ID (manuell erstellt)
 
 const collections = [
   { id: 'users',              name: 'Users' },

@@ -29,6 +29,7 @@ import '../../../core/dialogs/edit_group_dialog.dart';
 import '../../../core/providers/share_provider.dart';
 import '../../../core/widgets/group_avatar.dart';
 import '../../../features/organizations/providers/organizations_provider.dart';
+import '../../../core/services/chat_service.dart';
 import '../providers/chat_provider.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
@@ -57,6 +58,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   // ── Geplante Nachrichten ───────────────────────────────────────────────────
   Timer? _scheduleTimer;
+  late ChatService _chatService;
 
   // ── Tipp-Indikator ────────────────────────────────────────────────────────
   Timer? _typingTimer;
@@ -80,6 +82,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _chatService = ref.read(chatServiceProvider);
     _markRead();
     _scrollController.addListener(_onScroll);
     _controller.addListener(_onTextChanged);
@@ -135,17 +138,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (_controller.text.trim().isNotEmpty) {
       if (!_isTyping) {
         _isTyping = true;
-        ref.read(chatServiceProvider).setTyping(widget.chatId, true).catchError((_) {});
+        _chatService.setTyping(widget.chatId, true).catchError((_) {});
       }
       _typingTimer?.cancel();
       _typingTimer = Timer(const Duration(seconds: 4), () {
         _isTyping = false;
-        ref.read(chatServiceProvider).setTyping(widget.chatId, false).catchError((_) {});
+        _chatService.setTyping(widget.chatId, false).catchError((_) {});
       });
     } else if (_isTyping) {
       _typingTimer?.cancel();
       _isTyping = false;
-      ref.read(chatServiceProvider).setTyping(widget.chatId, false).catchError((_) {});
+      _chatService.setTyping(widget.chatId, false).catchError((_) {});
     }
   }
 
@@ -192,7 +195,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _markRead() {
-    ref.read(chatServiceProvider).markAsRead(widget.chatId).catchError((_) {});
+    _chatService.markAsRead(widget.chatId).catchError((_) {});
   }
 
   Future<void> _showEditGroupDialog(Conversation conv) =>
@@ -238,7 +241,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _controller.removeListener(_onTextChanged);
     _typingTimer?.cancel();
     if (_isTyping) {
-      ref.read(chatServiceProvider).setTyping(widget.chatId, false).catchError((_) {});
+      _chatService.setTyping(widget.chatId, false).catchError((_) {});
     }
     _controller.dispose();
     _scrollController.dispose();
@@ -253,12 +256,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _checkScheduledMessages() async {
     if (!mounted) return;
     final now = DateTime.now();
-    final service = ref.read(chatServiceProvider);
     try {
-      final snapshot = await service.watchScheduledMessages(widget.chatId).first;
+      final snapshot = await _chatService.watchScheduledMessages(widget.chatId).first;
+      if (!mounted) return;
       for (final sm in snapshot) {
         if (sm.scheduledFor.isBefore(now) || sm.scheduledFor.isAtSameMomentAs(now)) {
-          await service.sendScheduledMessage(sm);
+          await _chatService.sendScheduledMessage(sm);
         }
       }
     } catch (_) {}

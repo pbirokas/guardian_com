@@ -112,7 +112,9 @@ async function idx(col, key, type, attributes, orders = []) {
 // ─── Schema-Definitionen ──────────────────────────────────────────────────────
 
 async function setupUsers() {
-  await createCollection(COL.USERS, 'Users');
+  // Collection-Level read für alle eingeloggten Nutzer (nötig für Display-Name-Lookup,
+  // Org-Mitgliederlisten etc.). Schreiben nur per Document-Permission (auth_service.dart).
+  await createCollection(COL.USERS, 'Users', [Permission.read(Role.users())]);
   // Felder
   await str(COL.USERS,  'email',              255, true);
   await str(COL.USERS,  'displayName',        100, true);

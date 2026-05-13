@@ -12,7 +12,7 @@
  */
 
 import { config } from 'dotenv';
-import { Client, Databases } from 'node-appwrite';
+import { Client, Databases, Permission, Role } from 'node-appwrite';
 
 config();
 
@@ -39,13 +39,21 @@ const collections = [
   { id: 'reports',            name: 'Reports' },
 ];
 
+// Vuln 5: users-Collection braucht explizite Collection-Level read-Permission,
+// damit getUserDisplayName() und Org-Mitgliederlisten für alle eingeloggten Nutzer
+// funktionieren. Schreiben bleibt per Document-Permission (auth_service.dart) geschützt.
+const collectionPermissionOverrides = {
+  users: [Permission.read(Role.users())],
+};
+
 async function main() {
   console.log('Enabling documentSecurity on all collections...\n');
   for (const col of collections) {
     try {
       const current = await db.getCollection(DB_ID, col.id);
-      await db.updateCollection(DB_ID, col.id, col.name, current.$permissions, true);
-      console.log(`✓ ${col.id}`);
+      const permissions = collectionPermissionOverrides[col.id] ?? current.$permissions;
+      await db.updateCollection(DB_ID, col.id, col.name, permissions, true);
+      console.log(`✓ ${col.id}${collectionPermissionOverrides[col.id] ? ' (permissions updated)' : ''}`);
     } catch (e) {
       if (e.code === 404) {
         console.log(`~ ${col.id}: not found, skipping`);

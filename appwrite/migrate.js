@@ -23,7 +23,8 @@
  */
 
 import { config } from 'dotenv';
-import { Client, Databases, Storage, Users, Permission, Role, ID, InputFile } from 'node-appwrite';
+import { Client, Databases, Storage, Users, Permission, Role, ID } from 'node-appwrite';
+import { InputFile } from 'node-appwrite/file';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
@@ -54,7 +55,11 @@ const firebaseApp = initializeApp({
 
 const fsDb      = getFirestore(firebaseApp);
 const fbAuth    = getAuth(firebaseApp);
-const fbBucket  = getStorage(firebaseApp).bucket();
+let _fbBucket;
+const fbBucket  = () => {
+  if (!_fbBucket) _fbBucket = getStorage(firebaseApp).bucket();
+  return _fbBucket;
+};
 
 // ─── Appwrite ─────────────────────────────────────────────────────────────────
 
@@ -161,7 +166,7 @@ async function migrateFile(firebaseUrl, uploaderUid) {
   if (!path) return firebaseUrl;
 
   try {
-    const file = fbBucket.file(path);
+    const file = fbBucket().file(path);
     const [exists] = await file.exists();
     if (!exists) {
       console.warn(`  ~ Datei nicht gefunden: ${path}`);

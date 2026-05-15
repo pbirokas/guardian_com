@@ -67,5 +67,8 @@ appwrite/functions/**/node_modules/
 appwrite/functions/**/.appwrite/
 # appwrite/.env ist bereits durch .env-Regel oben abgedeckt
 
+# Root node_modules (Firebase Functions or other scripts)
+node_modules/
+
 # Claude Code
 .claude/settings.local.json

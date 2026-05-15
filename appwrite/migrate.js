@@ -427,10 +427,12 @@ async function migratePolls() {
   const convsSnap = await fsDb.collection('conversations').get();
   for (const convDoc of convsSnap.docs) {
     const convId = convDoc.id;
+    const convData = convDoc.data();
     for await (const pollDoc of paginate(fsDb.collection('conversations').doc(convId).collection('polls'))) {
       const d = pollDoc.data();
       const data = {
         convId,
+        orgId: d.orgId ?? convData.orgId ?? '',
         question:      d.question,
         optionsJson:   JSON.stringify((d.options ?? []).map((o) => ({ id: o.id, text: o.text }))),
         createdBy:     d.createdBy,
@@ -517,17 +519,14 @@ async function migrateInvitations() {
   for await (const doc of paginate(fsDb.collection('invitations'))) {
     const d = doc.data();
     const data = {
-      orgId:       d.orgId,
-      orgName:     d.orgName ?? '',
-      invitedBy:   d.invitedBy,
-      invitedByName: d.invitedByName ?? '',
-      email:       d.email,
-      role:        d.role ?? 'member',
-      status:      d.status ?? 'pending',
-      createdAt:   ts(d.createdAt) ?? new Date().toISOString(),
-      expiresAt:   ts(d.expiresAt),
-      acceptedBy:  d.acceptedBy ?? null,
-      acceptedAt:  ts(d.acceptedAt),
+      orgId:        d.orgId,
+      orgName:      d.orgName ?? '',
+      inviterName:  d.invitedByName ?? d.inviterName ?? '',
+      email:        d.email,
+      role:         d.role ?? 'member',
+      guardianUids: d.guardianUids ?? [],
+      status:       d.status ?? 'pending',
+      createdAt:    ts(d.createdAt) ?? new Date().toISOString(),
     };
     const created = await upsertDoc('invitations', doc.id, data);
     created ? n++ : skip++;
@@ -566,19 +565,19 @@ async function migrateOrgInviteConsents() {
   for await (const doc of paginate(fsDb.collection('orgInviteConsents'))) {
     const d = doc.data();
     const data = {
-      orgId:        d.orgId,
-      orgName:      d.orgName ?? '',
-      childUid:     d.childUid,
-      childName:    d.childName ?? '',
-      invitedBy:    d.invitedBy,
-      invitedByName: d.invitedByName ?? '',
-      status:       d.status ?? 'pending',
-      parentUids:   d.parentUids ?? [],
-      parentUids_idx: d.parentUids ?? [],
-      approvedBy:   d.approvedBy ?? null,
-      vetoedBy:     d.vetoedBy ?? null,
-      createdAt:    ts(d.createdAt) ?? new Date().toISOString(),
-      expiresAt:    ts(d.expiresAt),
+      orgId:              d.orgId,
+      orgName:            d.orgName ?? '',
+      childUid:           d.childUid,
+      childName:          d.childName ?? '',
+      invitedByUid:       d.invitedBy ?? d.invitedByUid ?? null,
+      invitedByName:      d.invitedByName ?? '',
+      status:             d.status ?? 'pending',
+      parentUids:         d.parentUids ?? [],
+      proposedGuardianUids: d.proposedGuardianUids ?? [],
+      approvedBy:         d.approvedBy ?? null,
+      vetoedBy:           d.vetoedBy ?? null,
+      createdAt:          ts(d.createdAt) ?? new Date().toISOString(),
+      expiresAt:          ts(d.expiresAt),
     };
     const created = await upsertDoc('org_invite_consents', doc.id, data);
     created ? n++ : skip++;
@@ -593,15 +592,13 @@ async function migrateReports() {
   for await (const doc of paginate(fsDb.collection('reports'))) {
     const d = doc.data();
     const data = {
-      orgId:              d.orgId,
-      reportedByUid:      d.reportedByUid,
-      convId:             d.convId ?? null,
-      messageId:          d.messageId ?? null,
-      orgAdminUid:        d.orgAdminUid ?? '',
-      messageSenderName:  d.messageSenderName ?? '',
-      messageText:        d.messageText ?? '',
-      status:             d.status ?? 'pending',
-      createdAt:          ts(d.createdAt) ?? new Date().toISOString(),
+      orgId:             d.orgId,
+      reportedByUid:     d.reportedByUid ?? null,
+      convId:            d.convId ?? null,
+      orgAdminUid:       d.orgAdminUid ?? '',
+      messageSenderName: d.messageSenderName ?? '',
+      messageText:       d.messageText ?? '',
+      createdAt:         ts(d.createdAt) ?? new Date().toISOString(),
     };
     const created = await upsertDoc('reports', doc.id, data);
     created ? n++ : skip++;

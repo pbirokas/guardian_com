@@ -2,7 +2,7 @@ const { Client, Databases, Query } = require('node-appwrite');
 
 const DB_ID = 'guardian';
 const COL_ORGANIZATIONS = 'organizations';
-const COL_MESSAGES = 'messages';
+const COL_MESSAGES = 'chat_messages';
 const COL_POLLS = 'polls';
 
 const RETENTION_MIN = 30;

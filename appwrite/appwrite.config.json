@@ -650,10 +650,10 @@
             ]
         },
         {
-            "$id": "messages",
+            "$id": "chat_messages",
             "$permissions": [],
             "databaseId": "guardian",
-            "name": "Messages",
+            "name": "ChatMessages",
             "enabled": true,
             "rowSecurity": false,
             "columns": [
@@ -1713,7 +1713,7 @@
             "runtime": "node-16.0",
             "execute": [],
             "events": [
-                "databases.guardian.collections.messages.documents.*.create"
+                "databases.guardian.collections.chat_messages.documents.*.create"
             ],
             "schedule": "",
             "timeout": 60,

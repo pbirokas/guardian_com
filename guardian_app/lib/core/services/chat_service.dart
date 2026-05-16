@@ -19,7 +19,7 @@ class ChatService {
     required String displayName,
   })  : _db = Databases(client),
         _storage = Storage(client),
-        _realtime = Realtime(client),
+        _realtime = createPatchedRealtime(client),
         _uid = uid,
         _displayName = displayName;
 
@@ -31,7 +31,7 @@ class ChatService {
 
   static const _dbId = 'guardian';
   static const _colConvs = 'conversations';
-  static const _colMessages = 'messages';
+  static const _colMessages = 'chat_messages';
   static const _colPolls = 'polls';
   static const _colScheduled = 'scheduled_messages';
   static const _colMembers = 'members';
@@ -56,7 +56,7 @@ class ChatService {
     int Function(T, T)? sort,
   ) {
     late StreamController<List<T>> ctrl;
-    RealtimeSubscription? sub;
+    StreamSubscription? realtimeSub;
 
     Future<void> reload() async {
       if (ctrl.isClosed) return;
@@ -77,14 +77,15 @@ class ChatService {
     }
 
     void dispose() {
-      sub?.close();
+      realtimeSub?.cancel();
       ctrl.close();
     }
 
     ctrl = StreamController(onCancel: dispose);
-    sub = _realtime
-        .subscribe(['databases.$_dbId.collections.$collectionId.documents']);
-    sub.stream.listen((_) => reload(), onDone: dispose, onError: (_) {});
+    realtimeSub = _realtime
+        .subscribe(['databases.$_dbId.collections.$collectionId.documents'])
+        .stream
+        .listen((_) => reload(), onDone: dispose, onError: (_) {});
     reload();
     return ctrl.stream;
   }
@@ -95,7 +96,7 @@ class ChatService {
     T Function(Map<String, dynamic>) fromDoc,
   ) {
     late StreamController<T?> ctrl;
-    RealtimeSubscription? sub;
+    StreamSubscription? realtimeSub;
 
     Future<void> reload() async {
       if (ctrl.isClosed) return;
@@ -117,14 +118,16 @@ class ChatService {
     }
 
     void dispose() {
-      sub?.close();
+      realtimeSub?.cancel();
       ctrl.close();
     }
 
     ctrl = StreamController(onCancel: dispose);
-    sub = _realtime.subscribe(
-        ['databases.$_dbId.collections.$collectionId.documents.$docId']);
-    sub.stream.listen((_) => reload(), onDone: dispose, onError: (_) {});
+    realtimeSub = _realtime
+        .subscribe(
+            ['databases.$_dbId.collections.$collectionId.documents.$docId'])
+        .stream
+        .listen((_) => reload(), onDone: dispose, onError: (_) {});
     reload();
     return ctrl.stream;
   }
@@ -571,7 +574,7 @@ class ChatService {
           filename: 'avatar.jpg',
           contentType: 'image/jpeg'),
       permissions: [
-        Permission.read(Role.users()),
+        Permission.read(Role.any()),
         Permission.delete(Role.user(_uid)),
       ],
     );
@@ -599,6 +602,12 @@ class ChatService {
 
   // ── Nachrichten ────────────────────────────────────────────────────────────
 
+  Future<String> _getOrgId(String convId) async {
+    final doc = await _db.getDocument(
+        databaseId: _dbId, collectionId: _colConvs, documentId: convId);
+    return doc.data['orgId'] as String? ?? '';
+  }
+
   Stream<List<Message>> watchMessages(String convId, {int limit = 30}) {
     return _watchQuery(
       _colMessages,
@@ -620,6 +629,7 @@ class ChatService {
     String? replyToText,
   }) async {
     final msgId = ID.unique();
+    final orgId = await _getOrgId(convId);
     final msg = Message(
       id: msgId,
       senderUid: _uid,
@@ -634,7 +644,7 @@ class ChatService {
       databaseId: _dbId,
       collectionId: _colMessages,
       documentId: msgId,
-      data: {...msg.toAppwrite(), 'convId': convId},
+      data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
     );
     await _updateLastMessage(
         convId, text.length > 200 ? '${text.substring(0, 200)}…' : text);
@@ -732,6 +742,7 @@ class ChatService {
       String convId, Uint8List audioBytes, int durationMs,
       {String contentType = 'audio/m4a'}) async {
     final msgId = ID.unique();
+    final orgId = await _getOrgId(convId);
     final ext = contentType.contains('webm') ? 'webm' : 'm4a';
     final file = await _storage.createFile(
       bucketId: appwriteMediaBucketId,
@@ -741,7 +752,7 @@ class ChatService {
           filename: '${_uid}_$msgId.$ext',
           contentType: contentType),
       permissions: [
-        Permission.read(Role.users()),
+        Permission.read(Role.any()),
         Permission.delete(Role.user(_uid)),
       ],
     );
@@ -760,13 +771,14 @@ class ChatService {
       databaseId: _dbId,
       collectionId: _colMessages,
       documentId: msgId,
-      data: {...msg.toAppwrite(), 'convId': convId},
+      data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
     );
     await _updateLastMessage(convId, '🎤 Sprachnachricht');
   }
 
   Future<void> sendImage(String convId, Uint8List imageBytes,
       {String mimeType = 'image/jpeg'}) async {
+    final orgId = await _getOrgId(convId);
     const allowedMimeTypes = {
       'image/gif', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp'
     };
@@ -807,7 +819,7 @@ class ChatService {
           filename: '${_uid}_$msgId.$ext',
           contentType: uploadContentType),
       permissions: [
-        Permission.read(Role.users()),
+        Permission.read(Role.any()),
         Permission.delete(Role.user(_uid)),
       ],
     );
@@ -826,13 +838,14 @@ class ChatService {
       databaseId: _dbId,
       collectionId: _colMessages,
       documentId: msgId,
-      data: {...msg.toAppwrite(), 'convId': convId},
+      data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
     );
     await _updateLastMessage(convId, '[Bild]');
   }
 
   Future<void> sendFile(
       String convId, Uint8List fileBytes, String fileName, int fileSize) async {
+    final orgId = await _getOrgId(convId);
     const maxBytes = 5 * 1024 * 1024;
     if (fileSize > maxBytes) {
       throw Exception('Die Datei ist zu groß (max. 5 MB).');
@@ -845,7 +858,7 @@ class ChatService {
           bytes: fileBytes,
           filename: fileName),
       permissions: [
-        Permission.read(Role.users()),
+        Permission.read(Role.any()),
         Permission.delete(Role.user(_uid)),
       ],
     );
@@ -865,7 +878,7 @@ class ChatService {
       databaseId: _dbId,
       collectionId: _colMessages,
       documentId: msgId,
-      data: {...msg.toAppwrite(), 'convId': convId},
+      data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
     );
     await _updateLastMessage(convId, '📎 $fileName');
   }
@@ -1046,7 +1059,9 @@ class ChatService {
         'messageText': message.text,
         'messageSenderName': message.senderName,
         'createdAt': DateTime.now().toIso8601String(),
+        'status': 'pending',
       },
+      permissions: [Permission.read(Role.users())],
     );
   }
 

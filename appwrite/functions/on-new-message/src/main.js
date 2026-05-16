@@ -210,9 +210,7 @@ module.exports = async ({ req, res, log, error }) => {
   log(`Keyword "${matchedKeyword}" found in conv ${convId}`);
 
   const alertUids = Object.entries(memberMap)
-    .filter(([uid, data]) =>
-      (data.role === 'moderator' || data.role === 'guardian') && uid !== senderUid
-    )
+    .filter(([uid, data]) => data.role === 'moderator' && uid !== senderUid)
     .map(([uid]) => uid);
 
   if (org.adminUid && org.adminUid !== senderUid && !alertUids.includes(org.adminUid)) {

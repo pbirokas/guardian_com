@@ -4,7 +4,7 @@ const DB_ID = 'guardian';
 const COL_USERS = 'users';
 const COL_ORGANIZATIONS = 'organizations';
 const COL_CONVERSATIONS = 'conversations';
-const COL_MESSAGES = 'messages';
+const COL_MESSAGES = 'chat_messages';
 
 module.exports = async ({ req, res, log, error }) => {
   const uid = req.headers['x-appwrite-user-id'];

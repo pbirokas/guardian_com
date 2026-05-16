@@ -32,7 +32,7 @@ const collections = [
   { id: 'organizations',      name: 'Organizations' },
   { id: 'members',            name: 'Members' },
   { id: 'conversations',      name: 'Conversations' },
-  { id: 'messages',           name: 'Messages' },
+  { id: 'chat_messages',      name: 'ChatMessages' },
   { id: 'polls',              name: 'Polls' },
   { id: 'claim_requests',     name: 'ClaimRequests' },
   { id: 'scheduled_messages', name: 'ScheduledMessages' },
@@ -42,11 +42,27 @@ const collections = [
   { id: 'reports',            name: 'Reports' },
 ];
 
-// Vuln 5: users-Collection braucht explizite Collection-Level read-Permission,
-// damit getUserDisplayName() und Org-Mitgliederlisten für alle eingeloggten Nutzer
-// funktionieren. Schreiben bleibt per Document-Permission (auth_service.dart) geschützt.
+// Collection-Level Permissions:
+// - read: nötig damit Appwrite Realtime den WebSocket-Channel öffnen kann
+// - create/update/delete: auf Collection-Ebene nötig da Appwrite kein per-Doc create kennt
+// Die eigentliche Zugriffsfilterung (wer darf was) passiert per Query und App-Logik.
+const R   = [Permission.read(Role.users())];
+const RCD = [Permission.read(Role.users()), Permission.create(Role.users()), Permission.delete(Role.users())];
+const RCUD = [Permission.read(Role.users()), Permission.create(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())];
+
 const collectionPermissionOverrides = {
-  users: [Permission.read(Role.users())],
+  users:               R,      // schreiben nur per Document-Permission (auth_service)
+  organizations:       RCUD,   // Client erstellt/updated Orgs (memberUids-Array, approveChild)
+  members:             RCUD,   // Mitgliedschaft wird vom Client aktualisiert (z.B. guardianUids)
+  conversations:       RCUD,   // neue Chats anlegen, Status aktualisieren
+  chat_messages:       RCD,    // Nachrichten senden und löschen
+  polls:               RCUD,   // Polls anlegen und abstimmen
+  announcements:       RCUD,   // Admins erstellen Announcements
+  scheduled_messages:  RCUD,   // geplante Nachrichten anlegen/löschen
+  invitations:         RCUD,   // Einladungen erstellen
+  org_invite_consents: RCUD,   // Eltern-Zustimmungen
+  claim_requests:      RCUD,   // Eltern-Kind-Verknüpfung
+  reports:             RCD,    // Meldungen erstellen
 };
 
 async function fixCollections() {
@@ -74,7 +90,7 @@ async function fixCollections() {
 async function fixMediaBucket() {
   console.log('\nFixing media bucket permissions...');
   const permissions = [
-    Permission.read(Role.users()),
+    Permission.read(Role.any()),     // CachedNetworkImage braucht keine Auth-Header
     Permission.create(Role.users()),
   ];
   try {

@@ -43,7 +43,7 @@ export const COL = {
   ORGANIZATIONS:      'organizations',
   MEMBERS:            'members',           // + orgId-Feld (war Subcollection)
   CONVERSATIONS:      'conversations',     // + orgId-Feld
-  MESSAGES:           'messages',          // + convId + orgId-Felder
+  MESSAGES:           'chat_messages',      // + convId + orgId-Felder
   POLLS:              'polls',             // + convId + orgId-Felder
   CLAIM_REQUESTS:     'claim_requests',
   SCHEDULED_MESSAGES: 'scheduled_messages',
@@ -377,6 +377,7 @@ async function setupReports() {
   await str('reports', 'messageSenderName', 100,  false, '');
   await str('reports', 'messageText',       4096, false, '');
   await str('reports', 'reportedByUid',     36);
+  await str('reports', 'status',            20,   false, 'pending');  // pending|reviewed
   await dt('reports',  'createdAt',         true);
   await idx('reports', 'orgId_idx',     'key', ['orgId']);
   await idx('reports', 'createdAt_idx', 'key', ['createdAt'], ['DESC']);

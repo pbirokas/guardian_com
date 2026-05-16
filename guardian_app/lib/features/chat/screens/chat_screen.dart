@@ -58,6 +58,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   // ── Geplante Nachrichten ───────────────────────────────────────────────────
   Timer? _scheduleTimer;
+  Timer? _messageRefreshTimer;
   late ChatService _chatService;
 
   // ── Tipp-Indikator ────────────────────────────────────────────────────────
@@ -95,6 +96,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _scheduleTimer = Timer.periodic(
       const Duration(minutes: 1),
       (_) => _checkScheduledMessages(),
+    );
+    // Eingehende Nachrichten pollen (Realtime nicht verfügbar)
+    _messageRefreshTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _refreshMessages(),
     );
   }
 
@@ -248,6 +254,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _searchController.dispose();
     _inputFocusNode.dispose();
     _scheduleTimer?.cancel();
+    _messageRefreshTimer?.cancel();
     _recordingTimer?.cancel();
     _recorder.dispose();
     super.dispose();
@@ -424,6 +431,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               contentType: contentType);
       _markRead();
       _scrollToBottom();
+      _refreshMessages();
     } catch (e) {
       if (mounted) {
         messenger.showSnackBar(SnackBar(content: Text(l.errorMessage(e.toString()))));
@@ -609,6 +617,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (question.isEmpty || options.length < 2) return;
 
     final l = AppLocalizations.of(context);
+    final orgId = ref.read(conversationProvider(widget.chatId)).value?.orgId ?? '';
     try {
       await ref.read(chatServiceProvider).createPoll(
             widget.chatId,
@@ -617,9 +626,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             multipleChoice: multipleChoice,
             isAnonymous: isAnonymous,
             expiresAt: expiresAt,
+            orgId: orgId,
           );
       _markRead();
       _scrollToBottom();
+      _refreshMessages();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -644,6 +655,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       // Layout-Shift durch nachladende Bilder möglich.
       _scrollController.jumpTo(0);
     });
+  }
+
+  // Realtime ist nicht zuverlässig → nach jedem Send manuell refreshen.
+  void _refreshMessages() {
+    ref.invalidate(messagesProvider((convId: widget.chatId, limit: _limit)));
   }
 
   Future<void> _send() async {
@@ -676,6 +692,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           );
       _markRead();
       _scrollToBottom();
+      _refreshMessages();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -704,6 +721,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           .sendImage(widget.chatId, bytes);
       _markRead();
       _scrollToBottom();
+      _refreshMessages();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -733,6 +751,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           .sendFile(widget.chatId, bytes, picked.name, bytes.length);
       _markRead();
       _scrollToBottom();
+      _refreshMessages();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1511,12 +1530,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.grey[100],
+                  color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   msg.text,
-                  style: const TextStyle(fontSize: 13),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Theme.of(ctx).colorScheme.onSurface,
+                  ),
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1565,7 +1587,8 @@ bool _isAllowedGifHost(String url) {
     return host == 'firebasestorage.googleapis.com' ||
         host.endsWith('.tenor.com') || host == 'tenor.com' ||
         host.endsWith('.giphy.com') || host == 'giphy.com' ||
-        host.endsWith('.klipy.com') || host == 'klipy.com';
+        host.endsWith('.klipy.com') || host == 'klipy.com' ||
+        host == 'appwrite.guardian-com.de';
   } catch (_) {
     return false;
   }

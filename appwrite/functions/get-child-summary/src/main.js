@@ -102,27 +102,43 @@ module.exports = async ({ req, res, log, error }) => {
     ])
   );
 
+  // Alle Nachrichten für alle Conversations in einer Batch-Query
+  const allConvIds = convsResult.documents.map((c) => c.$id);
+  const BATCH = 100; // Appwrite Query.equal array limit
+  const allMsgDocs = [];
+  for (let i = 0; i < allConvIds.length; i += BATCH) {
+    const batchIds = allConvIds.slice(i, i + BATCH);
+    let offset = 0;
+    for (let page = 0; page < 20; page++) {
+      const snap = await db.listDocuments(DB_ID, COL_MESSAGES, [
+        Query.equal('convId', batchIds),
+        Query.greaterThanEqual('sentAt', cutoffIso),
+        Query.limit(500),
+        Query.offset(offset),
+      ]);
+      allMsgDocs.push(...snap.documents);
+      if (snap.documents.length < 500) break;
+      offset += 500;
+    }
+  }
+
+  // Nachrichten nach convId gruppieren
+  const msgByConv = {};
+  for (const m of allMsgDocs) {
+    if (!m.deletedAt) (msgByConv[m.convId] ??= []).push(m);
+  }
+
   // Pro Org: Nachrichten zählen
   const orgResultsRaw = await Promise.all(
     orgIds.map(async (orgId) => {
       const convDocs = orgConvMap[orgId];
-
-      const msgSnaps = await Promise.all(
-        convDocs.map((c) =>
-          db.listDocuments(DB_ID, COL_MESSAGES, [
-            Query.equal('convId', c.$id),
-            Query.greaterThanEqual('sentAt', cutoffIso),
-            Query.limit(1000),
-          ])
-        )
-      );
 
       let orgSent = 0, orgReceived = 0, orgLastActive = null;
       const chatResults = [];
 
       for (let i = 0; i < convDocs.length; i++) {
         const convData = convDocs[i];
-        const messages = msgSnaps[i].documents.filter((m) => !m.deletedAt);
+        const messages = msgByConv[convData.$id] ?? [];
         if (messages.length === 0) continue;
 
         const sent = messages.filter((m) => m.senderUid === childUid).length;

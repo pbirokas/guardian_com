@@ -625,7 +625,7 @@ class ChatService {
       Message.fromAppwrite,
       [
         Query.equal('convId', convId),
-        Query.orderAsc('sentAt'),
+        Query.orderDesc('sentAt'),
       ],
       null,
       limit: limit,

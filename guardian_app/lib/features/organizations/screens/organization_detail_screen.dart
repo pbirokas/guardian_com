@@ -2597,7 +2597,9 @@ class _ConversationTile extends StatelessWidget {
       if (confirmed != true) return;
       await ref.read(chatServiceProvider).setPersonalName(conv.id, controller.text);
     } finally {
-      controller.dispose();
+      Future.delayed(const Duration(milliseconds: 400), () {
+        controller.dispose();
+      });
     }
   }
 
@@ -4075,8 +4077,10 @@ Future<void> _showAnnouncementDialog(BuildContext context, WidgetRef ref,
       }
     }
   } finally {
-    titleCtrl.dispose();
-    contentCtrl.dispose();
+    Future.delayed(const Duration(milliseconds: 400), () {
+      titleCtrl.dispose();
+      contentCtrl.dispose();
+    });
   }
 }
 
@@ -4291,9 +4295,11 @@ Future<void> _showEventDialog(BuildContext context, WidgetRef ref,
       }
     }
   } finally {
-    titleCtrl.dispose();
-    contentCtrl.dispose();
-    locationCtrl.dispose();
+    Future.delayed(const Duration(milliseconds: 400), () {
+      titleCtrl.dispose();
+      contentCtrl.dispose();
+      locationCtrl.dispose();
+    });
   }
 }
 

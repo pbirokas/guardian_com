@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-17
+
+- **Chat zeigt neueste Nachrichten sofort:** Neue Nachrichten in einer Gruppe wurden in der Chat-Übersicht angezeigt, im Chat selbst jedoch erst nach manuellem Scrollen. Dieser Fehler wurde behoben.
+- **App friert nicht mehr ein beim Schließen von Dialogen:** Das Bearbeiten einer Ankündigung, eines Termins oder eines Chat-Namens und anschließendes Wegtippen führte zu einem kompletten App-Freeze. Dieser Fehler wurde behoben.
+- **Aktivitätszusammenfassung lädt zuverlässig:** Die Kindübersicht für Eltern schlug gelegentlich fehl (Timeout). Abfragen wurden optimiert und Ergebnisse werden 5 Minuten zwischengespeichert. Ein Refresh-Button ermöglicht manuelles Neu-Laden.
+- **Server-Migration:** Appwrite läuft jetzt auf einem leistungsstärkeren Server (8 GB RAM, Helsinki) für stabileren Betrieb.
+
+---
+
 ## 2026-05-12
 
 - **Bilder werden nicht mehr unnötig komprimiert:** Bilder unter 2 MB werden jetzt unverändert hochgeladen. Nur größere Dateien werden schrittweise komprimiert, wobei erst die Qualität reduziert wird, bevor die Auflösung verringert wird.

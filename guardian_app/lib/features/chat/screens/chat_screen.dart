@@ -1304,13 +1304,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         ),
                       );
                     }
-                    // Neueste Nachricht zuerst (i=0 → letzter Eintrag in filtered)
-                    final msg = filtered[filtered.length - 1 - i];
+                    // orderDesc: filtered[0] = neueste, filtered[N] = älteste.
+                    // Mit reverse:true ist i=0 die unterste (neueste) Nachricht.
+                    final msg = filtered[i];
                     final isMe = msg.senderUid == currentUid;
                     // „older" ist die Nachricht, die im reversed ListView darüber
                     // erscheint (also die chronologisch ältere).
                     final older = (i + 1 < filtered.length)
-                        ? filtered[filtered.length - 2 - i]
+                        ? filtered[i + 1]
                         : null;
                     final showDate = older == null ||
                         !_sameDay(older.sentAt, msg.sentAt);

@@ -288,15 +288,31 @@ class ParentClaimService {
   // Child activity summary
   // ──────────────────────────────────────────────────────────────────────────
 
-  Future<ChildSummary> getChildSummary(String childUid, String period) async {
-    final result = await _functions.createExecution(
+  static const _summaryCacheTtl = Duration(minutes: 5);
+  final Map<String, ({ChildSummary summary, DateTime fetchedAt})> _summaryCache = {};
+
+  Future<ChildSummary> getChildSummary(String childUid, String period, {bool forceRefresh = false}) async {
+    final key = '$childUid/$period';
+    if (!forceRefresh) {
+      final cached = _summaryCache[key];
+      if (cached != null && DateTime.now().difference(cached.fetchedAt) < _summaryCacheTtl) {
+        return cached.summary;
+      }
+    }
+
+    final exec = await _functions.createExecution(
       functionId: 'get-child-summary',
       body: jsonEncode({'childUid': childUid, 'period': period}),
       method: ExecutionMethod.pOST,
     );
-    final data =
-        jsonDecode(result.responseBody) as Map<String, dynamic>;
-    return ChildSummary.fromMap(data);
+
+    if (exec.responseStatusCode != 200) {
+      throw Exception('get-child-summary failed (${exec.responseStatusCode})');
+    }
+    final data = jsonDecode(exec.responseBody) as Map<String, dynamic>;
+    final summary = ChildSummary.fromMap(data);
+    _summaryCache[key] = (summary: summary, fetchedAt: DateTime.now());
+    return summary;
   }
 }
 

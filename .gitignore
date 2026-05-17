@@ -66,6 +66,8 @@ appwrite/node_modules/
 appwrite/functions/**/node_modules/
 appwrite/functions/**/.appwrite/
 # appwrite/.env ist bereits durch .env-Regel oben abgedeckt
+# Firebase Admin SDK Service-Account-Keys (privater RSA-Schlüssel, niemals committen!)
+*firebase-adminsdk*.json
 
 # Root node_modules (Firebase Functions or other scripts)
 node_modules/

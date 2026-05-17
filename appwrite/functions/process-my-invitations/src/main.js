@@ -42,9 +42,9 @@ module.exports = async ({ req, res, log, error }) => {
 
   for (const invite of invitesResult.documents) {
     const orgId = invite.orgId;
-    const role = invite.role ?? 'member';
+    const rawRole = invite.role ?? 'member';
     const guardianUids = invite.guardianUids ?? [];
-    const isChild = role === 'child';
+    const isChild = rawRole === 'child';
 
     // Org existiert?
     let org;
@@ -54,6 +54,28 @@ module.exports = async ({ req, res, log, error }) => {
       await db.updateDocument(DB_ID, COL_INVITATIONS, invite.$id, { status: 'invalid' });
       log(`Org ${orgId} not found, invite ${invite.$id} marked invalid`);
       continue;
+    }
+
+    // Sicherstellen, dass der Einladende ein Admin/Moderator ist
+    const invitedByUid = invite.invitedByUid;
+    let role = 'member';
+    if (!invitedByUid) {
+      log(`Invite ${invite.$id} has no invitedByUid, defaulting to member`);
+      role = 'member';
+    } else {
+      const inviterMemberId = `${orgId}_${invitedByUid}`;
+      let inviterMember = null;
+      try {
+        inviterMember = await db.getDocument(DB_ID, COL_MEMBERS, inviterMemberId);
+      } catch (_) { /* inviter no longer member */ }
+      const inviterRole = inviterMember?.role ?? '';
+      const inviterIsAdminOrMod = inviterRole === 'admin' || inviterRole === 'moderator' || org.adminUid === invitedByUid;
+      if (inviterIsAdminOrMod) {
+        role = rawRole;
+      } else {
+        log(`Invite ${invite.$id}: inviter ${invitedByUid} is not admin/mod (role=${inviterRole}), capping role to member`);
+        role = 'member';
+      }
     }
 
     // Bereits Mitglied?

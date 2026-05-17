@@ -40,6 +40,7 @@ const collections = [
   { id: 'invitations',        name: 'Invitations' },
   { id: 'org_invite_consents', name: 'OrgInviteConsents' },
   { id: 'reports',            name: 'Reports' },
+  { id: 'audit_log',          name: 'AuditLog' },
 ];
 
 // Collection-Level Permissions:
@@ -55,15 +56,19 @@ const collectionPermissionOverrides = {
   organizations:       RCUD,   // Client erstellt/updated Orgs (memberUids-Array, approveChild)
   members:             RCUD,   // Mitgliedschaft wird vom Client aktualisiert (z.B. guardianUids)
   conversations:       RCUD,   // neue Chats anlegen, Status aktualisieren
-  chat_messages:       RCD,    // Nachrichten senden und löschen
+  chat_messages:       RCUD,   // Nachrichten senden, bearbeiten (Reaktionen, Archivieren) und löschen
   polls:               RCUD,   // Polls anlegen und abstimmen
   announcements:       RCUD,   // Admins erstellen Announcements
   scheduled_messages:  RCUD,   // geplante Nachrichten anlegen/löschen
-  invitations:         RCUD,   // Einladungen erstellen
+  invitations:         RCD,    // Einladungen nur per Cloud Function erstellen
   org_invite_consents: RCUD,   // Eltern-Zustimmungen
   claim_requests:      RCUD,   // Eltern-Kind-Verknüpfung
-  reports:             RCD,    // Meldungen erstellen
+  reports:             RCUD,   // Meldungen erstellen + als geprüft markieren
+  audit_log:           RCD,    // Client schreibt Einträge, liest sie (kein update/delete)
 };
+
+// audit_log braucht kein documentSecurity — alle Einträge sind für alle Admins/Mods lesbar.
+const noDocumentSecurity = new Set(['audit_log']);
 
 async function fixCollections() {
   console.log('Enabling documentSecurity on all collections...\n');
@@ -71,8 +76,9 @@ async function fixCollections() {
     try {
       const current = await db.getCollection(DB_ID, col.id);
       const permissions = collectionPermissionOverrides[col.id] ?? current.$permissions;
-      await db.updateCollection(DB_ID, col.id, col.name, permissions, true);
-      console.log(`✓ ${col.id}${collectionPermissionOverrides[col.id] ? ' (permissions updated)' : ''}`);
+      const docSecurity = !noDocumentSecurity.has(col.id);
+      await db.updateCollection(DB_ID, col.id, col.name, permissions, docSecurity);
+      console.log(`✓ ${col.id}${collectionPermissionOverrides[col.id] ? ' (permissions updated)' : ''}${!docSecurity ? ' (documentSecurity=false)' : ''}`);
     } catch (e) {
       if (e.code === 404) {
         console.log(`~ ${col.id}: not found, skipping`);
@@ -105,9 +111,21 @@ async function fixMediaBucket() {
   }
 }
 
+async function addMissingAttributes() {
+  console.log('\nAdding missing attributes...');
+  try {
+    await db.createIntegerAttribute(DB_ID, 'organizations', 'pendingReportsCount', false, 0);
+    console.log('✓ organizations.pendingReportsCount added');
+  } catch (e) {
+    if (e.code === 409) console.log('~ organizations.pendingReportsCount already exists');
+    else console.error(`✗ organizations.pendingReportsCount: ${e.message}`);
+  }
+}
+
 async function main() {
   await fixCollections();
   await fixMediaBucket();
+  await addMissingAttributes();
 }
 
 main().catch(console.error);

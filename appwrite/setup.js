@@ -146,6 +146,7 @@ async function setupOrganizations() {
   await bool(COL.ORGANIZATIONS, 'isArchived',                 false, false);
   await int(COL.ORGANIZATIONS,  'messageRetentionDays', false, 90, 30, 365);
   await str(COL.ORGANIZATIONS,  'keywords',             100,  false, null, true);
+  await int(COL.ORGANIZATIONS,  'pendingReportsCount',   false, 0, 0);
   // Indexes
   await idx(COL.ORGANIZATIONS, 'adminUid_idx',    'key',      ['adminUid']);
   await idx(COL.ORGANIZATIONS, 'isArchived_idx',  'key',      ['isArchived']);
@@ -369,11 +370,24 @@ async function setupOrgInviteConsents() {
   await idx('org_invite_consents', 'parentUids_idx', 'key', ['parentUids']);
 }
 
+async function setupAuditLog() {
+  await createCollection('audit_log', 'AuditLog');
+  await str('audit_log', 'orgId',       36,   true);
+  await str('audit_log', 'actorUid',    36,   true);
+  await str('audit_log', 'actorName',   100,  true);
+  await str('audit_log', 'action',      50,   true);
+  await str('audit_log', 'detailsJson', 4096, false, '{}');
+  await dt('audit_log',  'timestamp',   true);
+  await idx('audit_log', 'orgId_idx',        'key', ['orgId']);
+  await idx('audit_log', 'orgId_ts_idx',     'key', ['orgId', 'timestamp'], ['ASC', 'DESC']);
+}
+
 async function setupReports() {
   await createCollection('reports', 'Reports');
   await str('reports', 'orgId',             36,   true);
   await str('reports', 'orgAdminUid',       36);
   await str('reports', 'convId',            36);
+  await str('reports', 'msgId',             36);
   await str('reports', 'messageSenderName', 100,  false, '');
   await str('reports', 'messageText',       4096, false, '');
   await str('reports', 'reportedByUid',     36);
@@ -438,6 +452,7 @@ async function main() {
   await setupInvitations();
   await setupOrgInviteConsents();
   await setupReports();
+  await setupAuditLog();
   await setupMediaBucket();
 
   console.log('\n✅ Setup abgeschlossen.');

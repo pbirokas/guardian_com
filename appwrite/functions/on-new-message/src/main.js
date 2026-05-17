@@ -14,6 +14,14 @@ function cooldownElapsed(interval, lastAlertIso) {
   return Date.now() - new Date(lastAlertIso).getTime() >= cooldownMs;
 }
 
+function buildNotifBody(message, senderName) {
+  if (message.imageUrl) return `${senderName} hat ein Bild gesendet`;
+  if (message.audioUrl) return `${senderName} hat eine Sprachnachricht gesendet`;
+  if (message.fileUrl)  return `${senderName} hat eine Datei gesendet`;
+  if (message.type === 'poll') return `${senderName} hat eine Umfrage gestartet`;
+  return `${senderName} hat geschrieben`;
+}
+
 module.exports = async ({ req, res, log, error }) => {
   const client = new Client()
     .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT)
@@ -34,14 +42,13 @@ module.exports = async ({ req, res, log, error }) => {
   }
 
   const { convId, orgId, senderUid } = message;
-  const text = message.text ?? '';
 
   // Conversation laden
   let conv;
   try {
     conv = await db.getDocument(DB_ID, COL_CONVERSATIONS, convId);
-  } catch (_) {
-    error(`Conversation ${convId} not found`);
+  } catch (e) {
+    error(`Conversation ${convId} error: code=${e.code} msg=${e.message}`);
     return res.empty();
   }
   if (conv.status !== 'approved') return res.empty();
@@ -50,37 +57,41 @@ module.exports = async ({ req, res, log, error }) => {
   const recipientUids = participantUids.filter((uid) => uid !== senderUid);
   if (recipientUids.length === 0) return res.empty();
 
-  // Alle Member-Docs für die Org laden (für alle 3 Blöcke benötigt)
-  const memberMap = {}; // uid → member doc
-  if (orgId) {
-    let lastMemberId = null;
-    while (true) {
-      const queries = [Query.equal('orgId', orgId), Query.limit(500)];
-      if (lastMemberId) queries.push(Query.cursorAfter(lastMemberId));
-      const membersResult = await db.listDocuments(DB_ID, COL_MEMBERS, queries);
-      membersResult.documents.forEach((doc) => { memberMap[doc.uid] = doc; });
-      if (membersResult.documents.length < 500) break;
-      lastMemberId = membersResult.documents[membersResult.documents.length - 1].$id;
-    }
-  }
+  // Parallel: Member-Docs + User-Docs (inkl. Absender für Namens-Lookup)
+  const allUidsToFetch = [...new Set([...recipientUids, senderUid])];
 
-  // User-Docs für Empfänger laden (FCM-Token + globale Einstellungen)
-  const userSnaps = await Promise.all(
-    recipientUids.map((uid) => db.getDocument(DB_ID, COL_USERS, uid).catch(() => null))
-  );
-  const userMap = {};
-  userSnaps.forEach((snap) => { if (snap) userMap[snap.$id] = snap; });
+  const [memberMap, userMap] = await Promise.all([
+    // Members paginiert laden
+    (async () => {
+      const map = {};
+      if (!orgId) return map;
+      let lastId = null;
+      while (true) {
+        const queries = [Query.equal('orgId', orgId), Query.limit(500)];
+        if (lastId) queries.push(Query.cursorAfter(lastId));
+        const result = await db.listDocuments(DB_ID, COL_MEMBERS, queries);
+        result.documents.forEach((doc) => { map[doc.uid] = doc; });
+        if (result.documents.length < 500) break;
+        lastId = result.documents[result.documents.length - 1].$id;
+      }
+      return map;
+    })(),
+    // User-Docs parallel laden
+    (async () => {
+      const snaps = await Promise.all(
+        allUidsToFetch.map((uid) => db.getDocument(DB_ID, COL_USERS, uid).catch(() => null))
+      );
+      const map = {};
+      snaps.forEach((snap) => { if (snap) map[snap.$id] = snap; });
+      return map;
+    })(),
+  ]);
 
-  // Absender-Name ermitteln
-  let senderName = userMap[senderUid]?.displayName;
-  if (!senderName) {
-    const senderSnap = await db.getDocument(DB_ID, COL_USERS, senderUid).catch(() => null);
-    senderName = senderSnap?.displayName ?? 'Unbekannt';
-  }
-
+  const senderName = userMap[senderUid]?.displayName ?? 'Unbekannt';
   const chatTitle = conv.name ?? senderName;
   const notifTitle = conv.name ? `${conv.name}: ${senderName}` : senderName;
-  const notifBody = text.length > 100 ? text.substring(0, 100) + '…' : text;
+  // Kein Nachrichteninhalt im FCM-Payload (Datenschutz)
+  const notifBody = buildNotifBody(message, senderName);
 
   // ── Block 1: Standard-Nachrichten-Benachrichtigungen ─────────────────────────
   const tokensToNotify = [];
@@ -141,10 +152,15 @@ module.exports = async ({ req, res, log, error }) => {
   // ── Block 2: Guardian-Kind-Aktivitäts-Benachrichtigung ───────────────────────
   if (orgId) {
     const childUids = participantUids.filter((uid) => memberMap[uid]?.role === 'child');
+    const guardianTasks = [];
 
     for (const childUid of childUids) {
       const childData = memberMap[childUid];
       const guardianUidList = childData?.guardianUids ?? [];
+      const childName = childData?.displayName ?? 'Kind';
+      const action = senderUid === childUid
+        ? 'hat eine Nachricht gesendet'
+        : 'hat eine Nachricht erhalten';
 
       for (const guardianUid of guardianUidList) {
         if (guardianUid === senderUid) continue;
@@ -159,33 +175,30 @@ module.exports = async ({ req, res, log, error }) => {
           : {};
         if (!cooldownElapsed(interval, lastAlertMap[childUid])) continue;
 
-        const childName = memberMap[childUid]?.displayName ?? 'Kind';
-        const action = senderUid === childUid
-          ? 'hat eine Nachricht gesendet'
-          : 'hat eine Nachricht erhalten';
-
-        await sendToUsers(
-          db,
-          [guardianUid],
-          `Kind-Aktivität: ${childName}`,
-          `${childName} ${action} in ${chatTitle}`,
-          { convId, chatTitle },
-          log,
-          error,
-        );
-
-        // Cooldown-Timestamp aktualisieren
-        const guardianMemberId = `${orgId}_${guardianUid}`;
-        lastAlertMap[childUid] = new Date().toISOString();
-        try {
-          await db.updateDocument(DB_ID, COL_MEMBERS, guardianMemberId, {
-            lastChildAlertAtJson: JSON.stringify(lastAlertMap),
-          });
-        } catch (err) {
-          error(`Failed to update lastChildAlertAtJson for ${guardianUid}: ${err.message}`);
-        }
+        guardianTasks.push((async () => {
+          await sendToUsers(
+            db,
+            [guardianUid],
+            `Kind-Aktivität: ${childName}`,
+            `${childName} ${action} in ${chatTitle}`,
+            { convId, chatTitle },
+            log,
+            error,
+          );
+          const guardianMemberId = `${orgId}_${guardianUid}`;
+          lastAlertMap[childUid] = new Date().toISOString();
+          try {
+            await db.updateDocument(DB_ID, COL_MEMBERS, guardianMemberId, {
+              lastChildAlertAtJson: JSON.stringify(lastAlertMap),
+            });
+          } catch (err) {
+            error(`Failed to update lastChildAlertAtJson for ${guardianUid}: ${err.message}`);
+          }
+        })());
       }
     }
+
+    await Promise.all(guardianTasks);
   }
 
   // ── Block 3: Keyword-Monitoring ───────────────────────────────────────────────
@@ -203,7 +216,7 @@ module.exports = async ({ req, res, log, error }) => {
     .filter((k) => k.length > 0);
   if (keywords.length === 0) return res.empty();
 
-  const textLower = text.toLowerCase();
+  const textLower = (message.text ?? '').toLowerCase();
   const matchedKeyword = keywords.find((kw) => textLower.includes(kw));
   if (!matchedKeyword) return res.empty();
 
@@ -222,7 +235,7 @@ module.exports = async ({ req, res, log, error }) => {
     db,
     alertUids,
     '⚠️ Keyword erkannt',
-    `"${matchedKeyword}" in ${chatTitle}: ${notifBody}`,
+    `Keyword "${matchedKeyword}" wurde in ${chatTitle} erkannt`,
     { convId, chatTitle, keyword: matchedKeyword },
     log,
     error,

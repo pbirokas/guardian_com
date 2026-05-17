@@ -3,6 +3,7 @@ const { sendToUsers } = require('./fcm');
 
 const DB_ID = 'guardian';
 const COL_MEMBERS = 'members';
+const COL_ORGANIZATIONS = 'organizations';
 
 module.exports = async ({ req, res, log, error }) => {
   const client = new Client()
@@ -51,5 +52,16 @@ module.exports = async ({ req, res, log, error }) => {
   );
 
   log(`on-new-report: sent to ${alertUids.length} recipient(s) for report ${report.$id}`);
+
+  // Increment pendingReportsCount on org so the badge updates via org Realtime
+  try {
+    const org = await db.getDocument(DB_ID, COL_ORGANIZATIONS, orgId);
+    await db.updateDocument(DB_ID, COL_ORGANIZATIONS, orgId, {
+      pendingReportsCount: (org.pendingReportsCount ?? 0) + 1,
+    });
+  } catch (e) {
+    error(`Failed to increment pendingReportsCount: ${e.message}`);
+  }
+
   return res.empty();
 };

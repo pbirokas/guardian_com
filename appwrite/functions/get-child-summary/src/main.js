@@ -17,7 +17,10 @@ module.exports = async ({ req, res, log, error }) => {
 
   const db = new Databases(client);
 
-  const body = req.body ?? {};
+  let body = req.body ?? {};
+  if (typeof body === 'string') {
+    try { body = JSON.parse(body); } catch (_) { body = {}; }
+  }
   const { childUid, period } = body;
 
   if (!childUid || typeof childUid !== 'string') {

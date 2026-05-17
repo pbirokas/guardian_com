@@ -4,6 +4,7 @@ const { sendToUsers } = require('./fcm');
 const DB_ID = 'guardian';
 const COL_USERS = 'users';
 const COL_MEMBERS = 'members';
+const COL_ORGS = 'organizations';
 
 module.exports = async ({ req, res, log, error }) => {
   const client = new Client()
@@ -28,20 +29,14 @@ module.exports = async ({ req, res, log, error }) => {
   }
 
   if (status === 'approved') {
-    // Kind als Mitglied hinzufügen — Idempotenz: überspringen wenn bereits vorhanden
     const memberId = `${orgId}_${childUid}`;
-    let alreadyMember = false;
-    try {
-      await db.getDocument(DB_ID, COL_MEMBERS, memberId);
-      alreadyMember = true;
-    } catch (_) { /* nicht vorhanden — OK */ }
 
-    if (!alreadyMember) {
-      let childData = null;
-      try {
-        childData = await db.getDocument(DB_ID, COL_USERS, childUid);
-      } catch (_) { /* User-Doc noch nicht vorhanden */ }
+    const [childData, existingMember] = await Promise.all([
+      db.getDocument(DB_ID, COL_USERS, childUid).catch(() => null),
+      db.getDocument(DB_ID, COL_MEMBERS, memberId).catch(() => null),
+    ]);
 
+    if (!existingMember) {
       await db.createDocument(DB_ID, COL_MEMBERS, memberId, {
         orgId,
         uid: childUid,
@@ -51,14 +46,42 @@ module.exports = async ({ req, res, log, error }) => {
         role: 'child',
         joinedAt: new Date().toISOString(),
         guardianUids: proposedGuardianUids ?? [],
-        status: 'pending',
+        status: 'active',
         childAlertInterval: 'hourly',
         notificationsEnabled: true,
       });
-
       log(`Created member doc for child ${childUid} in org ${orgId}`);
-    } else {
-      log(`Child ${childUid} already member, skipping DB write`);
+    } else if (existingMember.status !== 'active') {
+      await db.updateDocument(DB_ID, COL_MEMBERS, memberId, { status: 'active' });
+      log(`Activated member ${childUid} in org ${orgId}`);
+    }
+
+    // Kind in org.memberUids eintragen (für watchMyOrganizations)
+    try {
+      const org = await db.getDocument(DB_ID, COL_ORGS, orgId);
+      const memberUids = [...(org.memberUids ?? [])];
+      if (!memberUids.includes(childUid)) {
+        memberUids.push(childUid);
+        await db.updateDocument(DB_ID, COL_ORGS, orgId, { memberUids });
+        log(`Added ${childUid} to org.memberUids`);
+      }
+    } catch (e) {
+      error(`Failed to update org.memberUids: ${e.message}`);
+    }
+
+    // membershipsJson des Kindes aktualisieren
+    try {
+      const parsed = childData?.membershipsJson ? JSON.parse(childData.membershipsJson) : [];
+      const memberships = Array.isArray(parsed) ? parsed : [];
+      if (!memberships.some((m) => m.orgId === orgId)) {
+        memberships.push({ orgId, role: 'child' });
+        await db.updateDocument(DB_ID, COL_USERS, childUid, {
+          membershipsJson: JSON.stringify(memberships),
+        });
+        log(`Updated membershipsJson for child ${childUid}`);
+      }
+    } catch (e) {
+      error(`Failed to update membershipsJson: ${e.message}`);
     }
 
     if (invitedByUid) {

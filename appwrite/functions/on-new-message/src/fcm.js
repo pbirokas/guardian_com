@@ -39,7 +39,10 @@ async function fcmSend(token, title, notifBody, data) {
       ),
       android: {
         priority: 'high',
-        notification: { channel_id: 'guardian_messages' },
+        notification: {
+          channel_id: 'guardian_messages',
+          tag: data?.convId,
+        },
       },
     },
   });

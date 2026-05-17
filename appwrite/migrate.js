@@ -23,7 +23,7 @@
  */
 
 import { config } from 'dotenv';
-import { Client, Databases, Storage, Users, Permission, Role, ID } from 'node-appwrite';
+import { Client, Databases, Storage, Users, Permission, Role, ID, Query } from 'node-appwrite';
 import { InputFile } from 'node-appwrite/file';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
@@ -655,7 +655,7 @@ async function repairStorageUrls() {
     let offset = 0;
     while (true) {
       const result = await awDb.listDocuments(DB_ID, col, [
-        `limit(100)`, `offset(${offset})`,
+        Query.limit(100), Query.offset(offset),
       ]);
       if (result.documents.length === 0) break;
       for (const doc of result.documents) {
@@ -679,6 +679,11 @@ async function repairStorageUrls() {
 }
 
 main().catch((e) => {
-  console.error('\n✗ Migration fehlgeschlagen:', e.message);
+  console.error('\n✗ Migration fehlgeschlagen:', JSON.stringify({
+    message: e.message,
+    code: e.code,
+    response: e.response,
+    type: e.type,
+  }, null, 2));
   process.exit(1);
 });

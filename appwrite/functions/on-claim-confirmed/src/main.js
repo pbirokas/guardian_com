@@ -33,21 +33,12 @@ module.exports = async ({ req, res, log, error }) => {
     return res.empty();
   }
 
-  // Vuln 4 fix: only the child (toUid) may confirm their own claim request.
-  const requestingUid = req.headers['x-appwrite-user-id'];
-  if (!requestingUid || requestingUid !== childUid) {
-    error(`Unauthorized: requester=${requestingUid || 'none'} expected toUid=${childUid}`);
-    return res.empty();
-  }
-
   // Idempotenz-Check: falls Verknüpfung bereits besteht, überspringen
-  const childUserResult = await db.listDocuments(DB_ID, COL_USERS, [
-    Query.equal('$id', childUid),
-    Query.limit(1),
-  ]);
-  const childUser = childUserResult.documents[0];
-  if (!childUser) {
-    error(`Child user ${childUid} not found`);
+  let childUser;
+  try {
+    childUser = await db.getDocument(DB_ID, COL_USERS, childUid);
+  } catch (e) {
+    error(`Child user ${childUid} not found: ${e.message}`);
     return res.empty();
   }
 
@@ -64,15 +55,15 @@ module.exports = async ({ req, res, log, error }) => {
     isChild: true,
   });
 
-  const parentUserResult = await db.listDocuments(DB_ID, COL_USERS, [
-    Query.equal('$id', parentUid),
-    Query.limit(1),
-  ]);
-  const parentUser = parentUserResult.documents[0];
-  if (parentUser) {
-    await db.updateDocument(DB_ID, COL_USERS, parentUid, {
-      verifiedChildUids: [...(parentUser.verifiedChildUids ?? []), childUid],
-    });
+  try {
+    const parentUser = await db.getDocument(DB_ID, COL_USERS, parentUid);
+    if (!(parentUser.verifiedChildUids ?? []).includes(childUid)) {
+      await db.updateDocument(DB_ID, COL_USERS, parentUid, {
+        verifiedChildUids: [...(parentUser.verifiedChildUids ?? []), childUid],
+      });
+    }
+  } catch (e) {
+    error(`Failed to update parent ${parentUid}: ${e.message}`);
   }
 
   // 2. Alle Org-Memberships des Kindes auf role=child downgraden

@@ -1334,24 +1334,6 @@ abstract class AppLocalizations {
   /// **'Rolle für {name}'**
   String roleFor(String name);
 
-  /// No description provided for @guardianFor.
-  ///
-  /// In de, this message translates to:
-  /// **'Guardian für {name}'**
-  String guardianFor(String name);
-
-  /// No description provided for @selectGuardianHint.
-  ///
-  /// In de, this message translates to:
-  /// **'Wähle mindestens einen Guardian für dieses Kind:'**
-  String get selectGuardianHint;
-
-  /// No description provided for @noGuardiansInOrg.
-  ///
-  /// In de, this message translates to:
-  /// **'Keine möglichen Guardians in dieser Organisation.'**
-  String get noGuardiansInOrg;
-
   /// No description provided for @removeMemberTitle.
   ///
   /// In de, this message translates to:
@@ -3116,6 +3098,12 @@ abstract class AppLocalizations {
   /// **'Schlüsselwörter aktualisiert'**
   String get auditActionKeywordsChanged;
 
+  /// No description provided for @auditActionGuardiansChanged.
+  ///
+  /// In de, this message translates to:
+  /// **'Guardian geändert'**
+  String get auditActionGuardiansChanged;
+
   /// No description provided for @auditBy.
   ///
   /// In de, this message translates to:
@@ -3181,6 +3169,18 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Dieses Konto ist als Kind-Konto registriert. Bitte wähle die Rolle \'Kind\' und weise mindestens einen Guardian zu.'**
   String get errorChildAccountRoleLocked;
+
+  /// No description provided for @errorRemoveLastGuardianTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Entfernen nicht möglich'**
+  String get errorRemoveLastGuardianTitle;
+
+  /// No description provided for @errorRemoveLastGuardianContent.
+  ///
+  /// In de, this message translates to:
+  /// **'Dieses Mitglied ist der einzige Guardian eines oder mehrerer Kinder in dieser Organisation. Weise zuerst andere Guardians zu.'**
+  String get errorRemoveLastGuardianContent;
 
   /// No description provided for @editGroup.
   ///

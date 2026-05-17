@@ -19,43 +19,36 @@ final chatServiceProvider = Provider<ChatService>((ref) {
 
 final orgConversationsProvider =
     StreamProvider.family<List<Conversation>, String>((ref, orgId) {
-  ref.watch(authStateProvider);
   return ref.watch(chatServiceProvider).watchOrgConversations(orgId);
 });
 
 final adminConversationsProvider =
     StreamProvider.family<List<Conversation>, String>((ref, orgId) {
-  ref.watch(authStateProvider);
   return ref.watch(chatServiceProvider).watchAdminConversations(orgId);
 });
 
 final pendingRequestsProvider =
     StreamProvider.family<List<Conversation>, String>((ref, orgId) {
-  ref.watch(authStateProvider);
   return ref.watch(chatServiceProvider).watchPendingRequests(orgId);
 });
 
 final guardianPendingRequestsProvider =
     StreamProvider.family<List<Conversation>, String>((ref, orgId) {
-  ref.watch(authStateProvider);
   return ref.watch(chatServiceProvider).watchGuardianPendingRequests(orgId);
 });
 
 final moderatorPendingRequestsProvider =
     StreamProvider.family<List<Conversation>, String>((ref, orgId) {
-  ref.watch(authStateProvider);
   return ref.watch(chatServiceProvider).watchModeratorPendingRequests(orgId);
 });
 
 final supervisorConversationsProvider =
     StreamProvider.family<List<Conversation>, String>((ref, orgId) {
-  ref.watch(authStateProvider);
   return ref.watch(chatServiceProvider).watchSupervisorConversations(orgId);
 });
 
 final guardianSupervisorConversationsProvider =
     StreamProvider.family<List<Conversation>, String>((ref, orgId) {
-  ref.watch(authStateProvider);
   return ref
       .watch(chatServiceProvider)
       .watchGuardianSupervisorConversations(orgId);
@@ -63,7 +56,6 @@ final guardianSupervisorConversationsProvider =
 
 final shelteredModeratorConversationsProvider = StreamProvider.family<
     List<Conversation>, ({String orgId, String adminUid})>((ref, params) {
-  ref.watch(authStateProvider);
   return ref
       .watch(chatServiceProvider)
       .watchShelteredModeratorConversations(params.orgId, params.adminUid);
@@ -84,19 +76,16 @@ final unreadOrgCountProvider = Provider.family<int, String>((ref, orgId) {
 });
 
 final allMyConversationsProvider = StreamProvider<List<Conversation>>((ref) {
-  ref.watch(authStateProvider);
   return ref.watch(chatServiceProvider).watchAllMyApprovedConversations();
 });
 
 final conversationProvider =
     StreamProvider.family<Conversation?, String>((ref, convId) {
-  ref.watch(authStateProvider);
   return ref.watch(chatServiceProvider).watchConversation(convId);
 });
 
 final messagesProvider = StreamProvider.family<List<Message>,
     ({String convId, int limit})>((ref, params) {
-  ref.watch(authStateProvider);
   return ref
       .watch(chatServiceProvider)
       .watchMessages(params.convId, limit: params.limit);
@@ -104,7 +93,6 @@ final messagesProvider = StreamProvider.family<List<Message>,
 
 final pollProvider = StreamProvider.family<Poll?,
     ({String convId, String pollId})>((ref, params) {
-  ref.watch(authStateProvider);
   return ref
       .watch(chatServiceProvider)
       .watchPoll(params.convId, params.pollId);
@@ -112,6 +100,5 @@ final pollProvider = StreamProvider.family<Poll?,
 
 final scheduledMessagesProvider =
     StreamProvider.family<List<ScheduledMessage>, String>((ref, convId) {
-  ref.watch(authStateProvider);
   return ref.watch(chatServiceProvider).watchScheduledMessages(convId);
 });

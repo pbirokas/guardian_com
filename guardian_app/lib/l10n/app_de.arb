@@ -258,12 +258,6 @@
   "@roleFor": {
     "placeholders": { "name": { "type": "String" } }
   },
-  "guardianFor": "Guardian für {name}",
-  "@guardianFor": {
-    "placeholders": { "name": { "type": "String" } }
-  },
-  "selectGuardianHint": "Wähle mindestens einen Guardian für dieses Kind:",
-  "noGuardiansInOrg": "Keine möglichen Guardians in dieser Organisation.",
   "removeMemberTitle": "Mitglied entfernen",
   "removeMemberContent": "{name} wirklich entfernen?",
   "@removeMemberContent": {
@@ -743,6 +737,7 @@
   "auditActionRoleChanged": "Rolle geändert",
   "auditActionAdminTransferred": "Admin-Rolle übertragen",
   "auditActionKeywordsChanged": "Schlüsselwörter aktualisiert",
+  "auditActionGuardiansChanged": "Guardian geändert",
   "auditBy": "von {name}",
   "@auditBy": {
     "placeholders": { "name": { "type": "String" } }
@@ -757,6 +752,8 @@
   "sectionDirectChats": "Einzel-Chats",
   "pollDetailsButton": "Abstimmungs-Details",
   "errorChildAccountRoleLocked": "Dieses Konto ist als Kind-Konto registriert. Bitte wähle die Rolle 'Kind' und weise mindestens einen Guardian zu.",
+  "errorRemoveLastGuardianTitle": "Entfernen nicht möglich",
+  "errorRemoveLastGuardianContent": "Dieses Mitglied ist der einzige Guardian eines oder mehrerer Kinder in dieser Organisation. Weise zuerst andere Guardians zu.",
   "editGroup": "Gruppe bearbeiten",
   "groupImage": "Gruppenbild",
   "removeGroupImage": "Bild entfernen",

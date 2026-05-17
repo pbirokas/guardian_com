@@ -684,18 +684,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String guardianFor(String name) {
-    return 'Guardian for $name';
-  }
-
-  @override
-  String get selectGuardianHint =>
-      'Select at least one guardian for this child:';
-
-  @override
-  String get noGuardiansInOrg => 'No possible guardians in this organization.';
-
-  @override
   String get removeMemberTitle => 'Remove member';
 
   @override
@@ -1709,6 +1697,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get auditActionKeywordsChanged => 'Keywords updated';
 
   @override
+  String get auditActionGuardiansChanged => 'Guardian changed';
+
+  @override
   String auditBy(String name) {
     return 'by $name';
   }
@@ -1743,6 +1734,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get errorChildAccountRoleLocked =>
       'This account is registered as a child account. Please select the role \"Child\" and assign at least one guardian.';
+
+  @override
+  String get errorRemoveLastGuardianTitle => 'Cannot Remove';
+
+  @override
+  String get errorRemoveLastGuardianContent =>
+      'This member is the only guardian of one or more children in this organisation. Assign other guardians first.';
 
   @override
   String get editGroup => 'Edit group';

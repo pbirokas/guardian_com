@@ -17,12 +17,14 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(
         () => ref.read(authServiceProvider).signIn(email, password));
+    if (state.hasError) Error.throwWithStackTrace(state.error!, state.stackTrace!);
   }
 
   Future<void> register(String email, String password, String name) async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(
         () => ref.read(authServiceProvider).register(email, password, name));
+    if (state.hasError) Error.throwWithStackTrace(state.error!, state.stackTrace!);
   }
 
   Future<void> updateProfile(String uid, String displayName,

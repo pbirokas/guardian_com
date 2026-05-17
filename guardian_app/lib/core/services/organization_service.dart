@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:appwrite/appwrite.dart';
 import 'package:appwrite/models.dart' as aw;
+import '../appwrite_client.dart';
 import '../models/announcement.dart';
 import '../models/app_user.dart';
 import '../models/member_suggestion.dart';
@@ -10,6 +12,7 @@ import '../models/notification_settings.dart';
 import '../models/organization.dart';
 import '../models/org_member.dart';
 import '../models/org_invite_consent.dart';
+import '../models/org_audit_entry.dart';
 
 class OrganizationService {
   OrganizationService({
@@ -18,7 +21,7 @@ class OrganizationService {
     required String displayName,
     String? email,
   })  : _db = Databases(client),
-        _realtime = Realtime(client),
+        _realtime = createPatchedRealtime(client),
         _uid = uid,
         _displayName = displayName,
         _email = email ?? '';
@@ -35,6 +38,7 @@ class OrganizationService {
   static const _colInvitations = 'invitations';
   static const _colAnnouncements = 'announcements';
   static const _colOrgConsents = 'org_invite_consents';
+  static const _colAuditLog = 'audit_log';
 
   // ── Realtime helper ────────────────────────────────────────────────────────
 
@@ -44,7 +48,7 @@ class OrganizationService {
     List<String> queries,
   ) {
     late StreamController<List<T>> ctrl;
-    RealtimeSubscription? sub;
+    StreamSubscription? realtimeSub;
 
     Future<void> reload() async {
       if (ctrl.isClosed) return;
@@ -64,14 +68,15 @@ class OrganizationService {
     }
 
     void dispose() {
-      sub?.close();
+      realtimeSub?.cancel();
       ctrl.close();
     }
 
     ctrl = StreamController(onCancel: dispose);
-    sub = _realtime.subscribe(
-        ['databases.$_dbId.collections.$collectionId.documents']);
-    sub.stream.listen((_) => reload(), onDone: dispose, onError: (_) {});
+    realtimeSub = _realtime
+        .subscribe(['databases.$_dbId.collections.$collectionId.documents'])
+        .stream
+        .listen((_) => reload(), onDone: dispose, onError: (_) {});
     reload();
     return ctrl.stream;
   }
@@ -144,6 +149,7 @@ class OrganizationService {
           collectionId: _colOrgs,
           documentId: orgId,
           data: updates);
+      unawaited(_logAuditEvent(orgId, AuditAction.settingsChanged, updates));
     }
   }
 
@@ -168,17 +174,19 @@ class OrganizationService {
       collectionId: _colMembers,
       queries: [Query.equal('orgId', orgId), Query.limit(500)],
     );
-    for (final doc in membersResult.documents) {
+    await Future.wait(membersResult.documents.map((doc) async {
       final memberUid = doc.data['uid'] as String;
       final role = OrgRole.values.byName(doc.data['role'] as String);
-      await _updateMembershipsJson(
-          memberUid, OrgMembership(orgId: orgId, role: role),
-          add: false);
-      await _db.deleteDocument(
-          databaseId: _dbId,
-          collectionId: _colMembers,
-          documentId: doc.$id);
-    }
+      await Future.wait([
+        _updateMembershipsJson(
+            memberUid, OrgMembership(orgId: orgId, role: role),
+            add: false),
+        _db.deleteDocument(
+            databaseId: _dbId,
+            collectionId: _colMembers,
+            documentId: doc.$id),
+      ]);
+    }));
     await _db.deleteDocument(
         databaseId: _dbId, collectionId: _colOrgs, documentId: orgId);
   }
@@ -193,7 +201,7 @@ class OrganizationService {
 
   Stream<Organization> watchOrganization(String orgId) {
     final ctrl = StreamController<Organization>();
-    RealtimeSubscription? sub;
+    StreamSubscription? realtimeSub;
 
     Future<void> reload() async {
       if (ctrl.isClosed) return;
@@ -209,14 +217,16 @@ class OrganizationService {
     }
 
     void dispose() {
-      sub?.close();
+      realtimeSub?.cancel();
       ctrl.close();
     }
 
     ctrl.onCancel = dispose;
-    sub = _realtime.subscribe(
-        ['databases.$_dbId.collections.$_colOrgs.documents.$orgId']);
-    sub.stream.listen((_) => reload(), onDone: dispose, onError: (_) {});
+    realtimeSub = _realtime
+        .subscribe(
+            ['databases.$_dbId.collections.$_colOrgs.documents.$orgId'])
+        .stream
+        .listen((_) => reload(), onDone: dispose, onError: (_) {});
     reload();
     return ctrl.stream;
   }
@@ -239,9 +249,12 @@ class OrganizationService {
     await _updateMembershipsJson(
         targetUid, OrgMembership(orgId: orgId, role: role),
         add: false);
+    final targetName = doc.data['displayName'] as String? ?? targetUid;
     await _db.deleteDocument(
         databaseId: _dbId, collectionId: _colMembers, documentId: memberId);
     await _arrayRemove(_colOrgs, orgId, 'memberUids', targetUid);
+    unawaited(_logAuditEvent(orgId, AuditAction.memberRemoved,
+        {'targetUid': targetUid, 'targetName': targetName, 'role': role.name}));
   }
 
   Future<void> leaveOrganization(String orgId) async {
@@ -289,6 +302,13 @@ class OrganizationService {
     await _updateMembershipsJson(
         targetUid, OrgMembership(orgId: orgId, role: newRole),
         add: true);
+    final targetName = doc.data['displayName'] as String? ?? targetUid;
+    unawaited(_logAuditEvent(orgId, AuditAction.roleChanged, {
+      'targetUid': targetUid,
+      'targetName': targetName,
+      'oldRole': oldRole.name,
+      'newRole': newRole.name,
+    }));
   }
 
   Future<void> transferAdmin(String orgId, String newAdminUid) async {
@@ -330,37 +350,41 @@ class OrganizationService {
     await _updateMembershipsJson(
         newAdminUid, OrgMembership(orgId: orgId, role: OrgRole.admin),
         add: true);
+    final newAdminName = snap.data['displayName'] as String? ?? newAdminUid;
+    unawaited(_logAuditEvent(orgId, AuditAction.adminTransferred,
+        {'newAdminUid': newAdminUid, 'newAdminName': newAdminName}));
   }
 
   Future<void> updateGuardians(
       String orgId, String childUid, List<String> guardianUids) async {
+    final memberDoc = await _db.getDocument(
+        databaseId: _dbId,
+        collectionId: _colMembers,
+        documentId: '${orgId}_$childUid');
     await _db.updateDocument(
       databaseId: _dbId,
       collectionId: _colMembers,
       documentId: '${orgId}_$childUid',
       data: {'guardianUids': guardianUids},
     );
+    final childName = memberDoc.data['displayName'] as String? ?? childUid;
+    unawaited(_logAuditEvent(orgId, AuditAction.guardiansChanged, {
+      'childUid': childUid,
+      'childName': childName,
+      'guardianUids': guardianUids,
+    }));
   }
 
   Future<void> approveChildInvite(String orgId, String childUid) async {
     final memberId = '${orgId}_$childUid';
-    final doc = await _db.getDocument(
-        databaseId: _dbId, collectionId: _colMembers, documentId: memberId);
-    final role = OrgRole.values.byName(doc.data['role'] as String);
-    final membership = OrgMembership(orgId: orgId, role: role);
-
     await _db.updateDocument(
         databaseId: _dbId,
         collectionId: _colMembers,
         documentId: memberId,
         data: {'status': MemberStatus.active.name});
     await _arrayAdd(_colOrgs, orgId, 'memberUids', childUid);
-    await _updateMembershipsJson(childUid, membership, add: true);
-    await _db.updateDocument(
-        databaseId: _dbId,
-        collectionId: 'users',
-        documentId: childUid,
-        data: {'isChild': true});
+    // membershipsJson des Kindes kann der Guardian nicht schreiben (fremdes User-Doc).
+    // Das Kind sieht die Org über die memberUids-Query in watchMyOrganizations.
   }
 
   Future<void> rejectChildInvite(String orgId, String childUid) async {
@@ -433,6 +457,7 @@ class OrganizationService {
           'role': role.name,
           'guardianUids': guardianUids,
           'inviterName': _displayName,
+          'invitedByUid': _uid,
           'status': 'pending',
           'createdAt': DateTime.now().toIso8601String(),
         },
@@ -510,16 +535,18 @@ class OrganizationService {
         ).toAppwrite(),
         'orgId': orgId,
       },
-      permissions: [
-        Permission.read(Role.users()),
-        Permission.update(Role.user(targetUid)),
-      ],
     );
 
     if (!isChild) {
       await _arrayAdd(_colOrgs, orgId, 'memberUids', targetUid);
       await _updateMembershipsJson(targetUid, membership, add: true);
     }
+    final targetName = userData['displayName'] as String? ?? normalizedEmail;
+    unawaited(_logAuditEvent(orgId, AuditAction.memberConfirmed, {
+      'targetUid': targetUid,
+      'targetName': targetName,
+      'role': effectiveRole.name,
+    }));
   }
 
   Future<void> cancelInvitation(String inviteId) async {
@@ -718,6 +745,7 @@ class OrganizationService {
       collectionId: _colAnnouncements,
       documentId: ID.unique(),
       data: {...ann.toAppwrite(), 'orgId': orgId},
+      permissions: [Permission.read(Role.users())],
     );
   }
 
@@ -790,6 +818,7 @@ class OrganizationService {
       collectionId: _colAnnouncements,
       documentId: ID.unique(),
       data: {...ann.toAppwrite(), 'orgId': orgId},
+      permissions: [Permission.read(Role.users())],
     );
   }
 
@@ -842,7 +871,7 @@ class OrganizationService {
   Stream<MessageAlertInterval> watchOrgMessageInterval(String orgId) {
     final memberId = '${orgId}_$_uid';
     StreamController<MessageAlertInterval>? ctrl;
-    RealtimeSubscription? sub;
+    StreamSubscription? realtimeSub;
 
     Future<void> reload() async {
       if (ctrl == null || ctrl.isClosed) return;
@@ -865,14 +894,17 @@ class OrganizationService {
     }
 
     void dispose() {
-      sub?.close();
+      realtimeSub?.cancel();
       ctrl?.close();
     }
 
     ctrl = StreamController(onCancel: dispose);
-    sub = _realtime.subscribe(
-        ['databases.$_dbId.collections.$_colMembers.documents.$memberId']);
-    sub.stream.listen((_) => reload(), onDone: dispose, onError: (_) {});
+    realtimeSub = _realtime
+        .subscribe([
+          'databases.$_dbId.collections.$_colMembers.documents.$memberId'
+        ])
+        .stream
+        .listen((_) => reload(), onDone: dispose, onError: (_) {});
     reload();
     return ctrl.stream;
   }
@@ -967,4 +999,34 @@ class OrganizationService {
   }
 
   static String _encodeJson(dynamic obj) => jsonEncode(obj);
+
+  Stream<List<OrgAuditEntry>> watchAuditLog(String orgId) {
+    return _watchCollection<OrgAuditEntry>(
+      _colAuditLog,
+      (data) => OrgAuditEntry.fromAppwrite(data),
+      [Query.equal('orgId', orgId), Query.orderDesc('timestamp'), Query.limit(100)],
+    );
+  }
+
+  Future<void> _logAuditEvent(
+      String orgId, AuditAction action, Map<String, dynamic> details) async {
+    try {
+      final entry = OrgAuditEntry(
+        id: ID.unique(),
+        actorUid: _uid,
+        actorName: _displayName,
+        action: action,
+        details: details,
+        timestamp: DateTime.now(),
+      );
+      await _db.createDocument(
+        databaseId: _dbId,
+        collectionId: _colAuditLog,
+        documentId: entry.id,
+        data: entry.toAppwrite(orgId),
+      );
+    } catch (e) {
+      debugPrint('[AuditLog] _logAuditEvent failed: $e');
+    }
+  }
 }

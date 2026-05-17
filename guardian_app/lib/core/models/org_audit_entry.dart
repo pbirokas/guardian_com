@@ -1,6 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
 
-/// Verfügbare Aktionen im Änderungsprotokoll.
 enum AuditAction {
   invitationSent,
   memberConfirmed,
@@ -9,6 +8,7 @@ enum AuditAction {
   roleChanged,
   adminTransferred,
   keywordsChanged,
+  guardiansChanged,
 }
 
 class OrgAuditEntry {
@@ -28,16 +28,27 @@ class OrgAuditEntry {
     required this.timestamp,
   });
 
-  factory OrgAuditEntry.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory OrgAuditEntry.fromAppwrite(Map<String, dynamic> data) {
     return OrgAuditEntry(
-      id: doc.id,
+      id: data[r'$id'] as String,
       actorUid: data['actorUid'] as String? ?? '',
       actorName: data['actorName'] as String? ?? '',
       action: AuditAction.values.byName(
           data['action'] as String? ?? AuditAction.settingsChanged.name),
-      details: Map<String, dynamic>.from(data['details'] as Map? ?? {}),
-      timestamp: (data['timestamp'] as Timestamp).toDate(),
+      details: data['detailsJson'] != null
+          ? Map<String, dynamic>.from(
+              jsonDecode(data['detailsJson'] as String) as Map)
+          : {},
+      timestamp: DateTime.parse(data['timestamp'] as String),
     );
   }
+
+  Map<String, dynamic> toAppwrite(String orgId) => {
+        'orgId': orgId,
+        'actorUid': actorUid,
+        'actorName': actorName,
+        'action': action.name,
+        'detailsJson': jsonEncode(details),
+        'timestamp': timestamp.toIso8601String(),
+      };
 }

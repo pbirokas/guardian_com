@@ -41,6 +41,15 @@ class ChatService {
   static bool get _isDesktop =>
       !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
 
+  static String _storageViewUrl(String fileId) =>
+      '$appwriteEndpoint/storage/buckets/$appwriteMediaBucketId/files/$fileId/view?project=$appwriteProjectId';
+
+  static final List<String> _msgPerms = [
+    Permission.read(Role.users()),
+    Permission.update(Role.users()),
+    Permission.delete(Role.users()),
+  ];
+
   static int _byLastMessageDesc(Conversation a, Conversation b) {
     if (a.lastMessageAt == null) return 1;
     if (b.lastMessageAt == null) return -1;
@@ -53,8 +62,9 @@ class ChatService {
     String collectionId,
     T Function(Map<String, dynamic>) fromDoc,
     List<String> queries,
-    int Function(T, T)? sort,
-  ) {
+    int Function(T, T)? sort, {
+    int limit = 500,
+  }) {
     late StreamController<List<T>> ctrl;
     StreamSubscription? realtimeSub;
 
@@ -64,7 +74,7 @@ class ChatService {
         final result = await _db.listDocuments(
           databaseId: _dbId,
           collectionId: collectionId,
-          queries: [...queries, Query.limit(500)],
+          queries: [...queries, Query.limit(limit)],
         );
         var items = result.documents
             .map((d) => fromDoc({r'$id': d.$id, ...d.data}))
@@ -261,7 +271,8 @@ class ChatService {
     );
     for (final doc in existing.documents) {
       final conv = Conversation.fromAppwrite({r'$id': doc.$id, ...doc.data});
-      if (conv.participantUids.contains(targetUid) &&
+      if (!conv.isGroup &&
+          conv.participantUids.contains(targetUid) &&
           conv.status != ConversationStatus.rejected &&
           conv.status != ConversationStatus.archived) {
         throw Exception('Eine Konversation mit dieser Person existiert bereits.');
@@ -519,7 +530,7 @@ class ChatService {
         documentId: convId,
         data: {'participantUids': newUids});
     if (memberName.isNotEmpty) {
-      await _postSystemMessage(convId, 'memberRemoved', memberName);
+      await _postSystemMessage(convId, conv.orgId, 'memberRemoved', memberName);
     }
   }
 
@@ -554,7 +565,7 @@ class ChatService {
           'guardianUids': updatedGuardians,
         });
     for (final name in addedNames) {
-      await _postSystemMessage(convId, 'memberAdded', name);
+      await _postSystemMessage(convId, orgId, 'memberAdded', name);
     }
   }
 
@@ -578,7 +589,7 @@ class ChatService {
         Permission.delete(Role.user(_uid)),
       ],
     );
-    return '$appwriteEndpoint/storage/buckets/$appwriteMediaBucketId/files/${file.$id}/view?project=$appwriteProjectId';
+    return _storageViewUrl(file.$id);
   }
 
   Future<void> updateGroupInfo(
@@ -608,16 +619,16 @@ class ChatService {
     return doc.data['orgId'] as String? ?? '';
   }
 
-  Stream<List<Message>> watchMessages(String convId, {int limit = 30}) {
+  Stream<List<Message>> watchMessages(String convId, {int limit = 100}) {
     return _watchQuery(
       _colMessages,
       Message.fromAppwrite,
       [
         Query.equal('convId', convId),
         Query.orderAsc('sentAt'),
-        Query.limit(limit),
       ],
       null,
+      limit: limit,
     );
   }
 
@@ -645,6 +656,7 @@ class ChatService {
       collectionId: _colMessages,
       documentId: msgId,
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
+      permissions: _msgPerms,
     );
     await _updateLastMessage(
         convId, text.length > 200 ? '${text.substring(0, 200)}…' : text);
@@ -756,7 +768,7 @@ class ChatService {
         Permission.delete(Role.user(_uid)),
       ],
     );
-    final audioUrl = '$appwriteEndpoint/storage/buckets/$appwriteMediaBucketId/files/${file.$id}/view?project=$appwriteProjectId';
+    final audioUrl = _storageViewUrl(file.$id);
 
     final msg = Message(
       id: msgId,
@@ -772,6 +784,7 @@ class ChatService {
       collectionId: _colMessages,
       documentId: msgId,
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
+      permissions: _msgPerms,
     );
     await _updateLastMessage(convId, '🎤 Sprachnachricht');
   }
@@ -823,7 +836,7 @@ class ChatService {
         Permission.delete(Role.user(_uid)),
       ],
     );
-    final imageUrl = '$appwriteEndpoint/storage/buckets/$appwriteMediaBucketId/files/${file.$id}/view?project=$appwriteProjectId';
+    final imageUrl = _storageViewUrl(file.$id);
 
     final msg = Message(
       id: msgId,
@@ -839,6 +852,7 @@ class ChatService {
       collectionId: _colMessages,
       documentId: msgId,
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
+      permissions: _msgPerms,
     );
     await _updateLastMessage(convId, '[Bild]');
   }
@@ -862,7 +876,7 @@ class ChatService {
         Permission.delete(Role.user(_uid)),
       ],
     );
-    final fileUrl = '$appwriteEndpoint/storage/buckets/$appwriteMediaBucketId/files/${awFile.$id}/view?project=$appwriteProjectId';
+    final fileUrl = _storageViewUrl(awFile.$id);
 
     final msg = Message(
       id: msgId,
@@ -879,6 +893,7 @@ class ChatService {
       collectionId: _colMessages,
       documentId: msgId,
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
+      permissions: _msgPerms,
     );
     await _updateLastMessage(convId, '📎 $fileName');
   }
@@ -939,6 +954,7 @@ class ChatService {
       collectionId: _colMessages,
       documentId: msgId,
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
+      permissions: _msgPerms,
     );
     await _updateLastMessage(convId, preview);
   }
@@ -1056,6 +1072,7 @@ class ChatService {
         'orgId': orgId,
         'orgAdminUid': orgAdminUid,
         'reportedByUid': _uid,
+        'msgId': message.id,
         'messageText': message.text,
         'messageSenderName': message.senderName,
         'createdAt': DateTime.now().toIso8601String(),
@@ -1068,7 +1085,7 @@ class ChatService {
   Stream<List<Map<String, dynamic>>> watchReports(String orgId) {
     return _watchQuery<Map<String, dynamic>>(
       _colReports,
-      (data) => {r'$id': data[r'$id'], ...data},
+      (data) => {'id': data[r'$id'], ...data},
       [Query.equal('orgId', orgId), Query.orderDesc('createdAt')],
       null,
     );
@@ -1079,12 +1096,24 @@ class ChatService {
         databaseId: _dbId, collectionId: _colMessages, documentId: msgId);
   }
 
-  Future<void> markReportReviewed(String reportId) async {
+  Future<void> markReportReviewed(String reportId, String orgId) async {
     await _db.updateDocument(
         databaseId: _dbId,
         collectionId: _colReports,
         documentId: reportId,
         data: {'status': 'reviewed'});
+    try {
+      final org = await _db.getDocument(
+          databaseId: _dbId, collectionId: _colOrgs, documentId: orgId);
+      final current = org.data['pendingReportsCount'] as int? ?? 0;
+      if (current > 0) {
+        await _db.updateDocument(
+            databaseId: _dbId,
+            collectionId: _colOrgs,
+            documentId: orgId,
+            data: {'pendingReportsCount': current - 1});
+      }
+    } catch (_) {}
   }
 
   // ── Hilfsmethoden ──────────────────────────────────────────────────────────
@@ -1102,7 +1131,7 @@ class ChatService {
   }
 
   Future<void> _postSystemMessage(
-      String convId, String event, String targetName) async {
+      String convId, String orgId, String event, String targetName) async {
     final msgId = ID.unique();
     final msg = Message(
       id: msgId,
@@ -1119,7 +1148,8 @@ class ChatService {
       databaseId: _dbId,
       collectionId: _colMessages,
       documentId: msgId,
-      data: {...msg.toAppwrite(), 'convId': convId},
+      data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
+      permissions: _msgPerms,
     );
   }
 

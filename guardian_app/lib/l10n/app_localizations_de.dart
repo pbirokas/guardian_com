@@ -689,19 +689,6 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String guardianFor(String name) {
-    return 'Guardian für $name';
-  }
-
-  @override
-  String get selectGuardianHint =>
-      'Wähle mindestens einen Guardian für dieses Kind:';
-
-  @override
-  String get noGuardiansInOrg =>
-      'Keine möglichen Guardians in dieser Organisation.';
-
-  @override
   String get removeMemberTitle => 'Mitglied entfernen';
 
   @override
@@ -1719,6 +1706,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get auditActionKeywordsChanged => 'Schlüsselwörter aktualisiert';
 
   @override
+  String get auditActionGuardiansChanged => 'Guardian geändert';
+
+  @override
   String auditBy(String name) {
     return 'von $name';
   }
@@ -1753,6 +1743,13 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get errorChildAccountRoleLocked =>
       'Dieses Konto ist als Kind-Konto registriert. Bitte wähle die Rolle \'Kind\' und weise mindestens einen Guardian zu.';
+
+  @override
+  String get errorRemoveLastGuardianTitle => 'Entfernen nicht möglich';
+
+  @override
+  String get errorRemoveLastGuardianContent =>
+      'Dieses Mitglied ist der einzige Guardian eines oder mehrerer Kinder in dieser Organisation. Weise zuerst andere Guardians zu.';
 
   @override
   String get editGroup => 'Gruppe bearbeiten';

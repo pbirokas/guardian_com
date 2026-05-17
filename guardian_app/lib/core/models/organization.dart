@@ -52,6 +52,7 @@ class Organization {
   final bool isArchived;
   final List<String> keywords;
   final int messageRetentionDays;
+  final int pendingReportsCount;
 
   static const int retentionMin = 30;
   static const int retentionMax = 365;
@@ -67,6 +68,7 @@ class Organization {
     this.isArchived = false,
     this.keywords = const [],
     this.messageRetentionDays = retentionDefault,
+    this.pendingReportsCount = 0,
   });
 
   factory Organization.fromFirestore(DocumentSnapshot doc) {
@@ -109,6 +111,7 @@ class Organization {
         messageRetentionDays:
             (data['messageRetentionDays'] as int? ?? retentionDefault)
                 .clamp(retentionMin, retentionMax),
+        pendingReportsCount: data['pendingReportsCount'] as int? ?? 0,
       );
 
   Map<String, dynamic> toAppwrite() => {

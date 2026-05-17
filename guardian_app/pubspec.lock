@@ -77,10 +77,10 @@ packages:
     dependency: "direct main"
     description:
       name: appwrite
-      sha256: "33a19d9e1eac213441e0a29bcccad53d91ddcb97c42488c20da0fb9a0946c021"
+      sha256: "20cef5647a78ad4fe2d8c9d437c29f5dc5797439a3211d93f549244070c6a1fb"
       url: "https://pub.dev"
     source: hosted
-    version: "24.0.0"
+    version: "23.1.0"
   archive:
     dependency: transitive
     description:
@@ -1827,7 +1827,7 @@ packages:
     source: hosted
     version: "1.0.1"
   web_socket_channel:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: web_socket_channel
       sha256: d645757fb0f4773d602444000a8131ff5d48c9e47adfe9772652dd1a4f2d45c8

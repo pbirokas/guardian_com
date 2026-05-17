@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:appwrite/appwrite.dart';
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
+import '../appwrite_client.dart';
 import 'package:local_notifier/local_notifier.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -17,6 +18,10 @@ import 'tray_service.dart';
 /// Verwendung: [initialize] einmalig beim Start, danach [startListening] mit
 /// uid aufrufen wenn der Nutzer eingeloggt ist, [stopListening] beim Logout.
 class DesktopNotificationService {
+  static final DesktopNotificationService instance = DesktopNotificationService._();
+  DesktopNotificationService._();
+  factory DesktopNotificationService() => instance;
+
   static GoRouter? _router;
   static void setRouter(GoRouter router) => _router = router;
 
@@ -44,8 +49,7 @@ class DesktopNotificationService {
   void startListening(Client client, String uid) {
     stopListening();
     _db = Databases(client);
-    _realtime = Realtime(client);
-    _uid = uid;
+    _realtime = createPatchedRealtime(client);
     _startConversationTracking(uid);
     _startUnreadTracking(uid);
   }
@@ -118,7 +122,7 @@ class DesktopNotificationService {
     final startTime = DateTime.now();
 
     final sub = realtime
-        .subscribe(['databases.guardian.collections.messages.documents'])
+        .subscribe(['databases.guardian.collections.chat_messages.documents'])
         .stream
         .listen((event) {
       // Only care about newly created messages in this conversation

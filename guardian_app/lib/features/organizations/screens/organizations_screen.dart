@@ -225,6 +225,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
         await ref
             .read(organizationServiceProvider)
             .createOrganization(nameController.text.trim(), selectedTag);
+        ref.invalidate(myOrganizationsProvider);
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -691,6 +692,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                               );
                               if (confirmed == true) {
                                 await svc.deleteOrganization(org.id);
+                                ref.invalidate(myOrganizationsProvider);
                               }
                             } else if (value == 'open') {
                               if (context.mounted) {

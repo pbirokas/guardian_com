@@ -105,6 +105,10 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
       await ref
           .read(parentClaimServiceProvider)
           .confirmClaimRequest(req.id);
+      ref.invalidate(incomingClaimRequestsProvider);
+      ref.invalidate(outgoingClaimRequestsProvider);
+      ref.invalidate(myParentsProvider);
+      ref.invalidate(myChildrenProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l.claimConfirmed)),
@@ -125,6 +129,8 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
       await ref
           .read(parentClaimServiceProvider)
           .rejectClaimRequest(req.id);
+      ref.invalidate(incomingClaimRequestsProvider);
+      ref.invalidate(outgoingClaimRequestsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l.claimRejected)),
@@ -195,6 +201,8 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
       await ref
           .read(parentClaimServiceProvider)
           .revokeConnection(otherUid);
+      ref.invalidate(myChildrenProvider);
+      ref.invalidate(myParentsProvider);
     } catch (e) {
       if (mounted) {
         final l2 = AppLocalizations.of(context);
@@ -303,7 +311,15 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
           ),
         ],
       ),
-      body: ListView(
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(incomingClaimRequestsProvider);
+          ref.invalidate(outgoingClaimRequestsProvider);
+          ref.invalidate(myChildrenProvider);
+          ref.invalidate(myParentsProvider);
+          ref.invalidate(pendingOrgConsentsProvider);
+        },
+        child: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
           // ── Incoming claim requests (child sees "X wants to be your parent") ──
@@ -453,7 +469,7 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
                       email: u['email'] as String? ?? '',
                       photoUrl: u['photoUrl'] as String?,
                       label: l.verifiedParent,
-                      onRevoke: null, // Kinder können Eltern nicht trennen
+                      onRevoke: null,
                     )),
               ];
             },
@@ -461,6 +477,7 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
             error: (_, _) => const [],
           ),
         ],
+      ),
       ),
     );
   }

@@ -5,6 +5,10 @@ import 'package:appwrite/appwrite.dart';
 import 'package:go_router/go_router.dart';
 
 class DesktopNotificationService {
+  static final DesktopNotificationService instance = DesktopNotificationService._();
+  DesktopNotificationService._();
+  factory DesktopNotificationService() => instance;
+
   static void setRouter(GoRouter router) {}
   Future<void> initialize() async {}
   void startListening(Client client, String uid) {}

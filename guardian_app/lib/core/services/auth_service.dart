@@ -3,17 +3,20 @@ import 'dart:convert';
 
 import 'package:appwrite/appwrite.dart';
 import 'package:appwrite/models.dart' as aw;
+import '../appwrite_client.dart';
 import '../models/app_user.dart';
 import '../models/notification_settings.dart';
 import 'notification_service.dart';
 
 class AuthService {
   AuthService(Client client)
-      : _account = Account(client),
+      : _client = client,
+        _account = Account(client),
         _db = Databases(client),
         _functions = Functions(client),
-        _realtime = Realtime(client);
+        _realtime = createPatchedRealtime(client);
 
+  final Client _client;
   final Account _account;
   final Databases _db;
   final Functions _functions;
@@ -25,6 +28,7 @@ class AuthService {
   Future<AppUser?> getCurrentAppUser() async {
     try {
       final account = await _account.get();
+      await cacheRealtimeSessionCookie(_client);
       return _getOrCreateUserDoc(account);
     } on AppwriteException {
       return null;
@@ -33,6 +37,7 @@ class AuthService {
 
   Future<AppUser> signIn(String email, String password) async {
     await _account.createEmailPasswordSession(email: email, password: password);
+    await cacheRealtimeSessionCookie(_client);
     final account = await _account.get();
     return _afterAuth(account);
   }
@@ -45,6 +50,7 @@ class AuthService {
       name: name,
     );
     await _account.createEmailPasswordSession(email: email, password: password);
+    await cacheRealtimeSessionCookie(_client);
     return _afterAuth(account);
   }
 
@@ -63,6 +69,7 @@ class AuthService {
   }
 
   Future<void> signOut() async {
+    clearRealtimeSessionCookie();
     try {
       await _account.deleteSessions();
     } catch (_) {}
@@ -109,7 +116,7 @@ class AuthService {
 
   Stream<NotificationSettings> watchNotificationSettings(String uid) {
     late StreamController<NotificationSettings> ctrl;
-    RealtimeSubscription? sub;
+    StreamSubscription? realtimeSub;
 
     Future<void> reload() async {
       if (ctrl.isClosed) return;
@@ -128,14 +135,15 @@ class AuthService {
     }
 
     void dispose() {
-      sub?.close();
+      realtimeSub?.cancel();
       ctrl.close();
     }
 
     ctrl = StreamController(onCancel: dispose);
-    sub = _realtime.subscribe(
-        ['databases.$_dbId.collections.$_colUsers.documents.$uid']);
-    sub.stream.listen((_) => reload(), onDone: dispose, onError: (_) {});
+    realtimeSub = _realtime
+        .subscribe(['databases.$_dbId.collections.$_colUsers.documents.$uid'])
+        .stream
+        .listen((_) => reload(), onDone: dispose, onError: (_) {});
     reload();
     return ctrl.stream;
   }

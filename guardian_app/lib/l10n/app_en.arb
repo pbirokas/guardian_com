@@ -258,12 +258,6 @@
   "@roleFor": {
     "placeholders": { "name": { "type": "String" } }
   },
-  "guardianFor": "Guardian for {name}",
-  "@guardianFor": {
-    "placeholders": { "name": { "type": "String" } }
-  },
-  "selectGuardianHint": "Select at least one guardian for this child:",
-  "noGuardiansInOrg": "No possible guardians in this organization.",
   "removeMemberTitle": "Remove member",
   "removeMemberContent": "Really remove {name}?",
   "@removeMemberContent": {
@@ -743,6 +737,7 @@
   "auditActionRoleChanged": "Role changed",
   "auditActionAdminTransferred": "Admin role transferred",
   "auditActionKeywordsChanged": "Keywords updated",
+  "auditActionGuardiansChanged": "Guardian changed",
   "auditBy": "by {name}",
   "@auditBy": {
     "placeholders": { "name": { "type": "String" } }
@@ -757,6 +752,8 @@
   "sectionDirectChats": "Direct chats",
   "pollDetailsButton": "Poll details",
   "errorChildAccountRoleLocked": "This account is registered as a child account. Please select the role \"Child\" and assign at least one guardian.",
+  "errorRemoveLastGuardianTitle": "Cannot Remove",
+  "errorRemoveLastGuardianContent": "This member is the only guardian of one or more children in this organisation. Assign other guardians first.",
   "editGroup": "Edit group",
   "groupImage": "Group image",
   "removeGroupImage": "Remove image",

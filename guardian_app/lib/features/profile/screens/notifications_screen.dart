@@ -19,6 +19,7 @@ class NotificationsScreen extends ConsumerWidget {
   Future<void> _save(
       WidgetRef ref, NotificationSettings updated, String uid) async {
     await ref.read(authServiceProvider).saveNotificationSettings(uid, updated);
+    ref.invalidate(notificationSettingsProvider);
   }
 
   @override

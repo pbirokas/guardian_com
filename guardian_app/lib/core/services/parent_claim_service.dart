@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:appwrite/appwrite.dart';
 import 'package:appwrite/enums.dart';
+import '../appwrite_client.dart';
 import '../models/child_summary.dart';
 import '../models/claim_request.dart';
 import '../models/org_invite_consent.dart';
@@ -22,7 +23,7 @@ class ParentClaimService {
     required String displayName,
     required String email,
   })  : _db = Databases(client),
-        _realtime = Realtime(client),
+        _realtime = createPatchedRealtime(client),
         _functions = Functions(client),
         _uid = uid,
         _displayName = displayName,
@@ -48,7 +49,7 @@ class ParentClaimService {
     List<String> queries,
   ) {
     late StreamController<List<T>> ctrl;
-    RealtimeSubscription? sub;
+    StreamSubscription? realtimeSub;
 
     Future<void> reload() async {
       if (ctrl.isClosed) return;
@@ -68,14 +69,15 @@ class ParentClaimService {
     }
 
     void dispose() {
-      sub?.close();
+      realtimeSub?.cancel();
       ctrl.close();
     }
 
     ctrl = StreamController(onCancel: dispose);
-    sub = _realtime.subscribe(
-        ['databases.$_dbId.collections.$collectionId.documents']);
-    sub.stream.listen((_) => reload(), onDone: dispose, onError: (_) {});
+    realtimeSub = _realtime
+        .subscribe(['databases.$_dbId.collections.$collectionId.documents'])
+        .stream
+        .listen((_) => reload(), onDone: dispose, onError: (_) {});
     reload();
     return ctrl.stream;
   }
@@ -122,12 +124,6 @@ class ParentClaimService {
         'createdAt': now.toIso8601String(),
         'expiresAt': now.add(const Duration(days: 7)).toIso8601String(),
       },
-      permissions: [
-        Permission.read(Role.user(_uid)),
-        Permission.update(Role.user(_uid)),
-        Permission.read(Role.user(childUid)),
-        Permission.update(Role.user(childUid)),
-      ],
     );
   }
 
@@ -195,7 +191,7 @@ class ParentClaimService {
   /// Watches [field] on the current user doc and fetches each referenced user.
   Stream<List<Map<String, dynamic>>> _watchRelatives(String field) {
     late StreamController<List<Map<String, dynamic>>> ctrl;
-    RealtimeSubscription? sub;
+    StreamSubscription? realtimeSub;
 
     Future<void> reload() async {
       if (ctrl.isClosed) return;
@@ -221,40 +217,31 @@ class ParentClaimService {
     }
 
     void dispose() {
-      sub?.close();
+      realtimeSub?.cancel();
       ctrl.close();
     }
 
     ctrl = StreamController(onCancel: dispose);
-    sub = _realtime.subscribe(
-        ['databases.$_dbId.collections.$_colUsers.documents.$_uid']);
-    sub.stream.listen((_) => reload(), onDone: dispose, onError: (_) {});
+    realtimeSub = _realtime
+        .subscribe(
+            ['databases.$_dbId.collections.$_colUsers.documents.$_uid'])
+        .stream
+        .listen((_) => reload(), onDone: dispose, onError: (_) {});
     reload();
     return ctrl.stream;
   }
 
-  /// Revokes a verified parent-child connection from both sides.
+  /// Revokes a verified parent-child connection on both sides atomically.
+  /// Uses a Cloud Function because the client cannot write to another user's doc.
   Future<void> revokeConnection(String otherUid) async {
-    // No transactions in Appwrite — two sequential read-modify-write pairs.
-    await _removeFromArrayField(_colUsers, _uid, 'verifiedParentUids', otherUid);
-    await _removeFromArrayField(_colUsers, _uid, 'verifiedChildUids', otherUid);
-    await _removeFromArrayField(
-        _colUsers, otherUid, 'verifiedParentUids', _uid);
-    await _removeFromArrayField(
-        _colUsers, otherUid, 'verifiedChildUids', _uid);
-  }
-
-  Future<void> _removeFromArrayField(
-      String col, String docId, String field, String value) async {
-    final doc = await _db.getDocument(
-        databaseId: _dbId, collectionId: col, documentId: docId);
-    final list = List<String>.from(doc.data[field] as List? ?? [])
-      ..remove(value);
-    await _db.updateDocument(
-        databaseId: _dbId,
-        collectionId: col,
-        documentId: docId,
-        data: {field: list});
+    final result = await _functions.createExecution(
+      functionId: 'revoke-connection',
+      body: jsonEncode({'otherUid': otherUid}),
+      method: ExecutionMethod.pOST,
+    );
+    if (result.responseStatusCode != 200) {
+      throw Exception('revokeConnection failed: ${result.responseBody}');
+    }
   }
 
   // ──────────────────────────────────────────────────────────────────────────

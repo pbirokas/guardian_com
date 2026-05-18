@@ -7,17 +7,18 @@ list(APPEND FLUTTER_PLUGIN_LIST
   audioplayers_windows
   cloud_firestore
   connectivity_plus
+  desktop_webview_window
   emoji_picker_flutter
   file_selector_windows
   firebase_auth
   firebase_core
-  firebase_storage
   local_notifier
   record_windows
   screen_retriever_windows
   system_tray
   url_launcher_windows
   window_manager
+  window_to_front
   windows_taskbar
 )
 

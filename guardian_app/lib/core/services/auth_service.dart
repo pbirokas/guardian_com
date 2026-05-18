@@ -1,364 +1,228 @@
+import 'dart:async';
 import 'dart:convert';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
+import 'package:appwrite/appwrite.dart';
+import 'package:appwrite/enums.dart';
+import 'package:appwrite/models.dart' as aw;
+import '../appwrite_client.dart';
 import '../models/app_user.dart';
-import '../models/org_member.dart';
+import '../models/notification_settings.dart';
 import 'notification_service.dart';
 
-bool get _isDesktop =>
-    defaultTargetPlatform == TargetPlatform.windows ||
-    defaultTargetPlatform == TargetPlatform.linux ||
-    defaultTargetPlatform == TargetPlatform.macOS;
-
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  AuthService(Client client)
+      : _client = client,
+        _account = Account(client),
+        _db = Databases(client),
+        _functions = Functions(client),
+        _realtime = createPatchedRealtime(client);
 
-  static const _kPendingEmail = 'emailLinkPendingEmail';
+  final Client _client;
+  final Account _account;
+  final Databases _db;
+  final Functions _functions;
+  final Realtime _realtime;
 
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
+  static const _dbId = 'guardian';
+  static const _colUsers = 'users';
+
+  Future<AppUser?> getCurrentAppUser() async {
+    try {
+      final account = await _account.get();
+      await cacheRealtimeSessionCookie(_client);
+      return _getOrCreateUserDoc(account);
+    } on AppwriteException {
+      return null;
+    }
+  }
+
+  Future<AppUser> updateProfile(String uid, String displayName,
+      {String? photoUrl}) async {
+    await _account.updateName(name: displayName);
+    final updates = <String, dynamic>{'displayName': displayName};
+    if (photoUrl != null) updates['photoUrl'] = photoUrl;
+    final doc = await _db.updateDocument(
+      databaseId: _dbId,
+      collectionId: _colUsers,
+      documentId: uid,
+      data: updates,
+    );
+    return AppUser.fromAppwrite({r'$id': doc.$id, ...doc.data});
+  }
 
   Future<AppUser> signInWithGoogle() async {
-    await GoogleSignIn.instance.initialize(
-      serverClientId:
-          '689565503451-msp7j89869cr9ojvc2uhaph0ordri5vr.apps.googleusercontent.com',
-    );
-    final googleAccount = await GoogleSignIn.instance.authenticate();
-    final googleAuth = googleAccount.authentication;
-    final credential = GoogleAuthProvider.credential(
-      idToken: googleAuth.idToken,
-    );
-    final userCredential = await _auth.signInWithCredential(credential);
-    return _ensureUserDocument(userCredential.user!);
-  }
-
-  // ── E-Mail-Link (Passwordless) ─────────────────────────────────────────────
-
-  // Firebase Web API Key (identisch mit android apiKey)
-  static const _webApiKey = 'AIzaSyBtuspjIwhor6w_SwnHynY4AJrGCqvGWI4';
-
-  /// Sendet einen Anmeldelink an die angegebene E-Mail-Adresse.
-  Future<void> sendSignInLink(String email) async {
-    if (_isDesktop) {
-      // Firebase C++ SDK unterstützt sendSignInLinkToEmail nicht →
-      // direkt über die Identity Toolkit REST API senden.
-      final uri = Uri.parse(
-        'https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode'
-        '?key=$_webApiKey',
-      );
-      final response = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'requestType': 'EMAIL_SIGNIN',
-          'email': email,
-          'continueUrl':
-              'https://guardian-app-b0f6c.firebaseapp.com/emailLogin',
-          'canHandleCodeInApp': true,
-        }),
-      );
-      if (response.statusCode != 200) {
-        final body = jsonDecode(response.body);
-        final message =
-            body['error']?['message'] as String? ?? 'Unbekannter Fehler';
-        throw Exception('E-Mail-Link senden fehlgeschlagen: $message');
-      }
-    } else {
-      await _auth.sendSignInLinkToEmail(
-        email: email,
-        actionCodeSettings: ActionCodeSettings(
-          url: 'https://guardian-app-b0f6c.firebaseapp.com/emailLogin',
-          handleCodeInApp: true,
-          androidPackageName: 'com.guardianapp.guardian_app',
-          androidInstallApp: true,
-          androidMinimumVersion: '21',
-        ),
-      );
-    }
-
-    // E-Mail lokal speichern — wird beim Öffnen des Links gebraucht
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kPendingEmail, email.toLowerCase().trim());
-  }
-
-  /// Prüft ob ein Deep Link ein E-Mail-Login-Link ist und meldet an.
-  Future<AppUser?> handleEmailLink(Uri link) async {
-    final linkStr = link.toString();
-
-    final prefs = await SharedPreferences.getInstance();
-    final email = prefs.getString(_kPendingEmail);
-    if (email == null || email.isEmpty) return null;
-
-    if (_isDesktop) {
-      return _handleEmailLinkViaRest(email, linkStr, prefs);
-    }
-
-    if (!_auth.isSignInWithEmailLink(linkStr)) return null;
-
-    final userCredential = await _auth.signInWithEmailLink(
-      email: email,
-      emailLink: linkStr,
-    );
-
-    await prefs.remove(_kPendingEmail);
-    return _ensureUserDocument(userCredential.user!);
-  }
-
-  /// Sign-in per E-Mail-Link auf Desktop (Windows/Linux).
-  ///
-  /// Da das Firebase C++ SDK signInWithEmailLink nicht unterstützt:
-  /// 1. oobCode aus URL extrahieren
-  /// 2. REST API: oobCode → idToken
-  /// 3. Cloud Function: idToken → Custom Token
-  /// 4. SDK: signInWithCustomToken → normaler Auth-Flow
-  Future<AppUser?> _handleEmailLinkViaRest(
-      String email, String linkStr, SharedPreferences prefs) async {
-    final oobCode = Uri.parse(linkStr).queryParameters['oobCode'];
-    if (oobCode == null || oobCode.isEmpty) {
-      throw Exception(
-          'Ungültiger Link — kein oobCode gefunden.\nBitte kopiere die vollständige URL aus dem Browser.');
-    }
-
-    // Schritt 1: oobCode → idToken via REST
-    final signInResponse = await http.post(
-      Uri.parse(
-        'https://identitytoolkit.googleapis.com/v1/accounts:signInWithEmailLink'
-        '?key=$_webApiKey',
-      ),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email, 'oobCode': oobCode}),
-    );
-
-    if (signInResponse.statusCode != 200) {
-      final errBody = jsonDecode(signInResponse.body) as Map<String, dynamic>;
-      final message = errBody['error']?['message'] as String? ?? 'Fehler';
-      throw Exception('Anmeldung fehlgeschlagen: $message');
-    }
-
-    final signInData = jsonDecode(signInResponse.body) as Map<String, dynamic>;
-    final idToken = signInData['idToken'] as String?;
-    if (idToken == null) throw Exception('Kein idToken erhalten.');
-
-    // Schritt 2: idToken → Custom Token via Cloud Function
-    final customTokenResponse = await http.post(
-      Uri.parse(
-        'https://getcustomtoken-jnxhy44mcq-ey.a.run.app',
-      ),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'idToken': idToken}),
-    );
-
-    if (customTokenResponse.statusCode != 200) {
-      throw Exception('Custom Token Fehler: ${customTokenResponse.body}');
-    }
-
-    final customTokenData =
-        jsonDecode(customTokenResponse.body) as Map<String, dynamic>;
-    final customToken = customTokenData['customToken'] as String?;
-    if (customToken == null) throw Exception('Kein Custom Token erhalten.');
-
-    // Schritt 3: SDK-Login mit Custom Token
-    final userCredential = await _auth.signInWithCustomToken(customToken);
-
-    await prefs.remove(_kPendingEmail);
-    return _ensureUserDocument(userCredential.user!);
-  }
-
-  /// Gibt die gespeicherte E-Mail zurück (für UI-Anzeige nach Link-Versand).
-  Future<String?> getPendingEmail() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_kPendingEmail);
-  }
-
-  /// Stellt sicher dass ein Firestore-Dokument für den User existiert.
-  /// Wird bei jedem Login aufgerufen, damit fehlende Dokumente nacherstellt werden.
-  Future<AppUser> _ensureUserDocument(User user) async {
-    final docRef = _db.collection('users').doc(user.uid);
-    final doc = await docRef.get();
-
-    if (!doc.exists) {
-      final newUser = AppUser(
-        uid: user.uid,
-        email: user.email!.toLowerCase(),
-        displayName: (user.displayName?.isNotEmpty == true)
-            ? user.displayName!
-            : user.email!,
-        photoUrl: user.photoURL,
-        memberships: [],
-        createdAt: DateTime.now(),
-      );
-      await docRef.set(newUser.toFirestore());
-      await _processPendingInvitations(user.uid, user.email!.toLowerCase());
-      await NotificationService().initialize();
-      // Aktualisiertes Dokument laden (Einladungen können isChild gesetzt haben)
-      final updatedDoc = await docRef.get();
-      return AppUser.fromFirestore(updatedDoc);
-    }
-
-    final data = doc.data() as Map<String, dynamic>;
-    final updates = <String, dynamic>{};
-
-    // E-Mail normalisieren
-    final storedEmail = data['email'] as String? ?? '';
-    if (storedEmail != storedEmail.toLowerCase()) {
-      updates['email'] = storedEmail.toLowerCase();
-    }
-
-    // DisplayName auffüllen falls leer
-    final storedName = data['displayName'] as String? ?? '';
-    if (storedName.isEmpty) {
-      updates['displayName'] = (user.displayName?.isNotEmpty == true)
-          ? user.displayName!
-          : user.email!;
-    }
-
-    if (updates.isNotEmpty) await docRef.update(updates);
-
-    // Ausstehende Einladungen auch bei existierenden Usern prüfen
-    await _processPendingInvitations(user.uid, user.email!.toLowerCase());
-    await NotificationService().initialize();
-    final updatedDoc = await docRef.get();
-    return AppUser.fromFirestore(updatedDoc);
-  }
-
-  Future<void> _processPendingInvitations(String uid, String email) async {
-    // Einladungs-IDs ermitteln: zuerst per Lookup-Dokument (schnell, keine
-    // List-Query nötig), danach Fallback auf direkte Abfrage für ältere
-    // Einladungen, die vor Einführung des Lookups erstellt wurden.
-    final invitationIds = <String>[];
-
+    await _resetSession();
+    await _account.createOAuth2Session(provider: OAuthProvider.google);
+    // Führe server-seitigen Account-Merge durch (falls ein migrierter Firebase-Account
+    // mit dieser E-Mail existiert, werden alle Daten auf den Google-Account übertragen).
     try {
-      final lookupDoc =
-          await _db.collection('invitationLookup').doc(email).get();
-      if (lookupDoc.exists) {
-        final ids = (lookupDoc.data()
-                as Map<String, dynamic>)['invitationIds'] as List? ??
-            [];
-        invitationIds.addAll(ids.cast<String>());
-        // Lookup-Dokument bereinigen
-        await lookupDoc.reference.delete().catchError((_) {});
-      }
-    } catch (_) {}
-
-    // Fallback: direkte E-Mail-Abfrage für Einladungen ohne Lookup-Eintrag
-    if (invitationIds.isEmpty) {
-      try {
-        final query = await _db
-            .collection('invitations')
-            .where('email', isEqualTo: email)
-            .where('status', isEqualTo: 'pending')
-            .get();
-        invitationIds.addAll(query.docs.map((d) => d.id));
-      } catch (_) {}
+      await _functions.createExecution(
+        functionId: 'merge-oauth-account',
+        xasync: false,
+      );
+      // Kurze Pause damit Appwrite DB-Änderungen aus dem Merge propagieren können
+      await Future.delayed(const Duration(seconds: 2));
+    } catch (e) {
+      if (kDebugMode) debugPrint('[AuthService] merge-oauth-account failed: $e');
     }
+    return _finalizeSession();
+  }
 
-    if (invitationIds.isEmpty) return;
+  /// Links a Google identity to the currently authenticated account.
+  /// Call this only when the user already has an active session.
+  Future<void> linkGoogleAccount() async {
+    await _account.createOAuth2Token(provider: OAuthProvider.google);
+  }
 
-    for (final inviteId in invitationIds) {
-      try {
-        final inviteDoc =
-            await _db.collection('invitations').doc(inviteId).get();
-        if (!inviteDoc.exists) continue;
-
-        final data = inviteDoc.data() as Map<String, dynamic>;
-        if (data['status'] != 'pending') continue;
-
-        final orgId = data['orgId'] as String;
-        var role = OrgRole.values.byName(data['role'] as String);
-        final guardianUids = (data['guardianUids'] as List? ?? [])
-            .map((e) => e as String)
-            .toList();
-
-        // Kind-Konten bekommen immer Rolle 'child', egal was in der Einladung steht
-        final userSnap = await _db.collection('users').doc(uid).get();
-        final isChildAccount = userSnap.data()?['isChild'] as bool? ?? false;
-        if (isChildAccount) role = OrgRole.child;
-        final isChild = role == OrgRole.child;
-
-        final user = _auth.currentUser!;
-        final displayName = (user.displayName?.isNotEmpty == true)
-            ? user.displayName!
-            : email;
-
-        final memberRef = _db
-            .collection('organizations')
-            .doc(orgId)
-            .collection('members')
-            .doc(uid);
-
-        final existing = await memberRef.get();
-        if (existing.exists) {
-          await inviteDoc.reference
-              .update({'status': 'processed'})
-              .catchError((_) {});
-          continue;
-        }
-
-        final membership = OrgMembership(orgId: orgId, role: role);
-
-        // Transaktion: kritische Schreiboperationen (Mitglied + Org + User)
-        await _db.runTransaction((tx) async {
-          tx.set(
-            memberRef,
-            OrgMember(
-              uid: uid,
-              displayName: displayName,
-              email: email,
-              role: role,
-              joinedAt: DateTime.now(),
-              guardianUids: isChild ? guardianUids : [],
-              status: isChild ? MemberStatus.pending : MemberStatus.active,
-            ).toFirestore(),
-          );
-
-          if (!isChild) {
-            tx.update(_db.collection('organizations').doc(orgId), {
-              'memberUids': FieldValue.arrayUnion([uid]),
-            });
-            tx.update(_db.collection('users').doc(uid), {
-              'memberships': FieldValue.arrayUnion([membership.toMap()]),
-            });
-          } else {
-            tx.update(_db.collection('users').doc(uid), {'isChild': true});
-          }
-        });
-
-        // Einladung separat als verarbeitet markieren (Best-Effort)
-        await inviteDoc.reference
-            .update({'status': 'processed'})
-            .catchError((_) {});
-      } catch (e) {
-        // Eine einzelne Einladung fehlgeschlagen – mit den anderen weitermachen
-        // ignore: avoid_print
-        print('[Auth] Einladung $inviteId konnte nicht verarbeitet werden: $e');
-      }
+  Future<bool> isGoogleLinked() async {
+    try {
+      final identities = await _account.listIdentities();
+      return identities.identities.any((id) => id.provider == 'google');
+    } catch (_) {
+      return false;
     }
+  }
 
+  Future<String> sendEmailOtp(String email) async {
+    await _resetSession();
+    final token = await _account.createEmailToken(
+      userId: ID.unique(),
+      email: email.toLowerCase().trim(),
+    );
+    return token.userId;
+  }
+
+  Future<AppUser> confirmMagicLink(String userId, String secret) async {
+    try {
+      await _account.createSession(userId: userId, secret: secret);
+    } on AppwriteException catch (e) {
+      // Eine vorhandene Session (z.B. nach fehlgeschlagenem OAuth) ist akzeptabel
+      if (e.type != 'user_session_already_exists') rethrow;
+    }
+    return _finalizeSession();
   }
 
   Future<void> signOut() async {
-    try {
-      await GoogleSignIn.instance.initialize(
-        serverClientId:
-            '689565503451-msp7j89869cr9ojvc2uhaph0ordri5vr.apps.googleusercontent.com',
-      );
-      await GoogleSignIn.instance.signOut();
-    } catch (_) {}
-    await _auth.signOut();
+    clearRealtimeSessionCookie();
+    await _resetSession();
   }
 
-  Future<AppUser?> getCurrentAppUser() async {
-    final user = _auth.currentUser;
-    if (user == null) return null;
-    final doc = await _db.collection('users').doc(user.uid).get();
-    if (!doc.exists) {
-      return _ensureUserDocument(user);
+  /// Löscht alle Sessions server-seitig und leert den lokalen CookieJar.
+  Future<void> _resetSession() async {
+    try { await _account.deleteSessions(); } catch (_) {}
+    await _clearCookieJar();
+  }
+
+  /// Cached den Realtime-Cookie, liest den aktuellen Account und schließt den Auth-Flow ab.
+  Future<AppUser> _finalizeSession() async {
+    await cacheRealtimeSessionCookie(_client);
+    final account = await _account.get();
+    return _afterAuth(account);
+  }
+
+  /// Löscht alle lokal gespeicherten Session-Cookies aus dem CookieJar.
+  /// Nötig weil deleteSessions() nur den Server-Stand bereinigt, aber den
+  /// lokalen CookieJar nicht leert — veraltete Cookies würden sonst mit
+  /// dem nächsten Request mitgesendet und Appwrite zum 400/401 verleiten.
+  /// Nutzt dynamischen Cast auf das interne `cookieJar`-Feld von ClientIO
+  /// (Appwrite SDK 23.0.0). Bei SDK-Upgrades prüfen ob das Feld noch existiert.
+  Future<void> _clearCookieJar() async {
+    try {
+      final dynamic jar = (_client as dynamic).cookieJar;
+      await jar.deleteAll();
+    } catch (_) {}
+  }
+
+  Future<AppUser> _afterAuth(aw.User account) async {
+    final user = await _getOrCreateUserDoc(account);
+    unawaited(_callProcessMyInvitations());
+    unawaited(NotificationService().initialize(_db, account.$id));
+    return user;
+  }
+
+  Future<AppUser> _getOrCreateUserDoc(aw.User account) async {
+    try {
+      final doc = await _db.getDocument(
+        databaseId: _dbId,
+        collectionId: _colUsers,
+        documentId: account.$id,
+      );
+      return AppUser.fromAppwrite({r'$id': doc.$id, ...doc.data});
+    } on AppwriteException catch (e) {
+      if (e.code != 404) rethrow;
+      final newUser = AppUser(
+        uid: account.$id,
+        email: account.email.toLowerCase(),
+        displayName: account.name.isNotEmpty ? account.name : account.email,
+        memberships: const [],
+        createdAt: DateTime.now(),
+      );
+      final doc = await _db.createDocument(
+        databaseId: _dbId,
+        collectionId: _colUsers,
+        documentId: account.$id,
+        data: newUser.toAppwrite(),
+        permissions: [
+          Permission.read(Role.user(account.$id)),
+          Permission.update(Role.user(account.$id)),
+          Permission.delete(Role.user(account.$id)),
+        ],
+      );
+      return AppUser.fromAppwrite({r'$id': doc.$id, ...doc.data});
     }
-    return AppUser.fromFirestore(doc);
+  }
+
+  Stream<NotificationSettings> watchNotificationSettings(String uid) {
+    late StreamController<NotificationSettings> ctrl;
+    StreamSubscription? realtimeSub;
+
+    Future<void> reload() async {
+      if (ctrl.isClosed) return;
+      try {
+        final doc = await _db.getDocument(
+          databaseId: _dbId,
+          collectionId: _colUsers,
+          documentId: uid,
+        );
+        final raw = doc.data['notificationSettingsJson'] as String?;
+        final map = raw != null ? jsonDecode(raw) as Map<String, dynamic>? : null;
+        if (!ctrl.isClosed) ctrl.add(NotificationSettings.fromMap(map));
+      } catch (_) {
+        if (!ctrl.isClosed) ctrl.add(const NotificationSettings());
+      }
+    }
+
+    void dispose() {
+      realtimeSub?.cancel();
+      ctrl.close();
+    }
+
+    ctrl = StreamController(onCancel: dispose);
+    realtimeSub = _realtime
+        .subscribe(['databases.$_dbId.collections.$_colUsers.documents.$uid'])
+        .stream
+        .listen((_) => reload(), onDone: dispose, onError: (_) {});
+    reload();
+    return ctrl.stream;
+  }
+
+  Future<void> saveNotificationSettings(
+      String uid, NotificationSettings settings) async {
+    await _db.updateDocument(
+      databaseId: _dbId,
+      collectionId: _colUsers,
+      documentId: uid,
+      data: {'notificationSettingsJson': jsonEncode(settings.toMap())},
+    );
+  }
+
+  Future<void> _callProcessMyInvitations() async {
+    try {
+      await _functions.createExecution(
+        functionId: 'process-my-invitations',
+        xasync: true,
+      );
+    } catch (_) {}
   }
 }

@@ -86,6 +86,28 @@ class AppLocalizationsDe extends AppLocalizations {
   String get signInWithGoogle => 'Mit Google anmelden';
 
   @override
+  String get googleSignInHint =>
+      'Bereits ein Konto? Melde dich per E-Mail an und verknüpfe Google danach im Profil.';
+
+  @override
+  String get connectedAccounts => 'Verbundene Konten';
+
+  @override
+  String get linkGoogle => 'Mit Google verknüpfen';
+
+  @override
+  String get googleLinked => 'Google-Konto erfolgreich verknüpft.';
+
+  @override
+  String get googleLinkedStatus => 'Verknüpft';
+
+  @override
+  String get unlinkGoogle => 'Google-Verknüpfung trennen';
+
+  @override
+  String get googleNotLinked => 'Noch nicht verknüpft';
+
+  @override
   String get or => 'oder';
 
   @override
@@ -98,11 +120,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get invalidEmailAddress => 'Ungültige E-Mail-Adresse';
 
   @override
-  String get sendSignInLink => 'Anmeldelink senden';
+  String get sendSignInLink => 'Code senden';
 
   @override
   String get emailLinkHint =>
-      'Wir senden dir einen Link per E-Mail.\nKein Passwort nötig.';
+      'Wir senden dir einen 6-stelligen Code per E-Mail.\nKein Passwort nötig.';
 
   @override
   String signInFailed(String error) {
@@ -110,12 +132,15 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get linkSent => 'Link gesendet!';
+  String get linkSent => 'Code gesendet!';
 
   @override
   String linkSentDescription(String email) {
-    return 'Wir haben einen Anmeldelink an\n$email gesendet.';
+    return 'Wir haben einen 6-stelligen Code an\n$email gesendet.';
   }
+
+  @override
+  String get verifyCode => 'Bestätigen';
 
   @override
   String get desktopLinkInstructions =>
@@ -126,6 +151,18 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get signIn => 'Anmelden';
+
+  @override
+  String get password => 'Passwort';
+
+  @override
+  String get register => 'Registrieren';
+
+  @override
+  String get noAccount => 'Noch kein Konto? Registrieren';
+
+  @override
+  String get alreadyHaveAccount => 'Bereits ein Konto? Anmelden';
 
   @override
   String get mobileLinkInstructions =>
@@ -139,6 +176,12 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get invalidLink => 'Ungültiger Link. Bitte prüfe die URL.';
+
+  @override
+  String get invalidCode => 'Bitte gib den vollständigen 6-stelligen Code ein.';
+
+  @override
+  String get signInWithPassword => 'Mit Passwort anmelden';
 
   @override
   String get helpProfileTitle => 'Profil – Hilfe';
@@ -675,19 +718,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String roleFor(String name) {
     return 'Rolle für $name';
   }
-
-  @override
-  String guardianFor(String name) {
-    return 'Guardian für $name';
-  }
-
-  @override
-  String get selectGuardianHint =>
-      'Wähle mindestens einen Guardian für dieses Kind:';
-
-  @override
-  String get noGuardiansInOrg =>
-      'Keine möglichen Guardians in dieser Organisation.';
 
   @override
   String get removeMemberTitle => 'Mitglied entfernen';
@@ -1707,6 +1737,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get auditActionKeywordsChanged => 'Schlüsselwörter aktualisiert';
 
   @override
+  String get auditActionGuardiansChanged => 'Guardian geändert';
+
+  @override
   String auditBy(String name) {
     return 'von $name';
   }
@@ -1741,6 +1774,13 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get errorChildAccountRoleLocked =>
       'Dieses Konto ist als Kind-Konto registriert. Bitte wähle die Rolle \'Kind\' und weise mindestens einen Guardian zu.';
+
+  @override
+  String get errorRemoveLastGuardianTitle => 'Entfernen nicht möglich';
+
+  @override
+  String get errorRemoveLastGuardianContent =>
+      'Dieses Mitglied ist der einzige Guardian eines oder mehrerer Kinder in dieser Organisation. Weise zuerst andere Guardians zu.';
 
   @override
   String get editGroup => 'Gruppe bearbeiten';

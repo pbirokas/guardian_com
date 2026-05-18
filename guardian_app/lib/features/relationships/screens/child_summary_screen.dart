@@ -31,7 +31,7 @@ class _ChildSummaryScreenState extends ConsumerState<ChildSummaryScreen> {
     _load();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool forceRefresh = false}) async {
     setState(() {
       _loading = true;
       _error = null;
@@ -39,7 +39,7 @@ class _ChildSummaryScreenState extends ConsumerState<ChildSummaryScreen> {
     try {
       final summary = await ref
           .read(parentClaimServiceProvider)
-          .getChildSummary(widget.childUid, _period);
+          .getChildSummary(widget.childUid, _period, forceRefresh: forceRefresh);
       if (mounted) setState(() { _summary = summary; _loading = false; });
     } catch (e) {
       if (mounted) setState(() { _error = e; _loading = false; });
@@ -63,6 +63,13 @@ class _ChildSummaryScreenState extends ConsumerState<ChildSummaryScreen> {
           ],
         ),
         toolbarHeight: kToolbarHeight + 12,
+        actions: [
+          if (!_loading)
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: () => _load(forceRefresh: true),
+            ),
+        ],
       ),
       body: Column(
         children: [

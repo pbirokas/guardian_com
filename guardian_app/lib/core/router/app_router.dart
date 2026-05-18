@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/screens/login_screen.dart';
@@ -11,22 +12,29 @@ import '../../features/profile/screens/privacy_screen.dart';
 import '../../features/relationships/screens/relationships_screen.dart';
 import '../../features/relationships/screens/child_summary_screen.dart';
 
+class _AuthNotifier extends ChangeNotifier {
+  _AuthNotifier(this._ref) {
+    _ref.listen<AsyncValue<dynamic>>(authStateProvider, (prev, next) {
+      notifyListeners();
+    });
+  }
+  final Ref _ref;
+}
+
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
+  final notifier = _AuthNotifier(ref);
+  ref.onDispose(notifier.dispose);
 
   return GoRouter(
     initialLocation: '/login',
-    // Firebase Auth Deep Links (/__/auth/...) sind keine App-Routen.
-    // Werden von app_links im Hintergrund verarbeitet.
-    // onException fängt den GoException ab und navigiert zur passenden Seite.
+    refreshListenable: notifier,
     onException: (context, state, router) {
-      router.go(authState.value != null ? '/organizations' : '/login');
+      final isLoggedIn = ref.read(authStateProvider).value != null;
+      router.go(isLoggedIn ? '/organizations' : '/login');
     },
     redirect: (context, state) {
-      // Firebase Auth Deep Links vor dem Route-Matching abfangen
-      if (state.uri.path.startsWith('/__/auth/')) {
-        return authState.value != null ? '/organizations' : '/login';
-      }
+      final authState = ref.read(authStateProvider);
+      if (authState.isLoading) return null;
       final isLoggedIn = authState.value != null;
       final isOnLogin = state.uri.path == '/login';
       if (!isLoggedIn && !isOnLogin) return '/login';

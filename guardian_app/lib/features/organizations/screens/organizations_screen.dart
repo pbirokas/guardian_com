@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +9,7 @@ import 'package:showcaseview/showcaseview.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/battery_optimization_service.dart';
 import '../../../core/widgets/help_sheet.dart';
+import '../../../core/models/app_user.dart';
 import '../../../core/models/organization.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/chat/providers/chat_provider.dart';
@@ -225,6 +225,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
         await ref
             .read(organizationServiceProvider)
             .createOrganization(nameController.text.trim(), selectedTag);
+        ref.invalidate(myOrganizationsProvider);
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -291,7 +292,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
     );
   }
 
-  void _showProfileMenu(BuildContext context, User user) {
+  void _showProfileMenu(BuildContext context, AppUser user) {
     final l = AppLocalizations.of(context);
     showModalBottomSheet(
       context: context,
@@ -315,20 +316,25 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
             const SizedBox(height: 16),
             CircleAvatar(
               radius: 32,
-              backgroundImage: user.photoURL != null
-                  ? NetworkImage(user.photoURL!)
+              backgroundImage: user.photoUrl != null
+                  ? NetworkImage(user.photoUrl!)
                   : null,
-              child: user.photoURL == null
+              child: user.photoUrl == null
                   ? Text(
-                      ((user.displayName?.isNotEmpty == true ? user.displayName : user.email?.isNotEmpty == true ? user.email : '?')!)[0].toUpperCase(),
+                      ((user.displayName.isNotEmpty
+                              ? user.displayName
+                              : user.email.isNotEmpty
+                                  ? user.email
+                                  : '?')[0])
+                          .toUpperCase(),
                       style: const TextStyle(fontSize: 24),
                     )
                   : null,
             ),
             const SizedBox(height: 8),
-            Text(user.displayName ?? '',
+            Text(user.displayName,
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            Text(user.email ?? '',
+            Text(user.email,
                 style: const TextStyle(color: Colors.grey, fontSize: 13)),
             const Divider(height: 32),
             ListTile(
@@ -350,7 +356,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
               title: Text(l.signOut, style: const TextStyle(color: Colors.red)),
-              onTap: () { Navigator.pop(context); ref.read(authServiceProvider).signOut(); },
+              onTap: () { Navigator.pop(context); ref.read(authStateProvider.notifier).signOut(); },
             ),
             const SizedBox(height: 8),
           ],
@@ -364,7 +370,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final orgsAsync = ref.watch(myOrganizationsProvider);
-    final user = FirebaseAuth.instance.currentUser;
+    final user = ref.watch(authStateProvider).value;
     final currentAppUserAsync = ref.watch(currentAppUserProvider);
     // Kinder dürfen keine Organisationen erstellen.
     // Während der Provider lädt, FAB verstecken (verhindert Race Condition
@@ -499,15 +505,15 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                   onTap: () => _showProfileMenu(context, user),
                   child: CircleAvatar(
                     radius: 18,
-                    backgroundImage: user.photoURL != null
-                        ? NetworkImage(user.photoURL!)
+                    backgroundImage: user.photoUrl != null
+                        ? NetworkImage(user.photoUrl!)
                         : null,
-                    child: user.photoURL == null
+                    child: user.photoUrl == null
                         ? Text(
-                            ((user.displayName?.isNotEmpty == true
-                                    ? user.displayName!
-                                    : user.email?.isNotEmpty == true
-                                        ? user.email!
+                            ((user.displayName.isNotEmpty
+                                    ? user.displayName
+                                    : user.email.isNotEmpty
+                                        ? user.email
                                         : '?')[0])
                                 .toUpperCase(),
                           )
@@ -588,7 +594,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                   separatorBuilder: (_, idx) => const SizedBox(height: 8),
                   itemBuilder: (context, i) {
               final org = visibleOrgs[i];
-              final currentUid = FirebaseAuth.instance.currentUser!.uid;
+              final currentUid = user?.uid ?? '';
               final isOrgAdmin = org.adminUid == currentUid;
               final unreadCount = ref.watch(unreadOrgCountProvider(org.id));
               final card = Card(
@@ -686,6 +692,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                               );
                               if (confirmed == true) {
                                 await svc.deleteOrganization(org.id);
+                                ref.invalidate(myOrganizationsProvider);
                               }
                             } else if (value == 'open') {
                               if (context.mounted) {

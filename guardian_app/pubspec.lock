@@ -73,6 +73,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.4"
+  appwrite:
+    dependency: "direct main"
+    description:
+      name: appwrite
+      sha256: "3e716fee3d440943308971dc9900cc56c2e3b74717964d435d3aae6045798f8b"
+      url: "https://pub.dev"
+    source: hosted
+    version: "23.0.0"
   archive:
     dependency: transitive
     description:
@@ -369,6 +377,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.2"
+  cookie_jar:
+    dependency: transitive
+    description:
+      name: cookie_jar
+      sha256: "963da02c1ef64cb5ac20de948c9e5940aa351f1e34a12b1d327c83d85b7e8fff"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.0.9"
   coverage:
     dependency: transitive
     description:
@@ -417,6 +433,30 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.12"
+  desktop_webview_window:
+    dependency: transitive
+    description:
+      name: desktop_webview_window
+      sha256: "57cf20d81689d5cbb1adfd0017e96b669398a669d927906073b0e42fc64111c0"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.3"
+  device_info_plus:
+    dependency: transitive
+    description:
+      name: device_info_plus
+      sha256: b4fed1b2835da9d670d7bed7db79ae2a94b0f5ad6312268158a9b5479abbacdd
+      url: "https://pub.dev"
+    source: hosted
+    version: "12.4.0"
+  device_info_plus_platform_interface:
+    dependency: transitive
+    description:
+      name: device_info_plus_platform_interface
+      sha256: e1ea89119e34903dca74b883d0dd78eb762814f97fb6c76f35e9ff74d261a18f
+      url: "https://pub.dev"
+    source: hosted
+    version: "7.0.3"
   emoji_picker_flutter:
     dependency: "direct main"
     description:
@@ -601,30 +641,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.1.4"
-  firebase_storage:
-    dependency: "direct main"
-    description:
-      name: firebase_storage
-      sha256: "2a9c9046eca3d4426eac73b671891666297a215019538e0af87eacec7e77ccf1"
-      url: "https://pub.dev"
-    source: hosted
-    version: "13.2.0"
-  firebase_storage_platform_interface:
-    dependency: transitive
-    description:
-      name: firebase_storage_platform_interface
-      sha256: "83f858784ebfdbe4d033d97c431ff67541d41266277ec290c169ce6c4bfda485"
-      url: "https://pub.dev"
-    source: hosted
-    version: "5.2.19"
-  firebase_storage_web:
-    dependency: transitive
-    description:
-      name: firebase_storage_web
-      sha256: "75003d7529cd458c93cfe12194773df1681d3b4722f70e5b4b4ff7b43ab8cd72"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.11.4"
   fixnum:
     dependency: transitive
     description:
@@ -736,6 +752,22 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_web_auth_2:
+    dependency: transitive
+    description:
+      name: flutter_web_auth_2
+      sha256: d354998934ddc338e69b999b2abaeb33c6fd09999d3a5f92ead1a6b49b49712e
+      url: "https://pub.dev"
+    source: hosted
+    version: "5.0.2"
+  flutter_web_auth_2_platform_interface:
+    dependency: transitive
+    description:
+      name: flutter_web_auth_2_platform_interface
+      sha256: ba0fbba55bffb47242025f96852ad1ffba34bc451568f56ef36e613612baffab
+      url: "https://pub.dev"
+    source: hosted
+    version: "5.0.0"
   flutter_web_plugins:
     dependency: transitive
     description: flutter
@@ -1674,6 +1706,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
+  universal_io:
+    dependency: transitive
+    description:
+      name: universal_io
+      sha256: f63cbc48103236abf48e345e07a03ce5757ea86285ed313a6a032596ed9301e2
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.3.1"
   url_launcher:
     dependency: "direct main"
     description:
@@ -1787,7 +1827,7 @@ packages:
     source: hosted
     version: "1.0.1"
   web_socket_channel:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: web_socket_channel
       sha256: d645757fb0f4773d602444000a8131ff5d48c9e47adfe9772652dd1a4f2d45c8
@@ -1810,6 +1850,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "5.15.0"
+  win32_registry:
+    dependency: transitive
+    description:
+      name: win32_registry
+      sha256: "6f1b564492d0147b330dd794fee8f512cec4977957f310f9951b5f9d83618dae"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.1.0"
   window_manager:
     dependency: "direct main"
     description:
@@ -1818,6 +1866,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.5.1"
+  window_to_front:
+    dependency: transitive
+    description:
+      name: window_to_front
+      sha256: "7aef379752b7190c10479e12b5fd7c0b9d92adc96817d9e96c59937929512aee"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.3"
   windows_taskbar:
     dependency: "direct main"
     description:

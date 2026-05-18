@@ -1,0 +1,17 @@
+{
+  "name": "guardian-appwrite-setup",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "setup": "node setup.js",
+    "setup:dry": "node setup.js --dry-run",
+    "migrate": "node migrate.js",
+    "test-users": "node create-test-users.js",
+    "test-users:clean": "node create-test-users.js --clean"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.0",
+    "node-appwrite": "^14.0.0",
+    "firebase-admin": "^13.0.0"
+  }
+}

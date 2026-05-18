@@ -1,6 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:appwrite/appwrite.dart';
+import 'package:appwrite/enums.dart';
+import '../appwrite_client.dart';
 import '../models/child_summary.dart';
 import '../models/claim_request.dart';
 import '../models/org_invite_consent.dart';
@@ -14,220 +17,302 @@ import '../models/org_invite_consent.dart';
 ///   - Parents watch pending OrgInviteConsents for their children.
 ///   - Parents can approve or veto an org invitation.
 class ParentClaimService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  ParentClaimService({
+    required Client client,
+    required String uid,
+    required String displayName,
+    required String email,
+  })  : _db = Databases(client),
+        _realtime = createPatchedRealtime(client),
+        _functions = Functions(client),
+        _uid = uid,
+        _displayName = displayName,
+        _email = email;
 
-  String get _uid => _auth.currentUser!.uid;
+  final Databases _db;
+  final Realtime _realtime;
+  final Functions _functions;
+  final String _uid;
+  final String _displayName;
+  final String _email;
+
+  static const _dbId = 'guardian';
+  static const _colUsers = 'users';
+  static const _colClaims = 'claim_requests';
+  static const _colConsents = 'org_invite_consents';
+
+  // ── Realtime helper ────────────────────────────────────────────────────────
+
+  Stream<List<T>> _watchQuery<T>(
+    String collectionId,
+    T Function(Map<String, dynamic>) fromDoc,
+    List<String> queries,
+  ) {
+    late StreamController<List<T>> ctrl;
+    StreamSubscription? realtimeSub;
+
+    Future<void> reload() async {
+      if (ctrl.isClosed) return;
+      try {
+        final result = await _db.listDocuments(
+          databaseId: _dbId,
+          collectionId: collectionId,
+          queries: [...queries, Query.limit(200)],
+        );
+        final items = result.documents
+            .map((d) => fromDoc({r'$id': d.$id, ...d.data}))
+            .toList();
+        if (!ctrl.isClosed) ctrl.add(items);
+      } catch (e) {
+        if (!ctrl.isClosed) ctrl.addError(e);
+      }
+    }
+
+    void dispose() {
+      realtimeSub?.cancel();
+      ctrl.close();
+    }
+
+    ctrl = StreamController(onCancel: dispose);
+    realtimeSub = _realtime
+        .subscribe(['databases.$_dbId.collections.$collectionId.documents'])
+        .stream
+        .listen((_) => reload(), onDone: dispose, onError: (_) {});
+    reload();
+    return ctrl.stream;
+  }
 
   // ──────────────────────────────────────────────────────────────────────────
   // Outgoing claim requests (parent perspective)
   // ──────────────────────────────────────────────────────────────────────────
 
-  /// Sends a ClaimRequest from the current user (parent) to the child with
-  /// the given email.  Throws if:
-  ///   - no registered user found for [childEmail]
-  ///   - the target user is the current user
-  ///   - a pending request already exists
   Future<void> sendClaimRequest(String childEmail) async {
-    final normalizedEmail = childEmail.toLowerCase().trim();
-    final currentUser = _auth.currentUser!;
+    final normalized = childEmail.toLowerCase().trim();
 
-    // Resolve child UID from email
-    final query = await _db
-        .collection('users')
-        .where('email', isEqualTo: normalizedEmail)
-        .limit(1)
-        .get();
-    if (query.docs.isEmpty) {
-      throw const _ClaimException('user_not_found');
-    }
+    final res = await _db.listDocuments(
+      databaseId: _dbId,
+      collectionId: _colUsers,
+      queries: [Query.equal('email', normalized), Query.limit(1)],
+    );
+    if (res.documents.isEmpty) throw const _ClaimException('user_not_found');
 
-    final childDoc = query.docs.first;
-    final childUid = childDoc.id;
+    final childUid = res.documents.first.$id;
+    if (childUid == _uid) throw const _ClaimException('cannot_claim_self');
 
-    if (childUid == _uid) {
-      throw const _ClaimException('cannot_claim_self');
-    }
-
-    // Duplicate check — query only by fromUid to stay rule-compatible
-    // (Firestore can't evaluate an OR-rule against a compound AND-query).
-    // toUid filtering is done client-side.
-    final existing = await _db
-        .collection('claimRequests')
-        .where('fromUid', isEqualTo: _uid)
-        .where('status', isEqualTo: 'pending')
-        .get();
-    final alreadyExists =
-        existing.docs.any((d) => d.data()['toUid'] == childUid);
-    if (alreadyExists) {
+    // Duplicate check client-side (OR-query not supported in Appwrite)
+    final existing = await _db.listDocuments(
+      databaseId: _dbId,
+      collectionId: _colClaims,
+      queries: [Query.equal('fromUid', _uid), Query.equal('status', 'pending')],
+    );
+    if (existing.documents.any((d) => d.data['toUid'] == childUid)) {
       throw const _ClaimException('already_exists');
     }
 
     final now = DateTime.now();
-    await _db.collection('claimRequests').add({
-      'fromUid': _uid,
-      'fromName': currentUser.displayName ?? currentUser.email!,
-      'fromEmail': currentUser.email!,
-      'toUid': childUid,
-      'toEmail': normalizedEmail,
-      'status': 'pending',
-      'createdAt': Timestamp.fromDate(now),
-      'expiresAt': Timestamp.fromDate(now.add(const Duration(days: 7))),
-    });
+    await _db.createDocument(
+      databaseId: _dbId,
+      collectionId: _colClaims,
+      documentId: ID.unique(),
+      data: {
+        'fromUid': _uid,
+        'fromName': _displayName,
+        'fromEmail': _email,
+        'toUid': childUid,
+        'toEmail': normalized,
+        'status': 'pending',
+        'createdAt': now.toIso8601String(),
+        'expiresAt': now.add(const Duration(days: 7)).toIso8601String(),
+      },
+    );
   }
 
-  /// Cancels an outgoing pending ClaimRequest.
   Future<void> cancelClaimRequest(String requestId) async {
-    await _db.collection('claimRequests').doc(requestId).update({
-      'status': ClaimRequestStatus.cancelled.name,
-    });
+    await _db.updateDocument(
+      databaseId: _dbId,
+      collectionId: _colClaims,
+      documentId: requestId,
+      data: {'status': ClaimRequestStatus.cancelled.name},
+    );
   }
 
-  /// Stream of ClaimRequests sent by the current user (parent perspective).
   Stream<List<ClaimRequest>> watchOutgoingClaims() {
-    return _db
-        .collection('claimRequests')
-        .where('fromUid', isEqualTo: _uid)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((s) => s.docs.map(ClaimRequest.fromFirestore).toList());
+    return _watchQuery<ClaimRequest>(
+      _colClaims,
+      ClaimRequest.fromAppwrite,
+      [Query.equal('fromUid', _uid), Query.orderDesc('createdAt')],
+    );
   }
 
   // ──────────────────────────────────────────────────────────────────────────
   // Incoming claim requests (child perspective)
   // ──────────────────────────────────────────────────────────────────────────
 
-  /// Stream of pending ClaimRequests addressed to the current user (child).
   Stream<List<ClaimRequest>> watchIncomingClaims() {
-    return _db
-        .collection('claimRequests')
-        .where('toUid', isEqualTo: _uid)
-        .where('status', isEqualTo: 'pending')
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((s) => s.docs.map(ClaimRequest.fromFirestore).toList());
+    return _watchQuery<ClaimRequest>(
+      _colClaims,
+      ClaimRequest.fromAppwrite,
+      [
+        Query.equal('toUid', _uid),
+        Query.equal('status', 'pending'),
+        Query.orderDesc('createdAt'),
+      ],
+    );
   }
 
-  /// Confirms an incoming ClaimRequest.
-  /// The Cloud Function `onClaimConfirmed` handles updating both user docs.
   Future<void> confirmClaimRequest(String requestId) async {
-    await _db.collection('claimRequests').doc(requestId).update({
-      'status': ClaimRequestStatus.confirmed.name,
-    });
+    await _db.updateDocument(
+      databaseId: _dbId,
+      collectionId: _colClaims,
+      documentId: requestId,
+      data: {'status': ClaimRequestStatus.confirmed.name},
+    );
   }
 
-  /// Rejects an incoming ClaimRequest.
   Future<void> rejectClaimRequest(String requestId) async {
-    await _db.collection('claimRequests').doc(requestId).update({
-      'status': ClaimRequestStatus.rejected.name,
-    });
+    await _db.updateDocument(
+      databaseId: _dbId,
+      collectionId: _colClaims,
+      documentId: requestId,
+      data: {'status': ClaimRequestStatus.rejected.name},
+    );
   }
 
   // ──────────────────────────────────────────────────────────────────────────
   // Verified relationships
   // ──────────────────────────────────────────────────────────────────────────
 
-  /// Stream of AppUser-like maps for the current user's verified children.
-  Stream<List<Map<String, dynamic>>> watchMyChildren() {
-    return _db
-        .collection('users')
-        .doc(_uid)
-        .snapshots()
-        .asyncMap((snap) async {
-      final data = snap.data();
-      if (data == null) return [];
-      final uids =
-          List<String>.from(data['verifiedChildUids'] as List? ?? []);
-      if (uids.isEmpty) return [];
-      final docs = await Future.wait(
-          uids.map((u) => _db.collection('users').doc(u).get()));
-      return docs
-          .where((d) => d.exists)
-          .map((d) => {'uid': d.id, ...d.data()!})
-          .toList();
-    });
+  Stream<List<Map<String, dynamic>>> watchMyChildren() =>
+      _watchRelatives('verifiedChildUids');
+
+  Stream<List<Map<String, dynamic>>> watchMyParents() =>
+      _watchRelatives('verifiedParentUids');
+
+  /// Watches [field] on the current user doc and fetches each referenced user.
+  Stream<List<Map<String, dynamic>>> _watchRelatives(String field) {
+    late StreamController<List<Map<String, dynamic>>> ctrl;
+    StreamSubscription? realtimeSub;
+
+    Future<void> reload() async {
+      if (ctrl.isClosed) return;
+      try {
+        final doc = await _db.getDocument(
+            databaseId: _dbId, collectionId: _colUsers, documentId: _uid);
+        final uids =
+            List<String>.from(doc.data[field] as List? ?? []);
+        if (uids.isEmpty) {
+          if (!ctrl.isClosed) ctrl.add([]);
+          return;
+        }
+        final docs = await Future.wait(
+          uids.map((u) => _db.getDocument(
+              databaseId: _dbId, collectionId: _colUsers, documentId: u)),
+        );
+        if (!ctrl.isClosed) {
+          ctrl.add(docs.map((d) => {'uid': d.$id, ...d.data}).toList());
+        }
+      } catch (e) {
+        if (!ctrl.isClosed) ctrl.addError(e);
+      }
+    }
+
+    void dispose() {
+      realtimeSub?.cancel();
+      ctrl.close();
+    }
+
+    ctrl = StreamController(onCancel: dispose);
+    realtimeSub = _realtime
+        .subscribe(
+            ['databases.$_dbId.collections.$_colUsers.documents.$_uid'])
+        .stream
+        .listen((_) => reload(), onDone: dispose, onError: (_) {});
+    reload();
+    return ctrl.stream;
   }
 
-  /// Stream of AppUser-like maps for the current user's verified parents.
-  Stream<List<Map<String, dynamic>>> watchMyParents() {
-    return _db
-        .collection('users')
-        .doc(_uid)
-        .snapshots()
-        .asyncMap((snap) async {
-      final data = snap.data();
-      if (data == null) return [];
-      final uids =
-          List<String>.from(data['verifiedParentUids'] as List? ?? []);
-      if (uids.isEmpty) return [];
-      final docs = await Future.wait(
-          uids.map((u) => _db.collection('users').doc(u).get()));
-      return docs
-          .where((d) => d.exists)
-          .map((d) => {'uid': d.id, ...d.data()!})
-          .toList();
-    });
-  }
-
-  /// Revokes a verified parent-child connection from both sides.
+  /// Revokes a verified parent-child connection on both sides atomically.
+  /// Uses a Cloud Function because the client cannot write to another user's doc.
   Future<void> revokeConnection(String otherUid) async {
-    final batch = _db.batch();
-    batch.update(_db.collection('users').doc(_uid), {
-      'verifiedParentUids': FieldValue.arrayRemove([otherUid]),
-      'verifiedChildUids': FieldValue.arrayRemove([otherUid]),
-    });
-    batch.update(_db.collection('users').doc(otherUid), {
-      'verifiedParentUids': FieldValue.arrayRemove([_uid]),
-      'verifiedChildUids': FieldValue.arrayRemove([_uid]),
-    });
-    await batch.commit();
+    final result = await _functions.createExecution(
+      functionId: 'revoke-connection',
+      body: jsonEncode({'otherUid': otherUid}),
+      method: ExecutionMethod.pOST,
+    );
+    if (result.responseStatusCode != 200) {
+      throw Exception('revokeConnection failed: ${result.responseBody}');
+    }
   }
 
   // ──────────────────────────────────────────────────────────────────────────
   // Org-invite consent (parent perspective)
   // ──────────────────────────────────────────────────────────────────────────
 
-  /// Stream of pending OrgInviteConsents where the current user is listed
-  /// as one of the parents who must consent.
   Stream<List<OrgInviteConsent>> watchPendingConsentsForMe() {
-    return _db
-        .collection('orgInviteConsents')
-        .where('parentUids', arrayContains: _uid)
-        .where('status', isEqualTo: 'pending')
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((s) => s.docs.map(OrgInviteConsent.fromFirestore).toList());
+    return _watchQuery<OrgInviteConsent>(
+      _colConsents,
+      OrgInviteConsent.fromAppwrite,
+      [
+        Query.contains('parentUids', [_uid]),
+        Query.equal('status', 'pending'),
+        Query.orderDesc('createdAt'),
+      ],
+    );
   }
 
-  /// Approves a pending OrgInviteConsent.
-  /// The Cloud Function `onParentConsent` will process the invitation.
   Future<void> approveOrgConsent(String consentId) async {
-    await _db.collection('orgInviteConsents').doc(consentId).update({
-      'status': OrgInviteConsentStatus.approved.name,
-      'approvedBy': _uid,
-    });
+    await _db.updateDocument(
+      databaseId: _dbId,
+      collectionId: _colConsents,
+      documentId: consentId,
+      data: {
+        'status': OrgInviteConsentStatus.approved.name,
+        'approvedBy': _uid,
+      },
+    );
   }
 
-  /// Vetoes a pending OrgInviteConsent (child will NOT be added).
   Future<void> vetoOrgConsent(String consentId) async {
-    await _db.collection('orgInviteConsents').doc(consentId).update({
-      'status': OrgInviteConsentStatus.vetoed.name,
-      'vetoedBy': _uid,
-    });
+    await _db.updateDocument(
+      databaseId: _dbId,
+      collectionId: _colConsents,
+      documentId: consentId,
+      data: {
+        'status': OrgInviteConsentStatus.vetoed.name,
+        'vetoedBy': _uid,
+      },
+    );
   }
 
   // ──────────────────────────────────────────────────────────────────────────
   // Child activity summary
   // ──────────────────────────────────────────────────────────────────────────
 
-  Future<ChildSummary> getChildSummary(String childUid, String period) async {
-    final callable = FirebaseFunctions.instanceFor(region: 'europe-west3')
-        .httpsCallable('getChildSummary');
-    final result = await callable.call<Map<dynamic, dynamic>>({
-      'childUid': childUid,
-      'period': period,
-    });
-    return ChildSummary.fromMap(Map<String, dynamic>.from(result.data));
+  static const _summaryCacheTtl = Duration(minutes: 5);
+  final Map<String, ({ChildSummary summary, DateTime fetchedAt})> _summaryCache = {};
+
+  Future<ChildSummary> getChildSummary(String childUid, String period, {bool forceRefresh = false}) async {
+    final key = '$childUid/$period';
+    if (!forceRefresh) {
+      final cached = _summaryCache[key];
+      if (cached != null && DateTime.now().difference(cached.fetchedAt) < _summaryCacheTtl) {
+        return cached.summary;
+      }
+    }
+
+    final exec = await _functions.createExecution(
+      functionId: 'get-child-summary',
+      body: jsonEncode({'childUid': childUid, 'period': period}),
+      method: ExecutionMethod.pOST,
+    );
+
+    if (exec.responseStatusCode != 200) {
+      throw Exception('get-child-summary failed (${exec.responseStatusCode})');
+    }
+    final data = jsonDecode(exec.responseBody) as Map<String, dynamic>;
+    final summary = ChildSummary.fromMap(data);
+    _summaryCache[key] = (summary: summary, fetchedAt: DateTime.now());
+    return summary;
   }
 }
 

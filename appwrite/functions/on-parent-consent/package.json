@@ -1,0 +1,8 @@
+{
+  "name": "on-parent-consent",
+  "version": "1.0.0",
+  "dependencies": {
+    "node-appwrite": "14.2.0",
+    "google-auth-library": "^9.0.0"
+  }
+}

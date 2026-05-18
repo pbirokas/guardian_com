@@ -56,14 +56,14 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="*/*" />
             </intent-filter>
-            <!-- App Link für E-Mail-Link-Login (Firebase Auth) -->
-            <intent-filter android:autoVerify="true">
+        </activity>
+        <!-- Appwrite OAuth2 callback — muss in CallbackActivity sein, nicht in MainActivity -->
+        <activity android:exported="true" android:name="com.linusu.flutter_web_auth_2.CallbackActivity">
+            <intent-filter android:label="flutter_web_auth_2">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data
-                    android:host="guardian-app-b0f6c.firebaseapp.com"
-                    android:scheme="https" />
+                <data android:scheme="appwrite-callback-6a02e4160023948ef257" />
             </intent-filter>
         </activity>
         <!-- FCM default notification channel -->

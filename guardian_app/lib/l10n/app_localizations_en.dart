@@ -86,6 +86,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get signInWithGoogle => 'Sign in with Google';
 
   @override
+  String get googleSignInHint =>
+      'Already have an account? Sign in with your email first, then link Google in your profile.';
+
+  @override
+  String get connectedAccounts => 'Connected accounts';
+
+  @override
+  String get linkGoogle => 'Link Google account';
+
+  @override
+  String get googleLinked => 'Google account linked successfully.';
+
+  @override
+  String get googleLinkedStatus => 'Linked';
+
+  @override
+  String get unlinkGoogle => 'Unlink Google';
+
+  @override
+  String get googleNotLinked => 'Not linked yet';
+
+  @override
   String get or => 'or';
 
   @override
@@ -98,11 +120,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get invalidEmailAddress => 'Invalid email address';
 
   @override
-  String get sendSignInLink => 'Send sign-in link';
+  String get sendSignInLink => 'Send code';
 
   @override
   String get emailLinkHint =>
-      'We\'ll send you a link by email.\nNo password needed.';
+      'We\'ll send you a 6-digit code by email.\nNo password needed.';
 
   @override
   String signInFailed(String error) {
@@ -110,12 +132,15 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get linkSent => 'Link sent!';
+  String get linkSent => 'Code sent!';
 
   @override
   String linkSentDescription(String email) {
-    return 'We sent a sign-in link to\n$email.';
+    return 'We sent a 6-digit code to\n$email.';
   }
+
+  @override
+  String get verifyCode => 'Confirm';
 
   @override
   String get desktopLinkInstructions =>
@@ -126,6 +151,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get signIn => 'Sign in';
+
+  @override
+  String get password => 'Password';
+
+  @override
+  String get register => 'Register';
+
+  @override
+  String get noAccount => 'No account? Register';
+
+  @override
+  String get alreadyHaveAccount => 'Already have an account? Sign in';
 
   @override
   String get mobileLinkInstructions =>
@@ -139,6 +176,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get invalidLink => 'Invalid link. Please check the URL.';
+
+  @override
+  String get invalidCode => 'Please enter the complete 6-digit code.';
+
+  @override
+  String get signInWithPassword => 'Sign in with password';
 
   @override
   String get helpProfileTitle => 'Profile – Help';
@@ -670,18 +713,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String roleFor(String name) {
     return 'Role for $name';
   }
-
-  @override
-  String guardianFor(String name) {
-    return 'Guardian for $name';
-  }
-
-  @override
-  String get selectGuardianHint =>
-      'Select at least one guardian for this child:';
-
-  @override
-  String get noGuardiansInOrg => 'No possible guardians in this organization.';
 
   @override
   String get removeMemberTitle => 'Remove member';
@@ -1697,6 +1728,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get auditActionKeywordsChanged => 'Keywords updated';
 
   @override
+  String get auditActionGuardiansChanged => 'Guardian changed';
+
+  @override
   String auditBy(String name) {
     return 'by $name';
   }
@@ -1731,6 +1765,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get errorChildAccountRoleLocked =>
       'This account is registered as a child account. Please select the role \"Child\" and assign at least one guardian.';
+
+  @override
+  String get errorRemoveLastGuardianTitle => 'Cannot Remove';
+
+  @override
+  String get errorRemoveLastGuardianContent =>
+      'This member is the only guardian of one or more children in this organisation. Assign other guardians first.';
 
   @override
   String get editGroup => 'Edit group';

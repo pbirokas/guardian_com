@@ -32,28 +32,42 @@
   },
 
   "signInWithGoogle": "Mit Google anmelden",
+  "googleSignInHint": "Bereits ein Konto? Melde dich per E-Mail an und verknüpfe Google danach im Profil.",
+  "connectedAccounts": "Verbundene Konten",
+  "linkGoogle": "Mit Google verknüpfen",
+  "googleLinked": "Google-Konto erfolgreich verknüpft.",
+  "googleLinkedStatus": "Verknüpft",
+  "unlinkGoogle": "Google-Verknüpfung trennen",
+  "googleNotLinked": "Noch nicht verknüpft",
   "or": "oder",
   "emailAddress": "E-Mail-Adresse",
   "emailHint": "name@beispiel.de",
   "invalidEmailAddress": "Ungültige E-Mail-Adresse",
-  "sendSignInLink": "Anmeldelink senden",
-  "emailLinkHint": "Wir senden dir einen Link per E-Mail.\nKein Passwort nötig.",
+  "sendSignInLink": "Code senden",
+  "emailLinkHint": "Wir senden dir einen 6-stelligen Code per E-Mail.\nKein Passwort nötig.",
   "signInFailed": "Anmeldung fehlgeschlagen: {error}",
   "@signInFailed": {
     "placeholders": { "error": { "type": "String" } }
   },
-  "linkSent": "Link gesendet!",
-  "linkSentDescription": "Wir haben einen Anmeldelink an\n{email} gesendet.",
+  "linkSent": "Code gesendet!",
+  "linkSentDescription": "Wir haben einen 6-stelligen Code an\n{email} gesendet.",
   "@linkSentDescription": {
     "placeholders": { "email": { "type": "String" } }
   },
+  "verifyCode": "Bestätigen",
   "desktopLinkInstructions": "Öffne die E-Mail in deinem Browser, klicke auf den Link\nund kopiere die vollständige URL aus der Adressleiste.",
   "pasteLinkLabel": "Link aus Browser einfügen",
   "signIn": "Anmelden",
+  "password": "Passwort",
+  "register": "Registrieren",
+  "noAccount": "Noch kein Konto? Registrieren",
+  "alreadyHaveAccount": "Bereits ein Konto? Anmelden",
   "mobileLinkInstructions": "Öffne die E-Mail und tippe auf den Link um dich anzumelden.",
   "resend": "Erneut senden",
   "useOtherEmail": "Andere E-Mail verwenden",
   "invalidLink": "Ungültiger Link. Bitte prüfe die URL.",
+  "invalidCode": "Bitte gib den vollständigen 6-stelligen Code ein.",
+  "signInWithPassword": "Mit Passwort anmelden",
 
   "helpProfileTitle": "Profil – Hilfe",
   "helpProfilePhotoTitle": "Profilbild ändern",
@@ -254,12 +268,6 @@
   "@roleFor": {
     "placeholders": { "name": { "type": "String" } }
   },
-  "guardianFor": "Guardian für {name}",
-  "@guardianFor": {
-    "placeholders": { "name": { "type": "String" } }
-  },
-  "selectGuardianHint": "Wähle mindestens einen Guardian für dieses Kind:",
-  "noGuardiansInOrg": "Keine möglichen Guardians in dieser Organisation.",
   "removeMemberTitle": "Mitglied entfernen",
   "removeMemberContent": "{name} wirklich entfernen?",
   "@removeMemberContent": {
@@ -739,6 +747,7 @@
   "auditActionRoleChanged": "Rolle geändert",
   "auditActionAdminTransferred": "Admin-Rolle übertragen",
   "auditActionKeywordsChanged": "Schlüsselwörter aktualisiert",
+  "auditActionGuardiansChanged": "Guardian geändert",
   "auditBy": "von {name}",
   "@auditBy": {
     "placeholders": { "name": { "type": "String" } }
@@ -753,6 +762,8 @@
   "sectionDirectChats": "Einzel-Chats",
   "pollDetailsButton": "Abstimmungs-Details",
   "errorChildAccountRoleLocked": "Dieses Konto ist als Kind-Konto registriert. Bitte wähle die Rolle 'Kind' und weise mindestens einen Guardian zu.",
+  "errorRemoveLastGuardianTitle": "Entfernen nicht möglich",
+  "errorRemoveLastGuardianContent": "Dieses Mitglied ist der einzige Guardian eines oder mehrerer Kinder in dieser Organisation. Weise zuerst andere Guardians zu.",
   "editGroup": "Gruppe bearbeiten",
   "groupImage": "Gruppenbild",
   "removeGroupImage": "Bild entfernen",

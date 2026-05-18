@@ -1,10 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:add_2_calendar/add_2_calendar.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
@@ -25,6 +24,7 @@ import '../../../core/models/notification_settings.dart';
 import '../../../core/models/org_member.dart';
 
 import '../../../core/models/organization.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../chat/providers/chat_provider.dart';
 import '../providers/organizations_provider.dart';
 import 'bulk_import_screen.dart';
@@ -55,7 +55,7 @@ class _OrganizationDetailScreenState
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final orgAsync = ref.watch(organizationProvider(orgId));
-    final currentUid = FirebaseAuth.instance.currentUser!.uid;
+    final currentUid = ref.read(authStateProvider).value!.uid;
 
     final membersAsync = ref.watch(orgMembersProvider(orgId));
 
@@ -665,11 +665,34 @@ class _ChatsTab extends ConsumerStatefulWidget {
 
 class _ChatsTabState extends ConsumerState<_ChatsTab> {
   bool _supervisedExpanded = true;
+  Timer? _refreshTimer;
 
   Organization get org => widget.org;
   String get currentUid => widget.currentUid;
   bool get isAdmin => widget.isAdmin;
   bool get isModerator => widget.isModerator;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) => _refresh());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+  }
+
+  void _refresh() {
+    if (!mounted) return;
+    ref.invalidate(orgConversationsProvider(org.id));
+    ref.invalidate(adminConversationsProvider(org.id));
+    ref.invalidate(pendingRequestsProvider(org.id));
+    ref.invalidate(moderatorPendingRequestsProvider(org.id));
+    ref.invalidate(guardianPendingRequestsProvider(org.id));
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
 
   SliverToBoxAdapter _buildSectionLabel(BuildContext context, String label) {
     return SliverToBoxAdapter(
@@ -796,12 +819,16 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                                 conv: conv,
                                 members: members,
                                 currentUid: currentUid,
-                                onApprove: () => ref
-                                    .read(chatServiceProvider)
-                                    .approveConversation(conv.id),
-                                onReject: () => ref
-                                    .read(chatServiceProvider)
-                                    .rejectConversation(conv.id),
+                                onApprove: () async {
+                                  await ref.read(chatServiceProvider).approveConversation(conv.id);
+                                  ref.invalidate(guardianPendingRequestsProvider(org.id));
+                                  ref.invalidate(orgConversationsProvider(org.id));
+                                  ref.invalidate(adminConversationsProvider(org.id));
+                                },
+                                onReject: () async {
+                                  await ref.read(chatServiceProvider).rejectConversation(conv.id);
+                                  ref.invalidate(guardianPendingRequestsProvider(org.id));
+                                },
                               )),
                           const Divider(),
                         ],
@@ -830,12 +857,16 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                                 conv: conv,
                                 members: members,
                                 currentUid: currentUid,
-                                onApprove: () => ref
-                                    .read(chatServiceProvider)
-                                    .approveConversation(conv.id),
-                                onReject: () => ref
-                                    .read(chatServiceProvider)
-                                    .rejectConversation(conv.id),
+                                onApprove: () async {
+                                  await ref.read(chatServiceProvider).approveConversation(conv.id);
+                                  ref.invalidate(moderatorPendingRequestsProvider(org.id));
+                                  ref.invalidate(orgConversationsProvider(org.id));
+                                  ref.invalidate(adminConversationsProvider(org.id));
+                                },
+                                onReject: () async {
+                                  await ref.read(chatServiceProvider).rejectConversation(conv.id);
+                                  ref.invalidate(moderatorPendingRequestsProvider(org.id));
+                                },
                               )),
                           const Divider(),
                         ],
@@ -871,12 +902,16 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                                     conv: conv,
                                     members: members,
                                     currentUid: currentUid,
-                                    onApprove: () => ref
-                                        .read(chatServiceProvider)
-                                        .approveConversation(conv.id),
-                                    onReject: () => ref
-                                        .read(chatServiceProvider)
-                                        .rejectConversation(conv.id),
+                                    onApprove: () async {
+                                      await ref.read(chatServiceProvider).approveConversation(conv.id);
+                                      ref.invalidate(pendingRequestsProvider(org.id));
+                                      ref.invalidate(orgConversationsProvider(org.id));
+                                      ref.invalidate(adminConversationsProvider(org.id));
+                                    },
+                                    onReject: () async {
+                                      await ref.read(chatServiceProvider).rejectConversation(conv.id);
+                                      ref.invalidate(pendingRequestsProvider(org.id));
+                                    },
                                   ),
                                   orElse: () => const SizedBox(),
                                 )),
@@ -1082,10 +1117,18 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                             ref: ref,
                             isAdminOrMod: isAdmin || isModerator,
                             onUnarchive: (isAdmin || isModerator)
-                                ? () => ref.read(chatServiceProvider).approveConversation(archivedConvs[i].id)
+                                ? () async {
+                                    await ref.read(chatServiceProvider).approveConversation(archivedConvs[i].id);
+                                    ref.invalidate(orgConversationsProvider(org.id));
+                                    ref.invalidate(adminConversationsProvider(org.id));
+                                  }
                                 : null,
                             onDelete: (isAdmin || isModerator)
-                                ? () => ref.read(chatServiceProvider).deleteConversation(archivedConvs[i].id)
+                                ? () async {
+                                    await ref.read(chatServiceProvider).deleteConversation(archivedConvs[i].id);
+                                    ref.invalidate(orgConversationsProvider(org.id));
+                                    ref.invalidate(adminConversationsProvider(org.id));
+                                  }
                                 : null,
                           ),
                           orElse: () => const SizedBox(),
@@ -1298,7 +1341,7 @@ class _MembersTab extends ConsumerWidget {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text(l.errorMessage(e.toString()))),
       data: (members) {
-        final currentUid = FirebaseAuth.instance.currentUser!.uid;
+        final currentUid = ref.read(authStateProvider).value!.uid;
         final currentMember =
             members.where((m) => m.uid == currentUid).firstOrNull;
         final isRegularMember = !isAdmin &&
@@ -1388,7 +1431,7 @@ class _MembersTab extends ConsumerWidget {
                                   isAdmin: isAdmin,
                                   ref: widgetRef,
                                   allMembers: members,
-                                  currentUid: FirebaseAuth.instance.currentUser!.uid,
+                                  currentUid: ref.read(authStateProvider).value!.uid,
                                 ),
                                 if (i < activeMembers.length - 1)
                                   const Divider(height: 1),
@@ -1861,15 +1904,16 @@ class _MembersTab extends ConsumerWidget {
                 guardianUids: role == OrgRole.child ? guardianUids : [],
               );
         } catch (e) {
-          errors.add(entry.displayName);
+          errors.add('${entry.displayName}: $e');
         }
       }
       if (context.mounted) {
         final msg = errors.isEmpty
             ? l.inviteSent
-            : l.errorMessage(errors.join(', '));
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(msg)));
+            : errors.join('\n');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), duration: const Duration(seconds: 8)),
+        );
       }
     }
   }
@@ -1877,7 +1921,7 @@ class _MembersTab extends ConsumerWidget {
   Future<void> _showChatRequestDialog(
       BuildContext context, WidgetRef ref, List<OrgMember> members) async {
     final l = AppLocalizations.of(context);
-    final currentUid = FirebaseAuth.instance.currentUser!.uid;
+    final currentUid = ref.read(authStateProvider).value!.uid;
     final others = members.where((m) => m.uid != currentUid).toList();
     if (others.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1974,6 +2018,9 @@ class _MembersTab extends ConsumerWidget {
         await ref
             .read(chatServiceProvider)
             .requestConversation(org.id, selected!.uid);
+        ref.invalidate(orgConversationsProvider(org.id));
+        ref.invalidate(adminConversationsProvider(org.id));
+        ref.invalidate(pendingRequestsProvider(org.id));
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(l.chatRequestSent)),
@@ -2550,7 +2597,9 @@ class _ConversationTile extends StatelessWidget {
       if (confirmed != true) return;
       await ref.read(chatServiceProvider).setPersonalName(conv.id, controller.text);
     } finally {
-      controller.dispose();
+      Future.delayed(const Duration(milliseconds: 400), () {
+        controller.dispose();
+      });
     }
   }
 
@@ -2620,7 +2669,12 @@ class _ConversationTile extends StatelessWidget {
       leading = Stack(
         children: [
           ColorFiltered(
-            colorFilter: const ColorFilter.mode(Colors.grey, BlendMode.saturation),
+            colorFilter: const ColorFilter.matrix([
+              0.2126, 0.7152, 0.0722, 0, 0,
+              0.2126, 0.7152, 0.0722, 0, 0,
+              0.2126, 0.7152, 0.0722, 0, 0,
+              0,      0,      0,      1, 0,
+            ]),
             child: leading,
           ),
           Positioned(
@@ -2815,9 +2869,6 @@ class _MemberTile extends StatelessWidget {
   // Rolle ist gesperrt wenn das Mitglied selbst ein Kind ist.
   bool get _isRoleLocked => member.role == OrgRole.child;
 
-  // Guardian eines Kindes: darf Rolle wechseln, aber nicht zu "Kind".
-  bool get _isGuardianOfChild =>
-      allMembers.any((m) => m.guardianUids.contains(member.uid));
 
   bool get _hasActions {
     if (member.uid == currentUid) return true; // eigene Kachel: Benachrichtigungen + Austreten
@@ -3012,6 +3063,9 @@ class _MemberTile extends StatelessWidget {
       await ref
           .read(chatServiceProvider)
           .requestConversation(org.id, member.uid);
+      ref.invalidate(orgConversationsProvider(org.id));
+      ref.invalidate(adminConversationsProvider(org.id));
+      ref.invalidate(pendingRequestsProvider(org.id));
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l.chatRequestSent)),
@@ -3032,6 +3086,8 @@ class _MemberTile extends StatelessWidget {
       final conv = await ref
           .read(chatServiceProvider)
           .createApprovedConversation(org.id, member.uid);
+      ref.invalidate(orgConversationsProvider(org.id));
+      ref.invalidate(adminConversationsProvider(org.id));
       if (context.mounted) {
         context.push('/chat/${conv.id}', extra: member.displayName);
       }
@@ -3054,7 +3110,6 @@ class _MemberTile extends StatelessWidget {
           final roleLabels = {
             OrgRole.moderator: ld.roleModerator,
             OrgRole.member: ld.roleMember,
-            if (!_isGuardianOfChild) OrgRole.child: ld.roleChild,
           };
           return AlertDialog(
             title: Text(ld.roleFor(member.displayName)),
@@ -3082,84 +3137,38 @@ class _MemberTile extends StatelessWidget {
     );
     if (confirmed != true || selected == member.role) return;
 
-    if (selected == OrgRole.child) {
-      // Guardian-Auswahl direkt anzeigen wenn Rolle auf Kind gesetzt wird
-      if (!context.mounted) return;
-      await _showRoleToChildGuardianDialog(context);
-    } else {
-      await ref
-          .read(organizationServiceProvider)
-          .updateMemberRole(org.id, member.uid, selected);
-    }
+    await ref
+        .read(organizationServiceProvider)
+        .updateMemberRole(org.id, member.uid, selected);
   }
 
-  Future<void> _showRoleToChildGuardianDialog(BuildContext context) async {
-    final possibleGuardians = allMembers
-        .where((m) => m.role != OrgRole.child && m.status == MemberStatus.active && m.uid != member.uid)
-        .toList();
-    final selected = <String>{};
+  Future<void> _confirmRemove(BuildContext context) async {
+    final isOnlyGuardian = allMembers.any((m) =>
+        m.role == OrgRole.child &&
+        m.guardianUids.contains(member.uid) &&
+        m.guardianUids.length == 1);
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) {
+    if (isOnlyGuardian) {
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) {
           final ld = AppLocalizations.of(ctx);
           return AlertDialog(
-            title: Text(ld.guardianFor(member.displayName)),
-            content: possibleGuardians.isEmpty
-                ? Text(ld.noGuardiansInOrg)
-                : Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        ld.selectGuardianHint,
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                      const SizedBox(height: 8),
-                      ...possibleGuardians.map((g) => CheckboxListTile(
-                            value: selected.contains(g.uid),
-                            title: Text(g.displayName),
-                            subtitle: Text(g.email,
-                                style: const TextStyle(fontSize: 11)),
-                            secondary: const Icon(Icons.shield_outlined),
-                            contentPadding: EdgeInsets.zero,
-                            onChanged: (v) => setState(() {
-                              if (v == true) {
-                                selected.add(g.uid);
-                              } else {
-                                selected.remove(g.uid);
-                              }
-                            }),
-                          )),
-                    ],
-                  ),
+            title: Text(ld.errorRemoveLastGuardianTitle),
+            content: Text(ld.errorRemoveLastGuardianContent),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
+                onPressed: () => Navigator.pop(ctx),
                 child: Text(ld.cancel),
-              ),
-              FilledButton(
-                onPressed: possibleGuardians.isEmpty || selected.isNotEmpty
-                    ? () => Navigator.pop(ctx, true)
-                    : null,
-                child: Text(ld.save),
               ),
             ],
           );
         },
-      ),
-    );
-
-    if (confirmed == true) {
-      final service = ref.read(organizationServiceProvider);
-      await service.updateMemberRole(org.id, member.uid, OrgRole.child);
-      if (selected.isNotEmpty) {
-        await service.updateGuardians(org.id, member.uid, selected.toList());
-      }
+      );
+      return;
     }
-  }
 
-  Future<void> _confirmRemove(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) {
@@ -3215,6 +3224,7 @@ class _MemberTile extends StatelessWidget {
         await ref
             .read(organizationServiceProvider)
             .leaveOrganization(org.id);
+        ref.invalidate(myOrganizationsProvider);
         if (context.mounted) context.pop();
       } catch (e) {
         if (context.mounted) {
@@ -3441,6 +3451,9 @@ class _PendingChildTile extends StatelessWidget {
                 await ref
                     .read(organizationServiceProvider)
                     .approveChildInvite(org.id, child.uid);
+                ref.invalidate(pendingChildInvitesProvider(org.id));
+                ref.invalidate(orgMembersProvider(org.id));
+                ref.invalidate(myOrganizationsProvider);
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -3464,6 +3477,8 @@ class _PendingChildTile extends StatelessWidget {
                 await ref
                     .read(organizationServiceProvider)
                     .rejectChildInvite(org.id, child.uid);
+                ref.invalidate(pendingChildInvitesProvider(org.id));
+                ref.invalidate(orgMembersProvider(org.id));
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context)
@@ -3533,8 +3548,7 @@ class _ReportsTabLabel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
-    final reportsAsync = ref.watch(_pendingReportsCountProvider(orgId));
-    final count = reportsAsync.value ?? 0;
+    final count = ref.watch(organizationProvider(orgId)).value?.pendingReportsCount ?? 0;
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -3569,15 +3583,6 @@ class _ReportsTabLabel extends ConsumerWidget {
   }
 }
 
-final _pendingReportsCountProvider =
-    StreamProvider.family<int, String>((ref, orgId) {
-  return FirebaseFirestore.instance
-      .collection('reports')
-      .where('orgId', isEqualTo: orgId)
-      .where('status', isEqualTo: 'pending')
-      .snapshots()
-      .map((s) => s.docs.length);
-});
 
 // ── Reports Tab ───────────────────────────────────────────────────────────────
 
@@ -3705,7 +3710,7 @@ class _ReportsTabState extends ConsumerState<_ReportsTab> {
                                 await ref
                                     .read(chatServiceProvider)
                                     .markReportReviewed(
-                                        report['id'] as String);
+                                        report['id'] as String, widget.org.id);
                               } else if (action == 'delete_msg') {
                                 await _deleteMessage(context, report);
                               }
@@ -3777,14 +3782,9 @@ class _ReportsTabState extends ConsumerState<_ReportsTab> {
     final reportId = report['id'] as String;
 
     if (convId != null && msgId != null) {
-      await FirebaseFirestore.instance
-          .collection('conversations')
-          .doc(convId)
-          .collection('messages')
-          .doc(msgId)
-          .delete();
+      await ref.read(chatServiceProvider).softDeleteMessage(convId, msgId);
     }
-    await ref.read(chatServiceProvider).markReportReviewed(reportId);
+    await ref.read(chatServiceProvider).markReportReviewed(reportId, widget.org.id);
   }
 }
 
@@ -3853,7 +3853,7 @@ class _PendingInviteTile extends StatelessWidget {
 
 final _orgReportsProvider =
     StreamProvider.family<List<Map<String, dynamic>>, String>((ref, orgId) {
-  return ref.read(chatServiceProvider).watchReports(orgId);
+  return ref.watch(chatServiceProvider).watchReports(orgId);
 });
 
 // ── Pinnwand ──────────────────────────────────────────────────────────────────
@@ -4069,6 +4069,7 @@ Future<void> _showAnnouncementDialog(BuildContext context, WidgetRef ref,
         await service.editAnnouncement(orgId, existing.id, title, content,
             expiresAt: expiresAt, clearExpiry: clearExpiry);
       }
+      ref.invalidate(announcementsProvider(orgId));
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context)
@@ -4076,8 +4077,10 @@ Future<void> _showAnnouncementDialog(BuildContext context, WidgetRef ref,
       }
     }
   } finally {
-    titleCtrl.dispose();
-    contentCtrl.dispose();
+    Future.delayed(const Duration(milliseconds: 400), () {
+      titleCtrl.dispose();
+      contentCtrl.dispose();
+    });
   }
 }
 
@@ -4292,9 +4295,11 @@ Future<void> _showEventDialog(BuildContext context, WidgetRef ref,
       }
     }
   } finally {
-    titleCtrl.dispose();
-    contentCtrl.dispose();
-    locationCtrl.dispose();
+    Future.delayed(const Duration(milliseconds: 400), () {
+      titleCtrl.dispose();
+      contentCtrl.dispose();
+      locationCtrl.dispose();
+    });
   }
 }
 
@@ -4406,7 +4411,7 @@ class _AnnouncementCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
-    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final currentUid = ref.read(authStateProvider).value?.uid ?? '';
 
     final isEvent = announcement.isEvent;
     final isPast = announcement.isPastEvent;
@@ -4738,7 +4743,7 @@ class _EventDetailSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
-    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final currentUid = ref.read(authStateProvider).value?.uid ?? '';
 
     // Shadow field with live data — only rebuilds when this specific event changes
     final event = ref.watch(announcementsProvider(orgId).select(
@@ -5266,6 +5271,7 @@ class _AuditLogSheet extends ConsumerWidget {
       AuditAction.roleChanged => l.auditActionRoleChanged,
       AuditAction.adminTransferred => l.auditActionAdminTransferred,
       AuditAction.keywordsChanged => l.auditActionKeywordsChanged,
+      AuditAction.guardiansChanged => l.auditActionGuardiansChanged,
     };
   }
 
@@ -5275,18 +5281,22 @@ class _AuditLogSheet extends ConsumerWidget {
       AuditAction.invitationSent =>
         '${d['name'] ?? d['email'] ?? ''}'
         '${d['role'] != null ? ' (${d['role']})' : ''}',
-      AuditAction.memberConfirmed => d['name'] as String? ?? '',
-      AuditAction.memberRemoved => d['name'] as String? ?? '',
+      AuditAction.memberConfirmed =>
+        '${d['targetName'] ?? d['name'] ?? ''}${d['role'] != null ? ' (${d['role']})' : ''}',
+      AuditAction.memberRemoved =>
+        '${d['targetName'] ?? d['name'] ?? ''}${d['role'] != null ? ' (${d['role']})' : ''}',
       AuditAction.settingsChanged =>
         [
           if (d['name'] != null) d['name'],
           if (d['tag'] != null) d['tag'],
+          if (d['messageRetentionDays'] != null) '${d['messageRetentionDays']} Tage',
         ].join(', '),
       AuditAction.roleChanged =>
-        '${d['name'] ?? ''}: ${d['oldRole'] ?? ''} → ${d['newRole'] ?? ''}',
+        '${d['targetName'] ?? d['name'] ?? ''}: ${d['oldRole'] ?? ''} → ${d['newRole'] ?? ''}',
       AuditAction.adminTransferred => d['newAdminName'] as String? ?? '',
       AuditAction.keywordsChanged =>
         '${d['count'] ?? ''} Schlüsselwörter',
+      AuditAction.guardiansChanged => d['childName'] as String? ?? '',
     };
   }
 

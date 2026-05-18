@@ -4,6 +4,40 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-18 (3)
+
+- **Passwort-Login entfernt:** Der "Mit Passwort anmelden"-Button wurde vom Login-Screen entfernt. Die Anmeldung erfolgt ausschließlich über Google oder E-Mail-Code.
+- **Automatische Datenaktualisierung nach Verbindungsunterbrechung:** Wenn die App aus dem Hintergrund zurückkehrt oder das Netz nach einer Unterbrechung wiederhergestellt wird, werden alle Chats und Organisationen automatisch neu geladen.
+
+---
+
+## 2026-05-18 (2)
+
+- **Eltern-Kind-Verknüpfung funktioniert wieder:** Die Bestätigung einer Verknüpfungsanfrage wurde durch einen internen Verbindungsfehler blockiert. Dieser Fehler wurde in allen Backend-Funktionen behoben.
+- **"Meine Verknüpfungen" aktualisiert sich automatisch:** Nach einer bestätigten Verknüpfungsanfrage wurde die Ansicht erst nach einem Neustart der App aktualisiert. Die Seite lädt sich jetzt selbst neu.
+- **Kontenzusammenführung berücksichtigt jetzt alle Verknüpfungen:** Beim Zusammenführen eines bestehenden Kontos mit dem Google-Login wurden bestehende Eltern-Kind-Verknüpfungen in anderen Konten nicht immer aktualisiert. Dieser Fehler wurde behoben.
+
+---
+
+## 2026-05-18
+
+- **Google-Anmeldung:** Nutzer können sich jetzt direkt mit ihrem Google-Konto anmelden. Der Login erkennt automatisch, ob bereits ein Konto mit dieser E-Mail existiert, und verbindet beide Konten.
+- **E-Mail-Code-Anmeldung:** Statt einem Anmeldelink wird jetzt ein 6-stelliger Code per E-Mail gesendet, der direkt in der App eingegeben werden kann — kein Wechsel in den Browser nötig.
+- **Google-Konto verknüpfen:** Im Profil kann ein bestehendes Konto nachträglich mit Google verknüpft werden, um künftig per Google-Login einzusteigen.
+- **Anmeldebildschirm überarbeitet:** Google, E-Mail-Code und Passwort sind jetzt als drei klare Optionen strukturiert.
+- **Fehlerbehebung:** Ungültige OTP-Codes (unter 6 Stellen) zeigen jetzt eine verständliche Fehlermeldung statt stillschweigend abgebrochen zu werden.
+
+---
+
+## 2026-05-17
+
+- **Chat zeigt neueste Nachrichten sofort:** Neue Nachrichten in einer Gruppe wurden in der Chat-Übersicht angezeigt, im Chat selbst jedoch erst nach manuellem Scrollen. Dieser Fehler wurde behoben.
+- **App friert nicht mehr ein beim Schließen von Dialogen:** Das Bearbeiten einer Ankündigung, eines Termins oder eines Chat-Namens und anschließendes Wegtippen führte zu einem kompletten App-Freeze. Dieser Fehler wurde behoben.
+- **Aktivitätszusammenfassung lädt zuverlässig:** Die Kindübersicht für Eltern schlug gelegentlich fehl (Timeout). Abfragen wurden optimiert und Ergebnisse werden 5 Minuten zwischengespeichert. Ein Refresh-Button ermöglicht manuelles Neu-Laden.
+- **Server-Migration:** Appwrite läuft jetzt auf einem leistungsstärkeren Server (8 GB RAM, Helsinki) für stabileren Betrieb.
+
+---
+
 ## 2026-05-12
 
 - **Bilder werden nicht mehr unnötig komprimiert:** Bilder unter 2 MB werden jetzt unverändert hochgeladen. Nur größere Dateien werden schrittweise komprimiert, wobei erst die Qualität reduziert wird, bevor die Auflösung verringert wird.

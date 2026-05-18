@@ -1,5 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:appwrite/appwrite.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -17,6 +16,12 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 class NotificationService {
   static GoRouter? _router;
   static RemoteMessage? _pendingMessage;
+
+  // Appwrite-Ressourcen als statische Felder, da die Klasse als Singleton via
+  // static-State genutzt wird (mehrere NotificationService()-Instanzen teilen
+  // denselben initialisierten Zustand).
+  static Databases? _awDb;
+  static String? _awUid;
 
   static void setRouter(GoRouter router) {
     _router = router;
@@ -51,10 +56,11 @@ class NotificationService {
   static bool _initialized = false;
 
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  Future<void> initialize() async {
+  Future<void> initialize([Databases? db, String? uid]) async {
+    if (db != null) _awDb = db;
+    if (uid != null) _awUid = uid;
+
     // FCM wird auf Windows/Linux nicht unterstützt
     if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.linux)) { return; }
@@ -97,9 +103,19 @@ class NotificationService {
   }
 
   Future<void> _saveToken(String token) async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
-    await _db.collection('users').doc(uid).update({'fcmToken': token});
+    final db = _awDb;
+    final uid = _awUid;
+    if (uid == null || db == null) return;
+    try {
+      await db.updateDocument(
+        databaseId: 'guardian',
+        collectionId: 'users',
+        documentId: uid,
+        data: {'fcmToken': token},
+      );
+    } on AppwriteException catch (e) {
+      if (kDebugMode) debugPrint('FCM token save failed: ${e.message}');
+    }
   }
 
   void _handleTap(RemoteMessage message) {

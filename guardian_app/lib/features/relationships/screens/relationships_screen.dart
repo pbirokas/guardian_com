@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -22,6 +21,7 @@ class RelationshipsScreen extends ConsumerStatefulWidget {
 class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
   final _emailController = TextEditingController();
   bool _sending = false;
+  int _prevPendingOutgoing = -1;
 
   @override
   void dispose() {
@@ -74,16 +74,11 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
         [];
 
     if (affectedMemberships.isNotEmpty) {
-      // Fetch org names for the warning dialog
-      final db = FirebaseFirestore.instance;
-      final orgDocs = await Future.wait(
-        affectedMemberships.map((m) =>
-            db.collection('organizations').doc(m.orgId).get()),
-      );
-      final orgNames = orgDocs
-          .where((d) => d.exists)
-          .map((d) =>
-              (d.data() as Map<String, dynamic>)['name'] as String? ?? d.id)
+      // Resolve org names from already-loaded provider (no extra network call)
+      final myOrgs = ref.read(myOrganizationsProvider).value ?? [];
+      final orgNames = affectedMemberships
+          .map((m) =>
+              myOrgs.where((o) => o.id == m.orgId).firstOrNull?.name ?? m.orgId)
           .toList();
 
       if (!mounted) return;
@@ -111,6 +106,10 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
       await ref
           .read(parentClaimServiceProvider)
           .confirmClaimRequest(req.id);
+      ref.invalidate(incomingClaimRequestsProvider);
+      ref.invalidate(outgoingClaimRequestsProvider);
+      ref.invalidate(myParentsProvider);
+      ref.invalidate(myChildrenProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l.claimConfirmed)),
@@ -131,6 +130,8 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
       await ref
           .read(parentClaimServiceProvider)
           .rejectClaimRequest(req.id);
+      ref.invalidate(incomingClaimRequestsProvider);
+      ref.invalidate(outgoingClaimRequestsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l.claimRejected)),
@@ -201,6 +202,8 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
       await ref
           .read(parentClaimServiceProvider)
           .revokeConnection(otherUid);
+      ref.invalidate(myChildrenProvider);
+      ref.invalidate(myParentsProvider);
     } catch (e) {
       if (mounted) {
         final l2 = AppLocalizations.of(context);
@@ -256,6 +259,20 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
     final l = AppLocalizations.of(context);
     final incomingAsync = ref.watch(incomingClaimRequestsProvider);
     final outgoingAsync = ref.watch(outgoingClaimRequestsProvider);
+
+    ref.listen(outgoingClaimRequestsProvider, (_, next) {
+      if (!next.hasValue) return;
+      final pending = next.value!.where((r) => r.isPending).length;
+      if (_prevPendingOutgoing == -1) {
+        _prevPendingOutgoing = pending;
+        return;
+      }
+      if (_prevPendingOutgoing > 0 && pending < _prevPendingOutgoing) {
+        ref.invalidate(myChildrenProvider);
+        ref.invalidate(myParentsProvider);
+      }
+      _prevPendingOutgoing = pending;
+    });
     final childrenAsync = ref.watch(myChildrenProvider);
     final parentsAsync = ref.watch(myParentsProvider);
     final consentsAsync = ref.watch(pendingOrgConsentsProvider);
@@ -309,7 +326,15 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
           ),
         ],
       ),
-      body: ListView(
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(incomingClaimRequestsProvider);
+          ref.invalidate(outgoingClaimRequestsProvider);
+          ref.invalidate(myChildrenProvider);
+          ref.invalidate(myParentsProvider);
+          ref.invalidate(pendingOrgConsentsProvider);
+        },
+        child: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
           // ── Incoming claim requests (child sees "X wants to be your parent") ──
@@ -459,7 +484,7 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
                       email: u['email'] as String? ?? '',
                       photoUrl: u['photoUrl'] as String?,
                       label: l.verifiedParent,
-                      onRevoke: null, // Kinder können Eltern nicht trennen
+                      onRevoke: null,
                     )),
               ];
             },
@@ -467,6 +492,7 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
             error: (_, _) => const [],
           ),
         ],
+      ),
       ),
     );
   }

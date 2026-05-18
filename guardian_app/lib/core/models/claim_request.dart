@@ -57,4 +57,29 @@ class ClaimRequest {
         'createdAt': Timestamp.fromDate(createdAt),
         'expiresAt': Timestamp.fromDate(expiresAt),
       };
+
+  factory ClaimRequest.fromAppwrite(Map<String, dynamic> data) =>
+      ClaimRequest(
+        id: data[r'$id'] as String,
+        fromUid: data['fromUid'] as String,
+        fromName: data['fromName'] as String? ?? '',
+        fromEmail: data['fromEmail'] as String? ?? '',
+        toUid: data['toUid'] as String,
+        toEmail: data['toEmail'] as String? ?? '',
+        status: ClaimRequestStatus.values
+            .byName(data['status'] as String? ?? 'pending'),
+        createdAt: DateTime.parse(data['createdAt'] as String),
+        expiresAt: DateTime.parse(data['expiresAt'] as String),
+      );
+
+  Map<String, dynamic> toAppwrite() => {
+        'fromUid': fromUid,
+        'fromName': fromName,
+        'fromEmail': fromEmail,
+        'toUid': toUid,
+        'toEmail': toEmail,
+        'status': status.name,
+        'createdAt': createdAt.toIso8601String(),
+        'expiresAt': expiresAt.toIso8601String(),
+      };
 }

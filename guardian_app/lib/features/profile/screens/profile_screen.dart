@@ -1,6 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -11,7 +8,6 @@ import '../../../core/providers/locale_provider.dart';
 import '../../../core/providers/scale_provider.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../features/auth/providers/auth_provider.dart';
-import '../../../features/organizations/providers/organizations_provider.dart';
 import '../../../core/widgets/help_sheet.dart';
 import '../../../core/providers/chat_font_size_provider.dart';
 
@@ -26,13 +22,43 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late final TextEditingController _nameController;
   bool _saving = false;
   bool _pickingImage = false;
+  bool _linkingGoogle = false;
+  bool? _googleLinked;
   Uint8List? _pickedImageBytes;
 
   @override
   void initState() {
     super.initState();
-    final user = FirebaseAuth.instance.currentUser;
-    _nameController = TextEditingController(text: user?.displayName ?? '');
+    final displayName = ref.read(authStateProvider).value?.displayName ?? '';
+    _nameController = TextEditingController(text: displayName);
+    _loadIdentities();
+  }
+
+  Future<void> _loadIdentities() async {
+    final linked = await ref.read(authServiceProvider).isGoogleLinked();
+    if (mounted) setState(() => _googleLinked = linked);
+  }
+
+  Future<void> _linkGoogle() async {
+    setState(() => _linkingGoogle = true);
+    try {
+      await ref.read(authStateProvider.notifier).linkGoogleAccount();
+      if (mounted) {
+        final l = AppLocalizations.of(context);
+        setState(() => _googleLinked = true);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(l.googleLinked)));
+      }
+    } catch (e) {
+      if (mounted) {
+        final l = AppLocalizations.of(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l.errorMessage(e.toString()))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _linkingGoogle = false);
+    }
   }
 
   @override
@@ -66,33 +92,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (name.isEmpty) return;
     setState(() => _saving = true);
     try {
-      final user = FirebaseAuth.instance.currentUser!;
-      String? photoUrl;
-
-      if (_pickedImageBytes != null) {
-        final storageRef = FirebaseStorage.instance
-            .ref()
-            .child('profileImages/${user.uid}');
-        await storageRef.putData(
-          _pickedImageBytes!,
-          SettableMetadata(contentType: 'image/jpeg'),
-        );
-        photoUrl = await storageRef.getDownloadURL();
-        await user.updatePhotoURL(photoUrl);
-      }
-
-      await user.updateDisplayName(name);
-
-      final updates = <String, dynamic>{'displayName': name};
-      if (photoUrl != null) updates['photoUrl'] = photoUrl;
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .update(updates);
-
-      await ref
-          .read(organizationServiceProvider)
-          .updateMyMemberProfile(name, photoUrl: photoUrl);
+      final uid = ref.read(authStateProvider).value!.uid;
+      // TODO Phase 3: Foto-Upload auf Appwrite Storage migrieren
+      await ref.read(authStateProvider.notifier).updateProfile(uid, name);
 
       if (mounted) {
         setState(() => _pickedImageBytes = null);
@@ -116,18 +118,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final user = FirebaseAuth.instance.currentUser;
+    final appUser = ref.watch(authStateProvider).value;
 
     ImageProvider? avatarImage;
     if (_pickedImageBytes != null) {
       avatarImage = MemoryImage(_pickedImageBytes!);
-    } else if (user?.photoURL != null) {
-      avatarImage = NetworkImage(user!.photoURL!);
+    } else if (appUser?.photoUrl != null) {
+      avatarImage = NetworkImage(appUser!.photoUrl!);
     }
 
-    final initials = ((user?.displayName?.isNotEmpty == true
-                ? user!.displayName!
-                : user?.email ?? '?')[0])
+    final initials = ((appUser?.displayName.isNotEmpty == true
+                ? appUser!.displayName
+                : appUser?.email ?? '?')[0])
         .toUpperCase();
 
     return Scaffold(
@@ -224,7 +226,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           const SizedBox(height: 8),
           Center(
             child: Text(
-              user?.email ?? '',
+              appUser?.email ?? '',
               style: const TextStyle(color: Colors.grey),
             ),
           ),
@@ -284,12 +286,45 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           const SizedBox(height: 8),
           const Divider(),
           const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(l.connectedAccounts,
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            onTap: _googleLinked == true || _linkingGoogle ? null : _linkGoogle,
+            leading: const Text('G',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red)),
+            title: const Text('Google'),
+            subtitle: _googleLinked == null
+                ? null
+                : Text(_googleLinked! ? l.googleLinkedStatus : l.googleNotLinked,
+                    style: TextStyle(
+                        color: _googleLinked!
+                            ? Colors.green
+                            : Theme.of(context).colorScheme.outline)),
+            trailing: _googleLinked == true
+                ? const Icon(Icons.check_circle, color: Colors.green)
+                : _linkingGoogle
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.add_link),
+          ),
+          const SizedBox(height: 8),
+          const Divider(),
+          const SizedBox(height: 8),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.logout, color: Colors.red),
             title: Text(l.signOut,
                 style: const TextStyle(color: Colors.red)),
-            onTap: () => ref.read(authServiceProvider).signOut(),
+            onTap: () => ref.read(authStateProvider.notifier).signOut(),
           ),
         ],
       ),

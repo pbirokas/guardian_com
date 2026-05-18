@@ -1,6 +1,3 @@
-import 'dart:async';
-
-import 'package:app_links/app_links.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
@@ -8,19 +5,22 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:appwrite/appwrite.dart' show Databases;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/appwrite_client.dart';
+import 'core/models/app_user.dart';
 import 'core/providers/connectivity_provider.dart';
 import 'core/providers/share_provider.dart';
 import 'core/services/share_service.dart';
 import 'features/chat/providers/chat_provider.dart';
+import 'features/organizations/providers/organizations_provider.dart';
+import 'features/relationships/providers/relationships_provider.dart';
 import 'features/share/share_picker_sheet.dart';
 import 'core/providers/locale_provider.dart' show localeProvider;
 import 'core/providers/chat_font_size_provider.dart';
 import 'core/providers/scale_provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/router/app_router.dart';
-import 'core/services/auth_service.dart';
 import 'core/services/desktop_notification_service_stub.dart'
     if (dart.library.io) 'core/services/desktop_notification_service.dart';
 import 'core/services/notification_service.dart';
@@ -29,6 +29,10 @@ import 'core/services/tray_service_stub.dart'
 import 'features/auth/providers/auth_provider.dart';
 import 'firebase_options.dart';
 import 'package:guardian_app/l10n/app_localizations.dart';
+
+bool get _isDesktop =>
+    defaultTargetPlatform == TargetPlatform.windows ||
+    defaultTargetPlatform == TargetPlatform.linux;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,8 +54,7 @@ void main() async {
     }
   }
 
-  final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-      defaultTargetPlatform == TargetPlatform.linux;
+  final isDesktop = _isDesktop;
 
   // Crashlytics und FCM nur auf mobilen Plattformen (nicht Desktop)
   if (!isDesktop) {
@@ -98,61 +101,69 @@ class GuardianApp extends ConsumerStatefulWidget {
 
 class _GuardianAppState extends ConsumerState<GuardianApp>
     with WidgetsBindingObserver {
-  AppLinks? _appLinks;
-  StreamSubscription? _linkSub;
+  bool _wasInBackground = false;
+  DateTime? _lastInvalidation;
+  ProviderSubscription<AsyncValue<bool>>? _connectivitySub;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // App Links nur auf Plattformen mit Deep-Link-Support
-    if (defaultTargetPlatform != TargetPlatform.windows &&
-        defaultTargetPlatform != TargetPlatform.linux) {
-      _appLinks = AppLinks();
-      _handleIncomingLinks();
-    }
-    // Kalt-Start: ggf. geteilten Inhalt aus dem Share-Intent lesen
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForSharedData());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForSharedData();
+      _connectivitySub = ref.listenManual<AsyncValue<bool>>(
+        connectivityProvider,
+        (prev, next) {
+          final wasOffline = prev?.value == false;
+          final isNowOnline = next.value == true;
+          if (wasOffline && isNowOnline) _invalidateRealtimeProviders();
+        },
+      );
+    });
   }
 
   @override
   void dispose() {
+    _connectivitySub?.close();
     WidgetsBinding.instance.removeObserver(this);
-    _linkSub?.cancel();
     super.dispose();
+  }
+
+  void _invalidateRealtimeProviders() {
+    if (ref.read(authStateProvider).value == null) return;
+    if (ref.read(connectivityProvider).value != true) return;
+    final now = DateTime.now();
+    if (_lastInvalidation != null &&
+        now.difference(_lastInvalidation!) < const Duration(minutes: 2)) {
+      return;
+    }
+    _lastInvalidation = now;
+    ref.invalidate(chatServiceProvider);
+    ref.invalidate(organizationServiceProvider);
+    ref.invalidate(parentClaimServiceProvider);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _wasInBackground = true;
+    }
     if (state == AppLifecycleState.resumed) {
       NotificationService.clearAll();
-      // Warm-Start via onNewIntent (Share aus anderer App)
       _checkForSharedData();
+      if (_wasInBackground) {
+        _wasInBackground = false;
+        _invalidateRealtimeProviders();
+      }
     }
   }
 
   Future<void> _checkForSharedData() async {
-    if (FirebaseAuth.instance.currentUser == null) return;
-    final data = await ShareService().getSharedData();
+    if (ref.read(authStateProvider).value == null) return;
+    final data = await ref.read(shareServiceProvider).getSharedData();
     if (data != null && mounted) {
       ref.read(pendingShareProvider.notifier).set(data);
-    }
-  }
-
-  void _handleIncomingLinks() {
-    _appLinks?.getInitialLink().then((uri) {
-      if (uri != null) _processEmailLink(uri);
-    });
-    _linkSub = _appLinks?.uriLinkStream.listen((uri) {
-      _processEmailLink(uri);
-    });
-  }
-
-  Future<void> _processEmailLink(Uri link) async {
-    try {
-      await AuthService().handleEmailLink(link);
-    } catch (e) {
-      debugPrint('E-Mail-Link-Login fehlgeschlagen: $e');
     }
   }
 
@@ -162,15 +173,19 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
     final themeMode = ref.watch(themeModeProvider);
     final locale = ref.watch(localeProvider).value ?? const Locale('de');
     NotificationService.setRouter(router);
-    if (defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.linux) {
-      DesktopNotificationService.setRouter(router);
-    }
+    if (_isDesktop) DesktopNotificationService.setRouter(router);
 
-    // FCM-Token bei jedem Kalt-Start refreshen, damit veraltete Tokens in
-    // Firestore aktualisiert werden (Token-Rotation durch Google möglich).
-    ref.listen<AsyncValue<User?>>(authStateProvider, (_, next) {
-      if (next.value != null) NotificationService().initialize();
+    // FCM-Token bei jedem Auth-State-Wechsel refreshen (Token-Rotation).
+    // Desktop: Realtime-Listener starten/stoppen je nach Login-Status.
+    ref.listen<AsyncValue<AppUser?>>(authStateProvider, (_, next) {
+      final user = next.value;
+      final client = ref.read(appwriteClientProvider);
+      if (user != null) {
+        NotificationService().initialize(Databases(client), user.uid);
+        if (_isDesktop) DesktopNotificationService().startListening(client, user.uid);
+      } else {
+        if (_isDesktop) DesktopNotificationService().stopListening();
+      }
     });
 
     const seedColor = Colors.blue;
@@ -200,10 +215,7 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
       routerConfig: router,
       builder: (context, child) {
         final l = AppLocalizations.of(context);
-        final isDesktopPlatform =
-            defaultTargetPlatform == TargetPlatform.windows ||
-            defaultTargetPlatform == TargetPlatform.linux;
-        final scale = isDesktopPlatform
+        final scale = _isDesktop
             ? ref.watch(scaleFactorProvider)
             : 1.0;
         final mq = MediaQuery.of(context);

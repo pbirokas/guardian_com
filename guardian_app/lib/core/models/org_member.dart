@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'app_user.dart';
 import 'notification_settings.dart';
@@ -93,5 +94,54 @@ class OrgMember {
         'notificationsEnabled': notificationsEnabled,
         'messageAlertInterval': messageAlertInterval.name,
         'hideEmail': hideEmail,
+      };
+
+  factory OrgMember.fromAppwrite(Map<String, dynamic> data) {
+    final rawJson = data['lastChildAlertAtJson'] as String?;
+    final lastChildAlertAt = (rawJson != null && rawJson.isNotEmpty)
+        ? (jsonDecode(rawJson) as Map<String, dynamic>)
+            .map((k, v) => MapEntry(k, DateTime.parse(v as String)))
+        : <String, DateTime>{};
+    return OrgMember(
+      uid: data['uid'] as String,
+      displayName: (data['displayName'] as String? ?? '').isNotEmpty
+          ? data['displayName'] as String
+          : (data['email'] as String? ?? '?'),
+      email: data['email'] as String? ?? '',
+      photoUrl: data['photoUrl'] as String?,
+      role: OrgRole.values.byName(data['role'] as String),
+      joinedAt: DateTime.parse(data['joinedAt'] as String),
+      guardianUids: List<String>.from(data['guardianUids'] as List? ?? []),
+      status: MemberStatus.values.byName(data['status'] as String? ?? 'active'),
+      childAlertInterval: ChildAlertInterval.values
+              .where((e) => e.name == (data['childAlertInterval'] as String?))
+              .firstOrNull ??
+          ChildAlertInterval.hourly,
+      lastChildAlertAt: lastChildAlertAt,
+      notificationsEnabled: data['notificationsEnabled'] as bool? ?? true,
+      messageAlertInterval: MessageAlertInterval.values
+              .where((e) => e.name == (data['messageAlertInterval'] as String?))
+              .firstOrNull ??
+          MessageAlertInterval.always,
+      hideEmail: data['hideEmail'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toAppwrite() => {
+        'uid': uid,
+        'displayName': displayName,
+        'email': email,
+        if (photoUrl != null) 'photoUrl': photoUrl,
+        'role': role.name,
+        'joinedAt': joinedAt.toIso8601String(),
+        'guardianUids': guardianUids,
+        'status': status.name,
+        'childAlertInterval': childAlertInterval.name,
+        'notificationsEnabled': notificationsEnabled,
+        'messageAlertInterval': messageAlertInterval.name,
+        'hideEmail': hideEmail,
+        'lastChildAlertAtJson': jsonEncode(
+          lastChildAlertAt.map((k, v) => MapEntry(k, v.toIso8601String())),
+        ),
       };
 }

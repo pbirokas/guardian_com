@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum AnnouncementType { announcement, event }
@@ -116,5 +117,62 @@ class Announcement {
           'eventEndDate': Timestamp.fromDate(eventEndDate!),
         if (location != null && location!.isNotEmpty) 'location': location,
         if (rsvpPublic) 'rsvpPublic': true,
+      };
+
+  factory Announcement.fromAppwrite(Map<String, dynamic> data) {
+    final reactJson = data['reactionsJson'] as String?;
+    final reactions = (reactJson != null && reactJson.isNotEmpty)
+        ? Map<String, String>.from(jsonDecode(reactJson) as Map)
+        : <String, String>{};
+    final rsvpJson = data['rsvpJson'] as String?;
+    final rsvp = (rsvpJson != null && rsvpJson.isNotEmpty)
+        ? Map<String, String>.from(jsonDecode(rsvpJson) as Map)
+        : <String, String>{};
+    final typeStr = data['type'] as String? ?? 'announcement';
+    return Announcement(
+      id: data[r'$id'] as String,
+      title: data['title'] as String? ?? '',
+      content: data['content'] as String? ?? '',
+      authorUid: data['authorUid'] as String? ?? '',
+      authorName: data['authorName'] as String? ?? '',
+      createdAt: DateTime.parse(data['createdAt'] as String),
+      updatedAt: data['updatedAt'] != null
+          ? DateTime.parse(data['updatedAt'] as String)
+          : null,
+      expiresAt: data['expiresAt'] != null
+          ? DateTime.parse(data['expiresAt'] as String)
+          : null,
+      reactions: reactions,
+      type: typeStr == 'event'
+          ? AnnouncementType.event
+          : AnnouncementType.announcement,
+      eventDate: data['eventDate'] != null
+          ? DateTime.parse(data['eventDate'] as String)
+          : null,
+      eventEndDate: data['eventEndDate'] != null
+          ? DateTime.parse(data['eventEndDate'] as String)
+          : null,
+      location: data['location'] as String?,
+      rsvp: rsvp,
+      rsvpPublic: data['rsvpPublic'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toAppwrite() => {
+        'title': title,
+        'content': content,
+        'authorUid': authorUid,
+        'authorName': authorName,
+        'createdAt': createdAt.toIso8601String(),
+        if (updatedAt != null) 'updatedAt': updatedAt!.toIso8601String(),
+        if (expiresAt != null) 'expiresAt': expiresAt!.toIso8601String(),
+        'type': type == AnnouncementType.event ? 'event' : 'announcement',
+        if (eventDate != null) 'eventDate': eventDate!.toIso8601String(),
+        if (eventEndDate != null)
+          'eventEndDate': eventEndDate!.toIso8601String(),
+        if (location != null && location!.isNotEmpty) 'location': location,
+        if (rsvpPublic) 'rsvpPublic': true,
+        'reactionsJson': jsonEncode(reactions),
+        'rsvpJson': jsonEncode(rsvp),
       };
 }

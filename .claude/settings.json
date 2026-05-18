@@ -27,7 +27,15 @@
       "Bash(Select-String -Pattern \"\\(?i\\)\\(pinnwand|announcement|ankündigung\\)\")",
       "Bash(Select-Object -ExpandProperty Path)",
       "Bash(Get-Unique)",
-      "Bash(grep -n \"^class _AnnouncementCard\\\\|^}\\\\s*$\" c:/Users/pbiro/Documents/git/fist_steps/guardian_app/lib/features/organizations/screens/organization_detail_screen.dart)"
+      "Bash(grep -n \"^class _AnnouncementCard\\\\|^}\\\\s*$\" c:/Users/pbiro/Documents/git/fist_steps/guardian_app/lib/features/organizations/screens/organization_detail_screen.dart)",
+      "Bash(dir \"C:\\\\Users\\\\pbiro\\\\AppData\\\\Local\\\\Pub\\\\Cache\\\\hosted\\\\pub.dev\\\\appwrite-23.1.0\\\\lib\\\\src\" /b)",
+      "Bash(findstr -i table)",
+      "Bash(dir \"C:\\\\Users\\\\pbiro\\\\AppData\\\\Local\\\\Pub\\\\Cache\\\\hosted\\\\pub.dev\\\\appwrite-23.1.0\\\\lib\" /b /s)",
+      "Bash(appwrite databases *)",
+      "Bash(grep -E 'displayName|verifiedChildUids|verifiedParentUids|^\\\\s+$id')"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\pbiro\\.claude\\projects\\c--Users-pbiro-Documents-git-fist-steps\\memory"
     ]
   }
 }

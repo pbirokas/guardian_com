@@ -101,4 +101,40 @@ class OrgInviteConsent {
         'createdAt': Timestamp.fromDate(createdAt),
         'expiresAt': Timestamp.fromDate(expiresAt),
       };
+
+  factory OrgInviteConsent.fromAppwrite(Map<String, dynamic> data) =>
+      OrgInviteConsent(
+        id: data[r'$id'] as String,
+        childUid: data['childUid'] as String,
+        childName: data['childName'] as String? ?? '',
+        orgId: data['orgId'] as String,
+        orgName: data['orgName'] as String? ?? '',
+        invitedByUid: data['invitedByUid'] as String? ?? '',
+        invitedByName: data['invitedByName'] as String? ?? '',
+        proposedGuardianUids:
+            List<String>.from(data['proposedGuardianUids'] as List? ?? []),
+        parentUids: List<String>.from(data['parentUids'] as List? ?? []),
+        approvedBy: data['approvedBy'] as String?,
+        vetoedBy: data['vetoedBy'] as String?,
+        status: OrgInviteConsentStatus.values
+            .byName(data['status'] as String? ?? 'pending'),
+        createdAt: DateTime.parse(data['createdAt'] as String),
+        expiresAt: DateTime.parse(data['expiresAt'] as String),
+      );
+
+  Map<String, dynamic> toAppwrite() => {
+        'childUid': childUid,
+        'childName': childName,
+        'orgId': orgId,
+        'orgName': orgName,
+        'invitedByUid': invitedByUid,
+        'invitedByName': invitedByName,
+        'proposedGuardianUids': proposedGuardianUids,
+        'parentUids': parentUids,
+        if (approvedBy != null) 'approvedBy': approvedBy,
+        if (vetoedBy != null) 'vetoedBy': vetoedBy,
+        'status': status.name,
+        'createdAt': createdAt.toIso8601String(),
+        'expiresAt': expiresAt.toIso8601String(),
+      };
 }

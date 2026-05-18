@@ -1,55 +1,94 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:appwrite/appwrite.dart';
+import 'package:appwrite/models.dart' as aw;
+import '../appwrite_client.dart';
 import '../models/announcement.dart';
-import '../models/org_audit_entry.dart';
-import '../models/organization.dart';
 import '../models/app_user.dart';
-import '../models/org_member.dart';
 import '../models/member_suggestion.dart';
 import '../models/notification_settings.dart';
+import '../models/organization.dart';
+import '../models/org_member.dart';
 import '../models/org_invite_consent.dart';
+import '../models/org_audit_entry.dart';
 
 class OrganizationService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  OrganizationService({
+    required Client client,
+    required String uid,
+    required String displayName,
+    String? email,
+  })  : _db = Databases(client),
+        _realtime = createPatchedRealtime(client),
+        _uid = uid,
+        _displayName = displayName,
+        _email = email ?? '';
 
-  String get _uid => _auth.currentUser!.uid;
+  final Databases _db;
+  final Realtime _realtime;
+  final String _uid;
+  final String _displayName;
+  final String _email;
 
-  /// Schreibt einen Eintrag ins Änderungsprotokoll der Organisation.
-  Future<void> _logAudit(
-      String orgId, AuditAction action, Map<String, dynamic> details) async {
-    final user = _auth.currentUser;
-    await _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('auditLog')
-        .add({
-      'actorUid': _uid,
-      'actorName': user?.displayName ?? user?.email ?? '',
-      'action': action.name,
-      'details': details,
-      'timestamp': Timestamp.now(),
-    });
+  static const _dbId = 'guardian';
+  static const _colOrgs = 'organizations';
+  static const _colMembers = 'members';
+  static const _colInvitations = 'invitations';
+  static const _colAnnouncements = 'announcements';
+  static const _colOrgConsents = 'org_invite_consents';
+  static const _colAuditLog = 'audit_log';
+
+  // ── Realtime helper ────────────────────────────────────────────────────────
+
+  Stream<List<T>> _watchCollection<T>(
+    String collectionId,
+    T Function(Map<String, dynamic>) fromDoc,
+    List<String> queries,
+  ) {
+    late StreamController<List<T>> ctrl;
+    StreamSubscription? realtimeSub;
+
+    Future<void> reload() async {
+      if (ctrl.isClosed) return;
+      try {
+        final result = await _db.listDocuments(
+          databaseId: _dbId,
+          collectionId: collectionId,
+          queries: [...queries, Query.limit(500)],
+        );
+        final items = result.documents
+            .map((d) => fromDoc({r'$id': d.$id, ...d.data}))
+            .toList();
+        if (!ctrl.isClosed) ctrl.add(items);
+      } catch (e) {
+        if (!ctrl.isClosed) ctrl.addError(e);
+      }
+    }
+
+    void dispose() {
+      realtimeSub?.cancel();
+      ctrl.close();
+    }
+
+    ctrl = StreamController(onCancel: dispose);
+    realtimeSub = _realtime
+        .subscribe(['databases.$_dbId.collections.$collectionId.documents'])
+        .stream
+        .listen((_) => reload(), onDone: dispose, onError: (_) {});
+    reload();
+    return ctrl.stream;
   }
 
-  Stream<List<OrgAuditEntry>> watchAuditLog(String orgId) {
-    return _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('auditLog')
-        .orderBy('timestamp', descending: true)
-        .limit(100)
-        .snapshots()
-        .map((s) => s.docs.map(OrgAuditEntry.fromFirestore).toList());
-  }
+  // ── Organisations-CRUD ─────────────────────────────────────────────────────
 
   Future<Organization> createOrganization(String name, OrgTag tag) async {
-    final orgRef = _db.collection('organizations').doc();
     final now = DateTime.now();
-    final currentUser = _auth.currentUser!;
+    final orgId = ID.unique();
 
     final org = Organization(
-      id: orgRef.id,
+      id: orgId,
       name: name,
       adminUid: _uid,
       tag: tag,
@@ -57,50 +96,41 @@ class OrganizationService {
       createdAt: now,
     );
 
-    final membership = OrgMembership(orgId: orgRef.id, role: OrgRole.admin);
-    final memberDoc = orgRef.collection('members').doc(_uid);
+    final membership = OrgMembership(orgId: orgId, role: OrgRole.admin);
+    final memberId = '${orgId}_$_uid';
+    final memberData = OrgMember(
+      uid: _uid,
+      displayName: _displayName,
+      email: _email,
+      role: OrgRole.admin,
+      joinedAt: now,
+    ).toAppwrite();
 
-    await _db.runTransaction((tx) async {
-      tx.set(orgRef, org.toFirestore());
-      tx.set(memberDoc, OrgMember(
-        uid: _uid,
-        displayName: currentUser.displayName ?? currentUser.email!,
-        email: currentUser.email!,
-        photoUrl: currentUser.photoURL,
-        role: OrgRole.admin,
-        joinedAt: now,
-      ).toFirestore());
-      tx.update(_db.collection('users').doc(_uid), {
-        'memberships': FieldValue.arrayUnion([membership.toMap()]),
-      });
-    });
+    // Appwrite hat keine Client-Transaktionen — sequenzielle Writes
+    await _db.createDocument(
+      databaseId: _dbId,
+      collectionId: _colOrgs,
+      documentId: orgId,
+      data: org.toAppwrite(),
+      permissions: [
+        Permission.read(Role.users()),
+        Permission.update(Role.user(_uid)),
+        Permission.delete(Role.user(_uid)),
+      ],
+    );
+    await _db.createDocument(
+      databaseId: _dbId,
+      collectionId: _colMembers,
+      documentId: memberId,
+      data: {...memberData, 'orgId': orgId},
+      permissions: [
+        Permission.read(Role.users()),
+        Permission.update(Role.user(_uid)),
+      ],
+    );
+    await _updateMembershipsJson(_uid, membership, add: true);
 
     return org;
-  }
-
-  /// Synchronisiert displayName und photoUrl in allen Member-Dokumenten des Nutzers.
-  /// Liest die orgIds aus users/{uid}.memberships und batch-updated jeden Eintrag.
-  Future<void> updateMyMemberProfile(
-      String displayName, {String? photoUrl}) async {
-    final userDoc = await _db.collection('users').doc(_uid).get();
-    final memberships = List<Map<String, dynamic>>.from(
-        userDoc.data()?['memberships'] as List? ?? []);
-    if (memberships.isEmpty) return;
-
-    final batch = _db.batch();
-    for (final m in memberships) {
-      final orgId = m['orgId'] as String?;
-      if (orgId == null) continue;
-      final memberRef = _db
-          .collection('organizations')
-          .doc(orgId)
-          .collection('members')
-          .doc(_uid);
-      final updates = <String, dynamic>{'displayName': displayName};
-      if (photoUrl != null) updates['photoUrl'] = photoUrl;
-      batch.update(memberRef, updates);
-    }
-    await batch.commit();
   }
 
   Future<void> updateOrganization(String orgId,
@@ -108,117 +138,378 @@ class OrganizationService {
     final clampedRetention = messageRetentionDays?.clamp(
         Organization.retentionMin, Organization.retentionMax);
     final updates = <String, dynamic>{
-      'name': ?name,
+      if (name != null) 'name': name,
       if (tag != null) 'tag': tag.name,
-      'messageRetentionDays': ?clampedRetention,
+      if (clampedRetention != null)
+        'messageRetentionDays': clampedRetention,
     };
     if (updates.isNotEmpty) {
-      await _db.collection('organizations').doc(orgId).update(updates);
-      await _logAudit(orgId, AuditAction.settingsChanged, {
-        'name': ?name,
-        if (tag != null) 'tag': tag.name,
-        'messageRetentionDays': ?clampedRetention,
-      });
+      await _db.updateDocument(
+          databaseId: _dbId,
+          collectionId: _colOrgs,
+          documentId: orgId,
+          data: updates);
+      unawaited(_logAuditEvent(orgId, AuditAction.settingsChanged, updates));
     }
   }
+
+  Future<void> archiveOrganization(String orgId) =>
+      _db.updateDocument(
+          databaseId: _dbId,
+          collectionId: _colOrgs,
+          documentId: orgId,
+          data: {'isArchived': true});
+
+  Future<void> unarchiveOrganization(String orgId) =>
+      _db.updateDocument(
+          databaseId: _dbId,
+          collectionId: _colOrgs,
+          documentId: orgId,
+          data: {'isArchived': false});
+
+  Future<void> deleteOrganization(String orgId) async {
+    // Alle Member laden und Memberships entfernen
+    final membersResult = await _db.listDocuments(
+      databaseId: _dbId,
+      collectionId: _colMembers,
+      queries: [Query.equal('orgId', orgId), Query.limit(500)],
+    );
+    await Future.wait(membersResult.documents.map((doc) async {
+      final memberUid = doc.data['uid'] as String;
+      final role = OrgRole.values.byName(doc.data['role'] as String);
+      await Future.wait([
+        _updateMembershipsJson(
+            memberUid, OrgMembership(orgId: orgId, role: role),
+            add: false),
+        _db.deleteDocument(
+            databaseId: _dbId,
+            collectionId: _colMembers,
+            documentId: doc.$id),
+      ]);
+    }));
+    await _db.deleteDocument(
+        databaseId: _dbId, collectionId: _colOrgs, documentId: orgId);
+  }
+
+  Stream<List<Organization>> watchMyOrganizations() {
+    return _watchCollection(
+      _colOrgs,
+      Organization.fromAppwrite,
+      [Query.contains('memberUids', [_uid])],
+    );
+  }
+
+  Stream<Organization> watchOrganization(String orgId) {
+    final ctrl = StreamController<Organization>();
+    StreamSubscription? realtimeSub;
+
+    Future<void> reload() async {
+      if (ctrl.isClosed) return;
+      try {
+        final doc = await _db.getDocument(
+            databaseId: _dbId, collectionId: _colOrgs, documentId: orgId);
+        if (!ctrl.isClosed) {
+          ctrl.add(Organization.fromAppwrite({r'$id': doc.$id, ...doc.data}));
+        }
+      } catch (e) {
+        if (!ctrl.isClosed) ctrl.addError(e);
+      }
+    }
+
+    void dispose() {
+      realtimeSub?.cancel();
+      ctrl.close();
+    }
+
+    ctrl.onCancel = dispose;
+    realtimeSub = _realtime
+        .subscribe(
+            ['databases.$_dbId.collections.$_colOrgs.documents.$orgId'])
+        .stream
+        .listen((_) => reload(), onDone: dispose, onError: (_) {});
+    reload();
+    return ctrl.stream;
+  }
+
+  // ── Mitglieder ─────────────────────────────────────────────────────────────
+
+  Stream<List<OrgMember>> watchMembers(String orgId) {
+    return _watchCollection(
+      _colMembers,
+      OrgMember.fromAppwrite,
+      [Query.equal('orgId', orgId)],
+    );
+  }
+
+  Future<void> removeMember(String orgId, String targetUid) async {
+    final memberId = '${orgId}_$targetUid';
+    final doc = await _db.getDocument(
+        databaseId: _dbId, collectionId: _colMembers, documentId: memberId);
+    final role = OrgRole.values.byName(doc.data['role'] as String);
+    await _updateMembershipsJson(
+        targetUid, OrgMembership(orgId: orgId, role: role),
+        add: false);
+    final targetName = doc.data['displayName'] as String? ?? targetUid;
+    await _db.deleteDocument(
+        databaseId: _dbId, collectionId: _colMembers, documentId: memberId);
+    await _arrayRemove(_colOrgs, orgId, 'memberUids', targetUid);
+    unawaited(_logAuditEvent(orgId, AuditAction.memberRemoved,
+        {'targetUid': targetUid, 'targetName': targetName, 'role': role.name}));
+  }
+
+  Future<void> leaveOrganization(String orgId) async {
+    final memberId = '${orgId}_$_uid';
+    final doc = await _db.getDocument(
+        databaseId: _dbId, collectionId: _colMembers, documentId: memberId);
+    final role = OrgRole.values.byName(doc.data['role'] as String);
+    if (role == OrgRole.admin) {
+      throw Exception(
+          'Als Admin kannst du die Organisation nicht verlassen. '
+          'Übertrage zuerst die Admin-Rolle an ein anderes Mitglied.');
+    }
+    await _updateMembershipsJson(
+        _uid, OrgMembership(orgId: orgId, role: role),
+        add: false);
+    await _db.deleteDocument(
+        databaseId: _dbId, collectionId: _colMembers, documentId: memberId);
+    await _arrayRemove(_colOrgs, orgId, 'memberUids', _uid);
+  }
+
+  Future<void> updateMemberRole(
+      String orgId, String targetUid, OrgRole newRole) async {
+    if (newRole != OrgRole.child) {
+      final userDoc = await _db.getDocument(
+          databaseId: _dbId, collectionId: 'users', documentId: targetUid);
+      if (userDoc.data['isChild'] as bool? ?? false) {
+        throw Exception('child_account_role_locked');
+      }
+    }
+
+    final memberId = '${orgId}_$targetUid';
+    final doc = await _db.getDocument(
+        databaseId: _dbId, collectionId: _colMembers, documentId: memberId);
+    final oldRole = OrgRole.values.byName(doc.data['role'] as String);
+
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colMembers,
+        documentId: memberId,
+        data: {'role': newRole.name});
+
+    await _updateMembershipsJson(
+        targetUid, OrgMembership(orgId: orgId, role: oldRole),
+        add: false);
+    await _updateMembershipsJson(
+        targetUid, OrgMembership(orgId: orgId, role: newRole),
+        add: true);
+    final targetName = doc.data['displayName'] as String? ?? targetUid;
+    unawaited(_logAuditEvent(orgId, AuditAction.roleChanged, {
+      'targetUid': targetUid,
+      'targetName': targetName,
+      'oldRole': oldRole.name,
+      'newRole': newRole.name,
+    }));
+  }
+
+  Future<void> transferAdmin(String orgId, String newAdminUid) async {
+    final newMemberId = '${orgId}_$newAdminUid';
+    final snap = await _db.getDocument(
+        databaseId: _dbId, collectionId: _colMembers, documentId: newMemberId);
+    final newAdminOldRole =
+        OrgRole.values.byName(snap.data['role'] as String);
+
+    // Member-Rollen tauschen
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colMembers,
+        documentId: '${orgId}_$_uid',
+        data: {'role': OrgRole.member.name});
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colMembers,
+        documentId: newMemberId,
+        data: {'role': OrgRole.admin.name});
+
+    // adminUid auf Org aktualisieren
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colOrgs,
+        documentId: orgId,
+        data: {'adminUid': newAdminUid});
+
+    // Memberships updaten
+    await _updateMembershipsJson(
+        _uid, OrgMembership(orgId: orgId, role: OrgRole.admin),
+        add: false);
+    await _updateMembershipsJson(
+        _uid, OrgMembership(orgId: orgId, role: OrgRole.member),
+        add: true);
+    await _updateMembershipsJson(
+        newAdminUid, OrgMembership(orgId: orgId, role: newAdminOldRole),
+        add: false);
+    await _updateMembershipsJson(
+        newAdminUid, OrgMembership(orgId: orgId, role: OrgRole.admin),
+        add: true);
+    final newAdminName = snap.data['displayName'] as String? ?? newAdminUid;
+    unawaited(_logAuditEvent(orgId, AuditAction.adminTransferred,
+        {'newAdminUid': newAdminUid, 'newAdminName': newAdminName}));
+  }
+
+  Future<void> updateGuardians(
+      String orgId, String childUid, List<String> guardianUids) async {
+    final memberDoc = await _db.getDocument(
+        databaseId: _dbId,
+        collectionId: _colMembers,
+        documentId: '${orgId}_$childUid');
+    await _db.updateDocument(
+      databaseId: _dbId,
+      collectionId: _colMembers,
+      documentId: '${orgId}_$childUid',
+      data: {'guardianUids': guardianUids},
+    );
+    final childName = memberDoc.data['displayName'] as String? ?? childUid;
+    unawaited(_logAuditEvent(orgId, AuditAction.guardiansChanged, {
+      'childUid': childUid,
+      'childName': childName,
+      'guardianUids': guardianUids,
+    }));
+  }
+
+  Future<void> approveChildInvite(String orgId, String childUid) async {
+    final memberId = '${orgId}_$childUid';
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colMembers,
+        documentId: memberId,
+        data: {'status': MemberStatus.active.name});
+    await _arrayAdd(_colOrgs, orgId, 'memberUids', childUid);
+    // membershipsJson des Kindes kann der Guardian nicht schreiben (fremdes User-Doc).
+    // Das Kind sieht die Org über die memberUids-Query in watchMyOrganizations.
+  }
+
+  Future<void> rejectChildInvite(String orgId, String childUid) async {
+    await _db.deleteDocument(
+        databaseId: _dbId,
+        collectionId: _colMembers,
+        documentId: '${orgId}_$childUid');
+  }
+
+  Stream<List<OrgMember>> watchPendingChildInvites(
+      String orgId, String guardianUid) {
+    return _watchCollection(
+      _colMembers,
+      OrgMember.fromAppwrite,
+      [
+        Query.equal('orgId', orgId),
+        Query.contains('guardianUids', [guardianUid]),
+        Query.equal('status', 'pending'),
+      ],
+    );
+  }
+
+  // ── Einladungen ────────────────────────────────────────────────────────────
 
   Future<void> inviteMember(String orgId, String email, OrgRole role,
       {List<String> guardianUids = const []}) async {
     final normalizedEmail = email.toLowerCase().trim();
     var isChild = role == OrgRole.child;
     if (isChild && guardianUids.isEmpty) {
-      throw Exception('Für ein Kind muss mindestens ein Guardian ausgewählt werden.');
+      throw Exception(
+          'Für ein Kind muss mindestens ein Guardian ausgewählt werden.');
     }
 
-    // Org-Name laden für die Einladungs-Anzeige
-    final orgDoc = await _db.collection('organizations').doc(orgId).get();
-    final orgName = orgDoc.data()?['name'] as String? ?? '';
+    // Org-Name laden
+    final orgDoc = await _db.getDocument(
+        databaseId: _dbId, collectionId: _colOrgs, documentId: orgId);
+    final orgName = orgDoc.data['name'] as String? ?? '';
 
-    // Prüfen ob User bereits registriert ist
-    final query = await _db
-        .collection('users')
-        .where('email', isEqualTo: normalizedEmail)
-        .limit(1)
-        .get();
+    // Prüfen ob User bereits in Appwrite registriert ist
+    final usersResult = await _db.listDocuments(
+      databaseId: _dbId,
+      collectionId: 'users',
+      queries: [Query.equal('email', normalizedEmail), Query.limit(1)],
+    );
 
-    if (query.docs.isEmpty) {
-      // User noch nicht registriert → Einladung erstellen
-      final existingInvite = await _db
-          .collection('invitations')
-          .where('email', isEqualTo: normalizedEmail)
-          .where('orgId', isEqualTo: orgId)
-          .where('status', isEqualTo: 'pending')
-          .limit(1)
-          .get();
-      if (existingInvite.docs.isNotEmpty) {
-        throw Exception('Für diese E-Mail gibt es bereits eine ausstehende Einladung.');
+    if (usersResult.documents.isEmpty) {
+      // Noch nicht registriert → Einladung anlegen
+      final existing = await _db.listDocuments(
+        databaseId: _dbId,
+        collectionId: _colInvitations,
+        queries: [
+          Query.equal('email', normalizedEmail),
+          Query.equal('orgId', orgId),
+          Query.equal('status', 'pending'),
+          Query.limit(1),
+        ],
+      );
+      if (existing.documents.isNotEmpty) {
+        throw Exception(
+            'Für diese E-Mail gibt es bereits eine ausstehende Einladung.');
       }
-      final inviteRef = await _db.collection('invitations').add({
-        'email': normalizedEmail,
-        'orgId': orgId,
-        'orgName': orgName,
-        'role': role.name,
-        'guardianUids': guardianUids,
-        'invitedBy': _uid,
-        'status': 'pending',
-        'createdAt': Timestamp.now(),
-      });
-      await _writeInvitationLookup(normalizedEmail, inviteRef.id, orgId);
-      await _logAudit(orgId, AuditAction.invitationSent,
-          {'email': normalizedEmail, 'role': role.name});
+      await _db.createDocument(
+        databaseId: _dbId,
+        collectionId: _colInvitations,
+        documentId: ID.unique(),
+        data: {
+          'email': normalizedEmail,
+          'orgId': orgId,
+          'orgName': orgName,
+          'role': role.name,
+          'guardianUids': guardianUids,
+          'inviterName': _displayName,
+          'invitedByUid': _uid,
+          'status': 'pending',
+          'createdAt': DateTime.now().toIso8601String(),
+        },
+      );
       return;
     }
 
-    // User bereits registriert → direkt hinzufügen
-    final userDoc = query.docs.first;
-    final userData = userDoc.data();
-    final targetUid = userDoc.id;
+    // Bereits registriert → direkt hinzufügen
+    final userDoc = usersResult.documents.first;
+    final userData = userDoc.data;
+    final targetUid = userDoc.$id;
 
-    // Kind-Konten dürfen nur mit Rolle 'Kind' eingeladen werden
     final isChildAccount = userData['isChild'] as bool? ?? false;
     if (isChildAccount && role != OrgRole.child) {
       throw Exception('child_account_role_locked');
     }
-    // Effektive Rolle: Bei Kind-Konten immer 'child', unabhängig von der Auswahl
     final effectiveRole = isChildAccount ? OrgRole.child : role;
     isChild = effectiveRole == OrgRole.child;
     if (isChild && guardianUids.isEmpty) {
-      throw Exception('Für ein Kind muss mindestens ein Guardian ausgewählt werden.');
+      throw Exception(
+          'Für ein Kind muss mindestens ein Guardian ausgewählt werden.');
     }
 
-    final memberDoc = _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('members')
-        .doc(targetUid);
-
-    final existing = await memberDoc.get();
-    if (existing.exists) {
+    final memberId = '${orgId}_$targetUid';
+    final existing = await _safeGetDocument(_colMembers, memberId);
+    if (existing != null) {
       throw Exception('Dieser Benutzer ist bereits Mitglied.');
     }
 
-    // Wenn der Nutzer verifizierte Eltern hat → Einwilligung einholen
-    final parentUids = List<String>.from(
-        userData['verifiedParentUids'] as List? ?? []);
+    // Eltern des Kindes → OrgInviteConsent einholen
+    final parentUids =
+        List<String>.from(userData['verifiedParentUids'] as List? ?? []);
     if (parentUids.isNotEmpty) {
-      final currentUser = _auth.currentUser!;
       final now = DateTime.now();
-      await _db.collection('orgInviteConsents').add(
-        OrgInviteConsent(
+      await _db.createDocument(
+        databaseId: _dbId,
+        collectionId: _colOrgConsents,
+        documentId: ID.unique(),
+        data: OrgInviteConsent(
           id: '',
           childUid: targetUid,
           childName: userData['displayName'] as String? ?? '',
           orgId: orgId,
           orgName: orgName,
           invitedByUid: _uid,
-          invitedByName:
-              currentUser.displayName ?? currentUser.email ?? '',
+          invitedByName: _displayName,
           proposedGuardianUids: guardianUids,
           parentUids: parentUids,
           status: OrgInviteConsentStatus.pending,
           createdAt: now,
           expiresAt: now.add(const Duration(days: 7)),
-        ).toFirestore(),
+        ).toAppwrite(),
       );
       return;
     }
@@ -226,630 +517,279 @@ class OrganizationService {
     final memberStatus = isChild ? MemberStatus.pending : MemberStatus.active;
     final membership = OrgMembership(orgId: orgId, role: effectiveRole);
 
-    await _db.runTransaction((tx) async {
-      tx.set(memberDoc, OrgMember(
-        uid: targetUid,
-        displayName: userData['displayName'] as String,
-        email: userData['email'] as String,
-        photoUrl: userData['photoUrl'] as String?,
-        role: effectiveRole,
-        joinedAt: DateTime.now(),
-        guardianUids: isChild ? guardianUids : [],
-        status: memberStatus,
-      ).toFirestore());
-      if (!isChild) {
-        tx.update(_db.collection('organizations').doc(orgId), {
-          'memberUids': FieldValue.arrayUnion([targetUid]),
-        });
-        tx.update(_db.collection('users').doc(targetUid), {
-          'memberships': FieldValue.arrayUnion([membership.toMap()]),
-        });
-      }
-    });
-    await _logAudit(orgId, AuditAction.invitationSent, {
-      'email': normalizedEmail,
-      'name': userData['displayName'] as String? ?? normalizedEmail,
-      'role': role.name,
-    });
+    await _db.createDocument(
+      databaseId: _dbId,
+      collectionId: _colMembers,
+      documentId: memberId,
+      data: {
+        ...OrgMember(
+          uid: targetUid,
+          displayName: userData['displayName'] as String? ??
+              userData['email'] as String,
+          email: userData['email'] as String,
+          photoUrl: userData['photoUrl'] as String?,
+          role: effectiveRole,
+          joinedAt: DateTime.now(),
+          guardianUids: isChild ? guardianUids : [],
+          status: memberStatus,
+        ).toAppwrite(),
+        'orgId': orgId,
+      },
+    );
+
+    if (!isChild) {
+      await _arrayAdd(_colOrgs, orgId, 'memberUids', targetUid);
+      await _updateMembershipsJson(targetUid, membership, add: true);
+    }
+    final targetName = userData['displayName'] as String? ?? normalizedEmail;
+    unawaited(_logAuditEvent(orgId, AuditAction.memberConfirmed, {
+      'targetUid': targetUid,
+      'targetName': targetName,
+      'role': effectiveRole.name,
+    }));
   }
 
-  Future<void> updateGuardians(
-      String orgId, String childUid, List<String> guardianUids) async {
-    // Nur das Member-Dokument aktualisieren.
-    // Die Propagation der guardianUids in bestehende Conversations übernimmt
-    // die Cloud Function onMemberGuardiansChanged (Admin SDK, keine Permissions).
-    await _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('members')
-        .doc(childUid)
-        .update({'guardianUids': guardianUids});
-  }
-
-  Future<void> approveChildInvite(String orgId, String childUid) async {
-    final memberDoc = _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('members')
-        .doc(childUid);
-
-    final snap = await memberDoc.get();
-    if (!snap.exists) return;
-
-    final role = OrgRole.values.byName(snap.data()!['role'] as String);
-    final membership = OrgMembership(orgId: orgId, role: role);
-
-    final childName = snap.data()!['displayName'] as String? ?? '';
-    await _db.runTransaction((tx) async {
-      tx.update(memberDoc, {'status': MemberStatus.active.name});
-      tx.update(_db.collection('organizations').doc(orgId), {
-        'memberUids': FieldValue.arrayUnion([childUid]),
-      });
-      tx.update(_db.collection('users').doc(childUid), {
-        'memberships': FieldValue.arrayUnion([membership.toMap()]),
-        'isChild': true,
-      });
-    });
-    await _logAudit(orgId, AuditAction.memberConfirmed, {'name': childName});
-  }
-
-  Future<void> rejectChildInvite(String orgId, String childUid) async {
-    final memberDoc = _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('members')
-        .doc(childUid);
-    await memberDoc.delete();
-  }
-
-  Stream<List<OrgMember>> watchPendingChildInvites(
-      String orgId, String guardianUid) {
-    return _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('members')
-        .where('guardianUids', arrayContains: guardianUid)
-        .where('status', isEqualTo: 'pending')
-        .snapshots()
-        .map((s) => s.docs.map(OrgMember.fromFirestore).toList());
+  Future<void> cancelInvitation(String inviteId) async {
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colInvitations,
+        documentId: inviteId,
+        data: {'status': 'cancelled'});
   }
 
   Stream<List<Map<String, dynamic>>> watchPendingInvitationsForGuardian(
       String orgId, String guardianUid) {
-    return _db
-        .collection('invitations')
-        .where('orgId', isEqualTo: orgId)
-        .where('guardianUids', arrayContains: guardianUid)
-        .where('status', isEqualTo: 'pending')
-        .snapshots()
-        .map((s) => s.docs
-            .map((d) => {'id': d.id, ...d.data()})
-            .toList());
+    return _watchCollection<Map<String, dynamic>>(
+      _colInvitations,
+      (data) => {r'$id': data[r'$id'], ...data},
+      [
+        Query.equal('orgId', orgId),
+        Query.contains('guardianUids', [guardianUid]),
+        Query.equal('status', 'pending'),
+      ],
+    );
   }
 
-  Future<void> cancelInvitation(String inviteId) async {
-    await _db.collection('invitations').doc(inviteId).update({'status': 'cancelled'});
+  // ── Member-Profil ──────────────────────────────────────────────────────────
+
+  Future<void> updateMyMemberProfile(String displayName,
+      {String? photoUrl}) async {
+    final userDoc = await _db.getDocument(
+        databaseId: _dbId, collectionId: 'users', documentId: _uid);
+    final membershipsJson = userDoc.data['membershipsJson'] as String?;
+    if (membershipsJson == null || membershipsJson.isEmpty) return;
+
+    final memberships =
+        List<Map<String, dynamic>>.from(_decodeMemberships(membershipsJson));
+    for (final m in memberships) {
+      final orgId = m['orgId'] as String?;
+      if (orgId == null) continue;
+      final memberId = '${orgId}_$_uid';
+      try {
+        final updates = <String, dynamic>{'displayName': displayName};
+        if (photoUrl != null) updates['photoUrl'] = photoUrl;
+        await _db.updateDocument(
+            databaseId: _dbId,
+            collectionId: _colMembers,
+            documentId: memberId,
+            data: updates);
+      } catch (_) {}
+    }
+  }
+
+  Future<void> setHideEmail(bool hideEmail) async {
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: 'users',
+        documentId: _uid,
+        data: {'hideEmail': hideEmail});
+
+    final userDoc = await _db.getDocument(
+        databaseId: _dbId, collectionId: 'users', documentId: _uid);
+    final membershipsJson = userDoc.data['membershipsJson'] as String?;
+    if (membershipsJson == null || membershipsJson.isEmpty) return;
+    final memberships =
+        List<Map<String, dynamic>>.from(_decodeMemberships(membershipsJson));
+    for (final m in memberships) {
+      final orgId = m['orgId'] as String?;
+      if (orgId == null) continue;
+      try {
+        await _db.updateDocument(
+            databaseId: _dbId,
+            collectionId: _colMembers,
+            documentId: '${orgId}_$_uid',
+            data: {'hideEmail': hideEmail});
+      } catch (_) {}
+    }
   }
 
   Future<void> updateChildAlertInterval(
       String orgId, ChildAlertInterval interval) async {
-    await _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('members')
-        .doc(_uid)
-        .update({'childAlertInterval': interval.name});
-  }
-
-  Future<void> updateKeywords(String orgId, List<String> keywords) async {
-    await _db.collection('organizations').doc(orgId).update({'keywords': keywords});
-    await _logAudit(orgId, AuditAction.keywordsChanged,
-        {'count': keywords.length});
-  }
-
-  Future<void> archiveOrganization(String orgId) async {
-    await _db.collection('organizations').doc(orgId).update({'isArchived': true});
-  }
-
-  Future<void> unarchiveOrganization(String orgId) async {
-    await _db.collection('organizations').doc(orgId).update({'isArchived': false});
-  }
-
-  Future<void> deleteOrganization(String orgId) async {
-    final membersSnap = await _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('members')
-        .get();
-
-    final batch = _db.batch();
-    for (final memberDoc in membersSnap.docs) {
-      final role = OrgRole.values.byName(memberDoc.data()['role'] as String);
-      final membership = OrgMembership(orgId: orgId, role: role);
-      batch.delete(memberDoc.reference);
-      batch.update(_db.collection('users').doc(memberDoc.id), {
-        'memberships': FieldValue.arrayRemove([membership.toMap()]),
-      });
-    }
-    batch.delete(_db.collection('organizations').doc(orgId));
-    await batch.commit();
-  }
-
-  Future<void> removeMember(String orgId, String targetUid) async {
-    final memberDoc = _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('members')
-        .doc(targetUid);
-
-    final snap = await memberDoc.get();
-    if (!snap.exists) return;
-
-    final memberName = snap.data()!['displayName'] as String? ?? '';
-    final role = OrgRole.values.byName(snap.data()!['role'] as String);
-    final membership = OrgMembership(orgId: orgId, role: role);
-    final userDoc = _db.collection('users').doc(targetUid);
-
-    await _db.runTransaction((tx) async {
-      // User-Dokument innerhalb der Transaction lesen – es könnte bereits
-      // gelöscht worden sein (z. B. manuell in der Firebase Console).
-      final userSnap = await tx.get(userDoc);
-      tx.delete(memberDoc);
-      tx.update(_db.collection('organizations').doc(orgId), {
-        'memberUids': FieldValue.arrayRemove([targetUid]),
-      });
-      if (userSnap.exists) {
-        tx.update(userDoc, {
-          'memberships': FieldValue.arrayRemove([membership.toMap()]),
-        });
-      }
-    });
-    await _logAudit(orgId, AuditAction.memberRemoved, {'name': memberName});
-  }
-
-  Future<void> leaveOrganization(String orgId) async {
-    final memberDoc = _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('members')
-        .doc(_uid);
-
-    final snap = await memberDoc.get();
-    if (!snap.exists) return;
-
-    final role = OrgRole.values.byName(snap.data()!['role'] as String);
-    if (role == OrgRole.admin) {
-      throw Exception(
-          'Als Admin kannst du die Organisation nicht verlassen. '
-          'Übertrage zuerst die Admin-Rolle an ein anderes Mitglied.');
-    }
-
-    final membership = OrgMembership(orgId: orgId, role: role);
-
-    await _db.runTransaction((tx) async {
-      tx.delete(memberDoc);
-      tx.update(_db.collection('organizations').doc(orgId), {
-        'memberUids': FieldValue.arrayRemove([_uid]),
-      });
-      tx.update(_db.collection('users').doc(_uid), {
-        'memberships': FieldValue.arrayRemove([membership.toMap()]),
-      });
-    });
-  }
-
-  Future<void> transferAdmin(String orgId, String newAdminUid) async {
-    final oldAdminUid = _uid;
-
-    final newAdminMemberRef = _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('members')
-        .doc(newAdminUid);
-
-    final snap = await newAdminMemberRef.get();
-    if (!snap.exists) throw Exception('Mitglied nicht gefunden.');
-
-    final newAdminOldRole =
-        OrgRole.values.byName(snap.data()!['role'] as String);
-
-    final oldAdminOldMembership = OrgMembership(orgId: orgId, role: OrgRole.admin);
-    final oldAdminNewMembership = OrgMembership(orgId: orgId, role: OrgRole.member);
-    final newAdminOldMembership = OrgMembership(orgId: orgId, role: newAdminOldRole);
-    final newAdminNewMembership = OrgMembership(orgId: orgId, role: OrgRole.admin);
-
-    await _db.runTransaction((tx) async {
-      // Org: adminUid aktualisieren
-      tx.update(_db.collection('organizations').doc(orgId), {
-        'adminUid': newAdminUid,
-      });
-      // Alter Admin → Member
-      tx.update(
-        _db.collection('organizations').doc(orgId).collection('members').doc(oldAdminUid),
-        {'role': OrgRole.member.name},
-      );
-      // Neuer Admin → admin
-      tx.update(newAdminMemberRef, {'role': OrgRole.admin.name});
-      // Memberships alter Admin
-      tx.update(_db.collection('users').doc(oldAdminUid), {
-        'memberships': FieldValue.arrayRemove([oldAdminOldMembership.toMap()]),
-      });
-      tx.update(_db.collection('users').doc(oldAdminUid), {
-        'memberships': FieldValue.arrayUnion([oldAdminNewMembership.toMap()]),
-      });
-      // Memberships neuer Admin
-      tx.update(_db.collection('users').doc(newAdminUid), {
-        'memberships': FieldValue.arrayRemove([newAdminOldMembership.toMap()]),
-      });
-      tx.update(_db.collection('users').doc(newAdminUid), {
-        'memberships': FieldValue.arrayUnion([newAdminNewMembership.toMap()]),
-      });
-    });
-    final newAdminName = snap.data()!['displayName'] as String? ?? '';
-    await _logAudit(orgId, AuditAction.adminTransferred,
-        {'newAdminName': newAdminName});
-  }
-
-  Future<void> updateMemberRole(String orgId, String targetUid, OrgRole newRole) async {
-    // Block non-child roles for child accounts.
-    if (newRole != OrgRole.child) {
-      final userSnap = await _db.collection('users').doc(targetUid).get();
-      final isChildAccount = userSnap.data()?['isChild'] as bool? ?? false;
-      if (isChildAccount) {
-        throw Exception('child_account_role_locked');
-      }
-    }
-
-    final memberDoc = _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('members')
-        .doc(targetUid);
-
-    final snap = await memberDoc.get();
-    if (!snap.exists) return;
-
-    final oldRole = OrgRole.values.byName(snap.data()!['role'] as String);
-    final oldMembership = OrgMembership(orgId: orgId, role: oldRole);
-    final newMembership = OrgMembership(orgId: orgId, role: newRole);
-
-    final memberName = snap.data()!['displayName'] as String? ?? '';
-    await _db.runTransaction((tx) async {
-      tx.update(memberDoc, {'role': newRole.name});
-      tx.update(_db.collection('users').doc(targetUid), {
-        'memberships': FieldValue.arrayRemove([oldMembership.toMap()]),
-      });
-      tx.update(_db.collection('users').doc(targetUid), {
-        'memberships': FieldValue.arrayUnion([newMembership.toMap()]),
-      });
-    });
-    await _logAudit(orgId, AuditAction.roleChanged, {
-      'name': memberName,
-      'oldRole': oldRole.name,
-      'newRole': newRole.name,
-    });
-  }
-
-  Stream<List<Organization>> watchMyOrganizations() {
-    return _db
-        .collection('organizations')
-        .where('memberUids', arrayContains: _uid)
-        .snapshots()
-        .map((snap) => snap.docs.map(Organization.fromFirestore).toList());
-  }
-
-  Stream<Organization> watchOrganization(String orgId) {
-    return _db
-        .collection('organizations')
-        .doc(orgId)
-        .snapshots()
-        .map(Organization.fromFirestore);
+    await _db.updateDocument(
+      databaseId: _dbId,
+      collectionId: _colMembers,
+      documentId: '${orgId}_$_uid',
+      data: {'childAlertInterval': interval.name},
+    );
   }
 
   Future<void> setOrgMessageInterval(
       String orgId, MessageAlertInterval interval) async {
-    await _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('members')
-        .doc(_uid)
-        .update({
-      'messageAlertInterval': interval.name,
-      'notificationsEnabled': interval != MessageAlertInterval.never,
-    });
-  }
-
-  Stream<List<OrgMember>> watchMembers(String orgId) {
-    return _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('members')
-        .snapshots()
-        .map((snap) => snap.docs.map(OrgMember.fromFirestore).toList());
-  }
-
-  // ── Mitglied-Vorschläge ──────────────────────────────────────────────────
-
-  Future<void> suggestMember(String orgId, String email, OrgRole role,
-      {List<String> guardianUids = const []}) async {
-    final normalizedEmail = email.toLowerCase().trim();
-    final currentUser = _auth.currentUser!;
-
-    await _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('memberSuggestions')
-        .add({
-      'email': normalizedEmail,
-      'role': role.name,
-      'guardianUids': guardianUids,
-      'suggestedByUid': _uid,
-      'suggestedByName': currentUser.displayName ?? currentUser.email ?? '',
-      'orgId': orgId,
-      'status': 'pending',
-      'createdAt': Timestamp.now(),
-    });
-  }
-
-  Stream<List<MemberSuggestion>> watchPendingSuggestions(String orgId) {
-    return _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('memberSuggestions')
-        .where('status', isEqualTo: 'pending')
-        .orderBy('createdAt')
-        .snapshots()
-        .map((s) => s.docs.map(MemberSuggestion.fromFirestore).toList());
-  }
-
-  Future<void> approveSuggestion(String orgId, String suggestionId,
-      String email, OrgRole role, List<String> guardianUids) async {
-    final normalizedEmail = email.toLowerCase().trim();
-    var isChild = role == OrgRole.child;
-
-    // Prüfen ob User bereits registriert ist
-    final query = await _db
-        .collection('users')
-        .where('email', isEqualTo: normalizedEmail)
-        .limit(1)
-        .get();
-
-    if (query.docs.isNotEmpty) {
-      // ── Bereits registriert → direkt hinzufügen ──────────────────────────
-      final userDoc = query.docs.first;
-      final targetUid = userDoc.id;
-      final userData = userDoc.data();
-
-      // Kind-Konten dürfen nur mit Rolle 'Kind' hinzugefügt werden
-      final isChildAccount = userData['isChild'] as bool? ?? false;
-      if (isChildAccount && role != OrgRole.child) {
-        throw Exception('child_account_role_locked');
-      }
-      final effectiveRole = isChildAccount ? OrgRole.child : role;
-      isChild = effectiveRole == OrgRole.child;
-
-      final memberDoc = _db
-          .collection('organizations')
-          .doc(orgId)
-          .collection('members')
-          .doc(targetUid);
-
-      final existing = await memberDoc.get();
-      if (!existing.exists) {
-        final membership = OrgMembership(orgId: orgId, role: effectiveRole);
-        await _db.runTransaction((tx) async {
-          tx.set(
-            memberDoc,
-            OrgMember(
-              uid: targetUid,
-              displayName: userData['displayName'] as String,
-              email: userData['email'] as String,
-              photoUrl: userData['photoUrl'] as String?,
-              role: effectiveRole,
-              joinedAt: DateTime.now(),
-              guardianUids: isChild ? guardianUids : [],
-              status: isChild ? MemberStatus.pending : MemberStatus.active,
-            ).toFirestore(),
-          );
-          if (!isChild) {
-            tx.update(_db.collection('organizations').doc(orgId), {
-              'memberUids': FieldValue.arrayUnion([targetUid]),
-            });
-            tx.update(_db.collection('users').doc(targetUid), {
-              'memberships': FieldValue.arrayUnion([membership.toMap()]),
-            });
-          }
-        });
-      }
-    } else {
-      // ── Noch nicht registriert → Einladung anlegen / aktualisieren ───────
-      final orgDoc =
-          await _db.collection('organizations').doc(orgId).get();
-      final orgName = orgDoc.data()?['name'] as String? ?? '';
-
-      final existingInvite = await _db
-          .collection('invitations')
-          .where('email', isEqualTo: normalizedEmail)
-          .where('orgId', isEqualTo: orgId)
-          .where('status', isEqualTo: 'pending')
-          .limit(1)
-          .get();
-
-      if (existingInvite.docs.isNotEmpty) {
-        // Vorhandene Einladung aktualisieren (kein Fehler bei Duplikat)
-        final existingId = existingInvite.docs.first.id;
-        await existingInvite.docs.first.reference.update({
-          'role': role.name,
-          'guardianUids': guardianUids,
-          'invitedBy': _uid,
-          'updatedAt': Timestamp.now(),
-        });
-        await _writeInvitationLookup(normalizedEmail, existingId, orgId);
-      } else {
-        final inviteRef = await _db.collection('invitations').add({
-          'email': normalizedEmail,
-          'orgId': orgId,
-          'orgName': orgName,
-          'role': role.name,
-          'guardianUids': guardianUids,
-          'invitedBy': _uid,
-          'status': 'pending',
-          'createdAt': Timestamp.now(),
-        });
-        await _writeInvitationLookup(normalizedEmail, inviteRef.id, orgId);
-      }
-    }
-
-    // Vorschlag als angenommen markieren
-    await _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('memberSuggestions')
-        .doc(suggestionId)
-        .update({'status': 'approved'});
-  }
-
-  Future<void> rejectSuggestion(String orgId, String suggestionId) async {
-    await _db
-        .collection('organizations')
-        .doc(orgId)
-        .collection('memberSuggestions')
-        .doc(suggestionId)
-        .update({'status': 'rejected'});
-  }
-
-  /// Speichert eine Einladungs-ID in einem Lookup-Dokument, das direkt per
-  /// E-Mail-Adresse abrufbar ist (kein List-Query nötig → keine Regel-Probleme).
-  /// orgId wird mitgespeichert damit die Firestore-Rule den Schreibzugriff
-  /// auf Admins/Mods der jeweiligen Org beschränken kann.
-  Future<void> _writeInvitationLookup(
-      String normalizedEmail, String invitationId, String orgId) async {
-    await _db.collection('invitationLookup').doc(normalizedEmail).set(
-      {
-        'invitationIds': FieldValue.arrayUnion([invitationId]),
-        'orgId': orgId,
+    await _db.updateDocument(
+      databaseId: _dbId,
+      collectionId: _colMembers,
+      documentId: '${orgId}_$_uid',
+      data: {
+        'messageAlertInterval': interval.name,
+        'notificationsEnabled': interval != MessageAlertInterval.never,
       },
-      SetOptions(merge: true),
     );
   }
 
-  // ── Adressbuch & Datenschutz ─────────────────────────────────────────────
-
-  /// Setzt hideEmail im User-Dokument und batch-updated alle Member-Dokumente.
-  Future<void> setHideEmail(bool hideEmail) async {
-    final userDoc = await _db.collection('users').doc(_uid).get();
-    final memberships = List<Map<String, dynamic>>.from(
-        userDoc.data()?['memberships'] as List? ?? []);
-
-    final batch = _db.batch();
-    batch.update(_db.collection('users').doc(_uid), {'hideEmail': hideEmail});
-    for (final m in memberships) {
-      final orgId = m['orgId'] as String?;
-      if (orgId == null) continue;
-      batch.update(
-        _db.collection('organizations').doc(orgId).collection('members').doc(_uid),
-        {'hideEmail': hideEmail},
-      );
-    }
-    await batch.commit();
+  Future<void> updateKeywords(String orgId, List<String> keywords) async {
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colOrgs,
+        documentId: orgId,
+        data: {'keywords': keywords});
   }
 
-  /// Gibt aktive Mitglieder aus allen anderen Orgs des Nutzers zurück,
-  /// ohne bereits in [excludeOrgId] vorhandene Mitglieder.
-  Future<List<OrgMember>> getAddressBook(String excludeOrgId) async {
-    final userDoc = await _db.collection('users').doc(_uid).get();
-    final memberships = List<Map<String, dynamic>>.from(
-        userDoc.data()?['memberships'] as List? ?? []);
+  // ── Adressbuch ─────────────────────────────────────────────────────────────
 
-    final currentOrgSnap = await _db
-        .collection('organizations')
-        .doc(excludeOrgId)
-        .collection('members')
-        .get();
-    final currentOrgUids = currentOrgSnap.docs.map((d) => d.id).toSet();
+  Future<List<OrgMember>> getAddressBook(String excludeOrgId) async {
+    final userDoc = await _db.getDocument(
+        databaseId: _dbId, collectionId: 'users', documentId: _uid);
+    final membershipsJson = userDoc.data['membershipsJson'] as String?;
+    if (membershipsJson == null || membershipsJson.isEmpty) return [];
+    final memberships =
+        List<Map<String, dynamic>>.from(_decodeMemberships(membershipsJson));
+
+    // Aktuelle Org-Mitglieder ermitteln (zum Ausschluss)
+    final currentOrgResult = await _db.listDocuments(
+      databaseId: _dbId,
+      collectionId: _colMembers,
+      queries: [Query.equal('orgId', excludeOrgId), Query.limit(500)],
+    );
+    final currentOrgUids =
+        currentOrgResult.documents.map((d) => d.data['uid'] as String).toSet();
 
     final Map<String, OrgMember> result = {};
     for (final m in memberships) {
       final orgId = m['orgId'] as String?;
       if (orgId == null || orgId == excludeOrgId) continue;
       try {
-        final snap = await _db
-            .collection('organizations')
-            .doc(orgId)
-            .collection('members')
-            .where('status', isEqualTo: 'active')
-            .get();
-        for (final doc in snap.docs) {
-          final uid = doc.id;
-          if (uid == _uid) continue;
-          if (currentOrgUids.contains(uid)) continue;
-          result.putIfAbsent(uid, () => OrgMember.fromFirestore(doc));
+        final snap = await _db.listDocuments(
+          databaseId: _dbId,
+          collectionId: _colMembers,
+          queries: [
+            Query.equal('orgId', orgId),
+            Query.equal('status', 'active'),
+            Query.limit(200),
+          ],
+        );
+        for (final doc in snap.documents) {
+          final uid = doc.data['uid'] as String;
+          if (uid == _uid || currentOrgUids.contains(uid)) continue;
+          result.putIfAbsent(uid,
+              () => OrgMember.fromAppwrite({r'$id': doc.$id, ...doc.data}));
         }
-      } catch (_) {
-        // Skip orgs where the member doc is stale or the org was deleted.
-      }
+      } catch (_) {}
     }
-
-    final list = result.values.toList()
+    return result.values.toList()
       ..sort((a, b) => a.displayName.compareTo(b.displayName));
-    return list;
   }
 
-  // ── Ankündigungen (Pinnwand) ───────────────────────────────────────────────
+  // ── Mitglied-Vorschläge (stub) ─────────────────────────────────────────────
 
-  CollectionReference<Map<String, dynamic>> _announcementsRef(String orgId) =>
-      _db.collection('organizations').doc(orgId).collection('announcements');
+  Future<void> suggestMember(String orgId, String email, OrgRole role,
+      {List<String> guardianUids = const []}) async {
+    // TODO: add member_suggestions collection to Appwrite schema
+  }
+
+  Stream<List<MemberSuggestion>> watchPendingSuggestions(String orgId) =>
+      Stream.value([]);
+
+  Future<void> approveSuggestion(String orgId, String suggestionId,
+      String email, OrgRole role, List<String> guardianUids) async {
+    await inviteMember(orgId, email, role, guardianUids: guardianUids);
+  }
+
+  Future<void> rejectSuggestion(String orgId, String suggestionId) async {}
+
+  // ── Ankündigungen ──────────────────────────────────────────────────────────
 
   Stream<List<Announcement>> watchAnnouncements(String orgId) {
-    return _announcementsRef(orgId)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((s) => s.docs.map(Announcement.fromFirestore).toList());
+    return _watchCollection<Announcement>(
+      _colAnnouncements,
+      Announcement.fromAppwrite,
+      [
+        Query.equal('orgId', orgId),
+        Query.orderDesc('createdAt'),
+      ],
+    );
   }
 
-  Future<void> createAnnouncement(
-      String orgId, String title, String content,
+  Future<void> createAnnouncement(String orgId, String title, String content,
       {DateTime? expiresAt}) async {
-    final user = _auth.currentUser!;
-    final ref = _announcementsRef(orgId).doc();
-    await ref.set(Announcement(
-      id: ref.id,
+    final ann = Announcement(
+      id: '',
       title: title,
       content: content,
-      authorUid: user.uid,
-      authorName: user.displayName ?? user.email ?? '',
+      authorUid: _uid,
+      authorName: _displayName,
       createdAt: DateTime.now(),
       expiresAt: expiresAt,
-    ).toFirestore());
+    );
+    await _db.createDocument(
+      databaseId: _dbId,
+      collectionId: _colAnnouncements,
+      documentId: ID.unique(),
+      data: {...ann.toAppwrite(), 'orgId': orgId},
+      permissions: [Permission.read(Role.users())],
+    );
   }
 
   Future<void> editAnnouncement(
-      String orgId, String announcementId, String title, String content,
+      String orgId, String annId, String title, String content,
       {DateTime? expiresAt, bool clearExpiry = false}) async {
-    await _announcementsRef(orgId).doc(announcementId).update({
+    final updates = <String, dynamic>{
       'title': title,
       'content': content,
-      'updatedAt': Timestamp.fromDate(DateTime.now()),
-      if (expiresAt != null) 'expiresAt': Timestamp.fromDate(expiresAt),
-      if (clearExpiry) 'expiresAt': FieldValue.delete(),
-    });
+      'updatedAt': DateTime.now().toIso8601String(),
+      if (expiresAt != null) 'expiresAt': expiresAt.toIso8601String(),
+      if (clearExpiry) 'expiresAt': null,
+    };
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colAnnouncements,
+        documentId: annId,
+        data: updates);
   }
 
-  Future<void> deleteAnnouncement(
-      String orgId, String announcementId) async {
-    await _announcementsRef(orgId).doc(announcementId).delete();
+  Future<void> deleteAnnouncement(String orgId, String annId) async {
+    await _db.deleteDocument(
+        databaseId: _dbId, collectionId: _colAnnouncements, documentId: annId);
   }
 
   Future<void> reactToAnnouncement(
-      String orgId, String announcementId, String uid, String? emoji) async {
-    final ref = _announcementsRef(orgId).doc(announcementId);
+      String orgId, String annId, String uid, String? emoji) async {
+    final doc = await _db.getDocument(
+        databaseId: _dbId, collectionId: _colAnnouncements, documentId: annId);
+    final ann = Announcement.fromAppwrite({r'$id': doc.$id, ...doc.data});
+    final reactions = Map<String, String>.from(ann.reactions);
     if (emoji == null) {
-      await ref.update({'reactions.$uid': FieldValue.delete()});
+      reactions.remove(uid);
     } else {
-      await ref.update({'reactions.$uid': emoji});
+      reactions[uid] = emoji;
     }
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colAnnouncements,
+        documentId: annId,
+        data: {'reactionsJson': _encodeJson(reactions)});
   }
 
-  // ── Termine (Events) ──────────────────────────────────────────────────────
+  // ── Termine (Events) ───────────────────────────────────────────────────────
 
   Future<void> createEvent(
     String orgId,
@@ -860,26 +800,31 @@ class OrganizationService {
     String? location,
     bool rsvpPublic = false,
   }) async {
-    final user = _auth.currentUser!;
-    final ref = _announcementsRef(orgId).doc();
-    await ref.set(Announcement(
-      id: ref.id,
+    final ann = Announcement(
+      id: '',
       title: title,
       content: content,
-      authorUid: user.uid,
-      authorName: user.displayName ?? user.email ?? '',
+      authorUid: _uid,
+      authorName: _displayName,
       createdAt: DateTime.now(),
       type: AnnouncementType.event,
       eventDate: eventDate,
       eventEndDate: eventEndDate,
       location: location,
       rsvpPublic: rsvpPublic,
-    ).toFirestore());
+    );
+    await _db.createDocument(
+      databaseId: _dbId,
+      collectionId: _colAnnouncements,
+      documentId: ID.unique(),
+      data: {...ann.toAppwrite(), 'orgId': orgId},
+      permissions: [Permission.read(Role.users())],
+    );
   }
 
   Future<void> editEvent(
     String orgId,
-    String announcementId,
+    String annId,
     String title,
     DateTime eventDate, {
     String content = '',
@@ -887,30 +832,201 @@ class OrganizationService {
     String? location,
     bool rsvpPublic = false,
   }) async {
-    await _announcementsRef(orgId).doc(announcementId).update({
-      'title': title,
-      'content': content,
-      'eventDate': Timestamp.fromDate(eventDate),
-      'updatedAt': Timestamp.fromDate(DateTime.now()),
-      if (eventEndDate != null)
-        'eventEndDate': Timestamp.fromDate(eventEndDate)
-      else
-        'eventEndDate': FieldValue.delete(),
-      if (location != null && location.isNotEmpty)
-        'location': location
-      else
-        'location': FieldValue.delete(),
-      'rsvpPublic': rsvpPublic,
-    });
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colAnnouncements,
+        documentId: annId,
+        data: {
+          'title': title,
+          'content': content,
+          'eventDate': eventDate.toIso8601String(),
+          'updatedAt': DateTime.now().toIso8601String(),
+          'eventEndDate': eventEndDate?.toIso8601String(),
+          'location':
+              (location != null && location.isNotEmpty) ? location : null,
+          'rsvpPublic': rsvpPublic,
+        });
   }
 
   Future<void> respondToEvent(
-      String orgId, String announcementId, String uid, RsvpStatus? status) async {
-    final ref = _announcementsRef(orgId).doc(announcementId);
+      String orgId, String annId, String uid, RsvpStatus? status) async {
+    final doc = await _db.getDocument(
+        databaseId: _dbId, collectionId: _colAnnouncements, documentId: annId);
+    final ann = Announcement.fromAppwrite({r'$id': doc.$id, ...doc.data});
+    final rsvp = Map<String, String>.from(ann.rsvp);
     if (status == null) {
-      await ref.update({'rsvp.$uid': FieldValue.delete()});
+      rsvp.remove(uid);
     } else {
-      await ref.update({'rsvp.$uid': status.toFirestore()});
+      rsvp[uid] = status.toFirestore();
+    }
+    await _db.updateDocument(
+        databaseId: _dbId,
+        collectionId: _colAnnouncements,
+        documentId: annId,
+        data: {'rsvpJson': _encodeJson(rsvp)});
+  }
+
+  // ── Benachrichtigungsintervall (Realtime) ──────────────────────────────────
+
+  Stream<MessageAlertInterval> watchOrgMessageInterval(String orgId) {
+    final memberId = '${orgId}_$_uid';
+    StreamController<MessageAlertInterval>? ctrl;
+    StreamSubscription? realtimeSub;
+
+    Future<void> reload() async {
+      if (ctrl == null || ctrl.isClosed) return;
+      try {
+        final doc = await _db.getDocument(
+            databaseId: _dbId,
+            collectionId: _colMembers,
+            documentId: memberId);
+        final name = doc.data['messageAlertInterval'] as String?;
+        final interval = MessageAlertInterval.values
+                .where((e) => e.name == name)
+                .firstOrNull ??
+            MessageAlertInterval.always;
+        if (!ctrl.isClosed) ctrl.add(interval);
+      } catch (_) {
+        if (ctrl != null && !ctrl.isClosed) {
+          ctrl.add(MessageAlertInterval.always);
+        }
+      }
+    }
+
+    void dispose() {
+      realtimeSub?.cancel();
+      ctrl?.close();
+    }
+
+    ctrl = StreamController(onCancel: dispose);
+    realtimeSub = _realtime
+        .subscribe([
+          'databases.$_dbId.collections.$_colMembers.documents.$memberId'
+        ])
+        .stream
+        .listen((_) => reload(), onDone: dispose, onError: (_) {});
+    reload();
+    return ctrl.stream;
+  }
+
+  // ── User Display Name ──────────────────────────────────────────────────────
+
+  Future<String> getUserDisplayName(String uid) async {
+    try {
+      final doc = await _db.getDocument(
+          databaseId: _dbId, collectionId: 'users', documentId: uid);
+      return doc.data['displayName'] as String? ?? uid;
+    } catch (_) {
+      return uid;
+    }
+  }
+
+  // ── Hilfsmethoden ──────────────────────────────────────────────────────────
+
+  Future<void> _arrayAdd(
+      String col, String docId, String field, String value) async {
+    final doc = await _db.getDocument(
+        databaseId: _dbId, collectionId: col, documentId: docId);
+    final list = List<String>.from(doc.data[field] as List? ?? []);
+    if (!list.contains(value)) {
+      list.add(value);
+      await _db.updateDocument(
+          databaseId: _dbId,
+          collectionId: col,
+          documentId: docId,
+          data: {field: list});
+    }
+  }
+
+  Future<void> _arrayRemove(
+      String col, String docId, String field, String value) async {
+    final doc = await _db.getDocument(
+        databaseId: _dbId, collectionId: col, documentId: docId);
+    final list = List<String>.from(doc.data[field] as List? ?? []);
+    if (list.remove(value)) {
+      await _db.updateDocument(
+          databaseId: _dbId,
+          collectionId: col,
+          documentId: docId,
+          data: {field: list});
+    }
+  }
+
+  Future<void> _updateMembershipsJson(
+      String targetUid, OrgMembership membership,
+      {required bool add}) async {
+    try {
+      final doc = await _db.getDocument(
+          databaseId: _dbId, collectionId: 'users', documentId: targetUid);
+      final raw = doc.data['membershipsJson'] as String?;
+      final memberships = raw != null && raw.isNotEmpty
+          ? List<Map<String, dynamic>>.from(_decodeMemberships(raw))
+          : <Map<String, dynamic>>[];
+      if (add) {
+        if (!memberships.any((m) => m['orgId'] == membership.orgId)) {
+          memberships.add(membership.toMap());
+        }
+      } else {
+        memberships.removeWhere((m) =>
+            m['orgId'] == membership.orgId &&
+            m['role'] == membership.role.name);
+      }
+      await _db.updateDocument(
+          databaseId: _dbId,
+          collectionId: 'users',
+          documentId: targetUid,
+          data: {'membershipsJson': _encodeJson(memberships)});
+    } catch (_) {}
+  }
+
+  Future<aw.Document?> _safeGetDocument(String col, String docId) async {
+    try {
+      return await _db.getDocument(
+          databaseId: _dbId, collectionId: col, documentId: docId);
+    } on AppwriteException catch (e) {
+      if (e.code == 404) return null;
+      rethrow;
+    }
+  }
+
+  static List<dynamic> _decodeMemberships(String raw) {
+    try {
+      final decoded = jsonDecode(raw);
+      return decoded is List ? decoded : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static String _encodeJson(dynamic obj) => jsonEncode(obj);
+
+  Stream<List<OrgAuditEntry>> watchAuditLog(String orgId) {
+    return _watchCollection<OrgAuditEntry>(
+      _colAuditLog,
+      (data) => OrgAuditEntry.fromAppwrite(data),
+      [Query.equal('orgId', orgId), Query.orderDesc('timestamp'), Query.limit(100)],
+    );
+  }
+
+  Future<void> _logAuditEvent(
+      String orgId, AuditAction action, Map<String, dynamic> details) async {
+    try {
+      final entry = OrgAuditEntry(
+        id: ID.unique(),
+        actorUid: _uid,
+        actorName: _displayName,
+        action: action,
+        details: details,
+        timestamp: DateTime.now(),
+      );
+      await _db.createDocument(
+        databaseId: _dbId,
+        collectionId: _colAuditLog,
+        documentId: entry.id,
+        data: entry.toAppwrite(orgId),
+      );
+    } catch (e) {
+      debugPrint('[AuditLog] _logAuditEvent failed: $e');
     }
   }
 }

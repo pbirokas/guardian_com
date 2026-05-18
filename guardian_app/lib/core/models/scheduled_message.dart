@@ -40,4 +40,24 @@ class ScheduledMessage {
         'scheduledFor': Timestamp.fromDate(scheduledFor),
         'createdAt': Timestamp.fromDate(createdAt),
       };
+
+  factory ScheduledMessage.fromAppwrite(Map<String, dynamic> data) =>
+      ScheduledMessage(
+        id: data[r'$id'] as String,
+        convId: data['convId'] as String,
+        text: data['text'] as String,
+        senderUid: data['senderUid'] as String,
+        senderName: data['senderName'] as String? ?? '',
+        scheduledFor: DateTime.parse(data['scheduledFor'] as String),
+        createdAt: DateTime.parse(data['createdAt'] as String),
+      );
+
+  Map<String, dynamic> toAppwrite() => {
+        'convId': convId,
+        'text': text,
+        'senderUid': senderUid,
+        'senderName': senderName,
+        'scheduledFor': scheduledFor.toIso8601String(),
+        'createdAt': createdAt.toIso8601String(),
+      };
 }

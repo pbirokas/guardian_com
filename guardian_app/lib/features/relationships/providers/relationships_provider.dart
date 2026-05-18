@@ -1,11 +1,20 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/appwrite_client.dart';
 import '../../../core/models/claim_request.dart';
 import '../../../core/models/org_invite_consent.dart';
 import '../../../core/services/parent_claim_service.dart';
 import '../../auth/providers/auth_provider.dart';
 
-final parentClaimServiceProvider =
-    Provider<ParentClaimService>((ref) => ParentClaimService());
+final parentClaimServiceProvider = Provider<ParentClaimService>((ref) {
+  final user = ref.watch(authStateProvider).value;
+  final client = ref.watch(appwriteClientProvider);
+  return ParentClaimService(
+    client: client,
+    uid: user?.uid ?? '',
+    displayName: user?.displayName ?? '',
+    email: user?.email ?? '',
+  );
+});
 
 /// Pending incoming ClaimRequests for the current user (child perspective).
 final incomingClaimRequestsProvider =

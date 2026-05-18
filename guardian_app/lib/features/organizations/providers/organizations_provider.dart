@@ -1,6 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/appwrite_client.dart';
 import '../../../core/models/announcement.dart';
 import '../../../core/models/app_user.dart';
 import '../../../core/models/member_suggestion.dart';
@@ -10,8 +9,16 @@ import '../../../core/models/org_member.dart';
 import '../../../core/services/organization_service.dart';
 import '../../auth/providers/auth_provider.dart';
 
-final organizationServiceProvider =
-    Provider<OrganizationService>((ref) => OrganizationService());
+final organizationServiceProvider = Provider<OrganizationService>((ref) {
+  final user = ref.watch(authStateProvider).value;
+  final client = ref.watch(appwriteClientProvider);
+  return OrganizationService(
+    client: client,
+    uid: user?.uid ?? '',
+    displayName: user?.displayName ?? '',
+    email: user?.email,
+  );
+});
 
 final myOrganizationsProvider = StreamProvider<List<Organization>>((ref) {
   ref.watch(authStateProvider);
@@ -30,23 +37,15 @@ final orgMembersProvider =
   return ref.watch(organizationServiceProvider).watchMembers(orgId);
 });
 
-/// Aktueller eingeloggter AppUser (mit Memberships)
-final currentAppUserProvider = StreamProvider<AppUser?>((ref) {
-  ref.watch(authStateProvider);
-  final uid = FirebaseAuth.instance.currentUser?.uid;
-  if (uid == null) return Stream.value(null);
-  return FirebaseFirestore.instance
-      .collection('users')
-      .doc(uid)
-      .snapshots()
-      .map((s) => s.exists ? AppUser.fromFirestore(s) : null);
+/// Aktueller eingeloggter AppUser — abgeleitet aus dem Appwrite Auth-State
+final currentAppUserProvider = Provider<AsyncValue<AppUser?>>((ref) {
+  return ref.watch(authStateProvider);
 });
 
 /// Ausstehende Kind-Einladungen für den aktuellen Guardian in einer Org
 final pendingChildInvitesProvider =
     StreamProvider.family<List<OrgMember>, String>((ref, orgId) {
-  ref.watch(authStateProvider);
-  final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = ref.watch(authStateProvider).value?.uid;
   if (uid == null) return Stream.value([]);
   return ref
       .watch(organizationServiceProvider)
@@ -56,8 +55,7 @@ final pendingChildInvitesProvider =
 /// Ausstehende Pre-Registration Einladungen für den aktuellen Guardian
 final pendingPreRegInvitesProvider =
     StreamProvider.family<List<Map<String, dynamic>>, String>((ref, orgId) {
-  ref.watch(authStateProvider);
-  final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = ref.watch(authStateProvider).value?.uid;
   if (uid == null) return Stream.value([]);
   return ref
       .watch(organizationServiceProvider)
@@ -76,43 +74,17 @@ final pendingMemberSuggestionsProvider =
 /// Globale Benachrichtigungseinstellungen des eingeloggten Nutzers
 final notificationSettingsProvider =
     StreamProvider<NotificationSettings>((ref) {
-  ref.watch(authStateProvider);
-  final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = ref.watch(authStateProvider).value?.uid;
   if (uid == null) return Stream.value(const NotificationSettings());
-  return FirebaseFirestore.instance
-      .collection('users')
-      .doc(uid)
-      .snapshots()
-      .map((s) => NotificationSettings.fromMap(
-            s.data()?['notificationSettings'] as Map<String, dynamic>?,
-          ));
+  return ref.watch(authServiceProvider).watchNotificationSettings(uid);
 });
 
 /// Benachrichtigungsintervall für eine bestimmte Org (eigener Member-Doc-Eintrag)
 final orgMessageIntervalProvider =
     StreamProvider.family<MessageAlertInterval, String>((ref, orgId) {
-  ref.watch(authStateProvider);
-  final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = ref.watch(authStateProvider).value?.uid;
   if (uid == null) return Stream.value(MessageAlertInterval.always);
-  return FirebaseFirestore.instance
-      .collection('organizations')
-      .doc(orgId)
-      .collection('members')
-      .doc(uid)
-      .snapshots()
-      .map((s) {
-    final data = s.data();
-    // Legacy: if notificationsEnabled is false, treat as never
-    if (data?['notificationsEnabled'] == false &&
-        data?['messageAlertInterval'] == null) {
-      return MessageAlertInterval.never;
-    }
-    final name = data?['messageAlertInterval'] as String?;
-    return MessageAlertInterval.values
-            .where((e) => e.name == name)
-            .firstOrNull ??
-        MessageAlertInterval.always;
-  });
+  return ref.watch(organizationServiceProvider).watchOrgMessageInterval(orgId);
 });
 
 final announcementsProvider =
@@ -123,7 +95,6 @@ final announcementsProvider =
 
 /// Display-Name eines beliebigen Nutzers (gecacht pro UID durch Riverpod)
 final userDisplayNameProvider =
-    FutureProvider.family<String, String>((ref, uid) async {
-  final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-  return doc.data()?['displayName'] as String? ?? uid;
+    FutureProvider.family<String, String>((ref, uid) {
+  return ref.watch(organizationServiceProvider).getUserDisplayName(uid);
 });

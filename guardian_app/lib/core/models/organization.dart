@@ -52,6 +52,7 @@ class Organization {
   final bool isArchived;
   final List<String> keywords;
   final int messageRetentionDays;
+  final int pendingReportsCount;
 
   static const int retentionMin = 30;
   static const int retentionMax = 365;
@@ -67,6 +68,7 @@ class Organization {
     this.isArchived = false,
     this.keywords = const [],
     this.messageRetentionDays = retentionDefault,
+    this.pendingReportsCount = 0,
   });
 
   factory Organization.fromFirestore(DocumentSnapshot doc) {
@@ -92,6 +94,32 @@ class Organization {
         'tag': tag.name,
         'memberUids': memberUids,
         'createdAt': Timestamp.fromDate(createdAt),
+        'isArchived': isArchived,
+        'keywords': keywords,
+        'messageRetentionDays': messageRetentionDays,
+      };
+
+  factory Organization.fromAppwrite(Map<String, dynamic> data) => Organization(
+        id: data[r'$id'] as String,
+        name: data['name'] as String,
+        adminUid: data['adminUid'] as String,
+        tag: OrgTag.values.byName(data['tag'] as String? ?? 'sonstiges'),
+        memberUids: List<String>.from(data['memberUids'] as List? ?? []),
+        createdAt: DateTime.parse(data['createdAt'] as String),
+        isArchived: data['isArchived'] as bool? ?? false,
+        keywords: List<String>.from(data['keywords'] as List? ?? []),
+        messageRetentionDays:
+            (data['messageRetentionDays'] as int? ?? retentionDefault)
+                .clamp(retentionMin, retentionMax),
+        pendingReportsCount: data['pendingReportsCount'] as int? ?? 0,
+      );
+
+  Map<String, dynamic> toAppwrite() => {
+        'name': name,
+        'adminUid': adminUid,
+        'tag': tag.name,
+        'memberUids': memberUids,
+        'createdAt': createdAt.toIso8601String(),
         'isArchived': isArchived,
         'keywords': keywords,
         'messageRetentionDays': messageRetentionDays,

@@ -248,6 +248,48 @@ abstract class AppLocalizations {
   /// **'Mit Google anmelden'**
   String get signInWithGoogle;
 
+  /// No description provided for @googleSignInHint.
+  ///
+  /// In de, this message translates to:
+  /// **'Bereits ein Konto? Melde dich per E-Mail an und verknüpfe Google danach im Profil.'**
+  String get googleSignInHint;
+
+  /// No description provided for @connectedAccounts.
+  ///
+  /// In de, this message translates to:
+  /// **'Verbundene Konten'**
+  String get connectedAccounts;
+
+  /// No description provided for @linkGoogle.
+  ///
+  /// In de, this message translates to:
+  /// **'Mit Google verknüpfen'**
+  String get linkGoogle;
+
+  /// No description provided for @googleLinked.
+  ///
+  /// In de, this message translates to:
+  /// **'Google-Konto erfolgreich verknüpft.'**
+  String get googleLinked;
+
+  /// No description provided for @googleLinkedStatus.
+  ///
+  /// In de, this message translates to:
+  /// **'Verknüpft'**
+  String get googleLinkedStatus;
+
+  /// No description provided for @unlinkGoogle.
+  ///
+  /// In de, this message translates to:
+  /// **'Google-Verknüpfung trennen'**
+  String get unlinkGoogle;
+
+  /// No description provided for @googleNotLinked.
+  ///
+  /// In de, this message translates to:
+  /// **'Noch nicht verknüpft'**
+  String get googleNotLinked;
+
   /// No description provided for @or.
   ///
   /// In de, this message translates to:
@@ -275,13 +317,13 @@ abstract class AppLocalizations {
   /// No description provided for @sendSignInLink.
   ///
   /// In de, this message translates to:
-  /// **'Anmeldelink senden'**
+  /// **'Code senden'**
   String get sendSignInLink;
 
   /// No description provided for @emailLinkHint.
   ///
   /// In de, this message translates to:
-  /// **'Wir senden dir einen Link per E-Mail.\nKein Passwort nötig.'**
+  /// **'Wir senden dir einen 6-stelligen Code per E-Mail.\nKein Passwort nötig.'**
   String get emailLinkHint;
 
   /// No description provided for @signInFailed.
@@ -293,14 +335,20 @@ abstract class AppLocalizations {
   /// No description provided for @linkSent.
   ///
   /// In de, this message translates to:
-  /// **'Link gesendet!'**
+  /// **'Code gesendet!'**
   String get linkSent;
 
   /// No description provided for @linkSentDescription.
   ///
   /// In de, this message translates to:
-  /// **'Wir haben einen Anmeldelink an\n{email} gesendet.'**
+  /// **'Wir haben einen 6-stelligen Code an\n{email} gesendet.'**
   String linkSentDescription(String email);
+
+  /// No description provided for @verifyCode.
+  ///
+  /// In de, this message translates to:
+  /// **'Bestätigen'**
+  String get verifyCode;
 
   /// No description provided for @desktopLinkInstructions.
   ///
@@ -319,6 +367,30 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Anmelden'**
   String get signIn;
+
+  /// No description provided for @password.
+  ///
+  /// In de, this message translates to:
+  /// **'Passwort'**
+  String get password;
+
+  /// No description provided for @register.
+  ///
+  /// In de, this message translates to:
+  /// **'Registrieren'**
+  String get register;
+
+  /// No description provided for @noAccount.
+  ///
+  /// In de, this message translates to:
+  /// **'Noch kein Konto? Registrieren'**
+  String get noAccount;
+
+  /// No description provided for @alreadyHaveAccount.
+  ///
+  /// In de, this message translates to:
+  /// **'Bereits ein Konto? Anmelden'**
+  String get alreadyHaveAccount;
 
   /// No description provided for @mobileLinkInstructions.
   ///
@@ -343,6 +415,18 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Ungültiger Link. Bitte prüfe die URL.'**
   String get invalidLink;
+
+  /// No description provided for @invalidCode.
+  ///
+  /// In de, this message translates to:
+  /// **'Bitte gib den vollständigen 6-stelligen Code ein.'**
+  String get invalidCode;
+
+  /// No description provided for @signInWithPassword.
+  ///
+  /// In de, this message translates to:
+  /// **'Mit Passwort anmelden'**
+  String get signInWithPassword;
 
   /// No description provided for @helpProfileTitle.
   ///
@@ -1309,24 +1393,6 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Rolle für {name}'**
   String roleFor(String name);
-
-  /// No description provided for @guardianFor.
-  ///
-  /// In de, this message translates to:
-  /// **'Guardian für {name}'**
-  String guardianFor(String name);
-
-  /// No description provided for @selectGuardianHint.
-  ///
-  /// In de, this message translates to:
-  /// **'Wähle mindestens einen Guardian für dieses Kind:'**
-  String get selectGuardianHint;
-
-  /// No description provided for @noGuardiansInOrg.
-  ///
-  /// In de, this message translates to:
-  /// **'Keine möglichen Guardians in dieser Organisation.'**
-  String get noGuardiansInOrg;
 
   /// No description provided for @removeMemberTitle.
   ///
@@ -3092,6 +3158,12 @@ abstract class AppLocalizations {
   /// **'Schlüsselwörter aktualisiert'**
   String get auditActionKeywordsChanged;
 
+  /// No description provided for @auditActionGuardiansChanged.
+  ///
+  /// In de, this message translates to:
+  /// **'Guardian geändert'**
+  String get auditActionGuardiansChanged;
+
   /// No description provided for @auditBy.
   ///
   /// In de, this message translates to:
@@ -3157,6 +3229,18 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Dieses Konto ist als Kind-Konto registriert. Bitte wähle die Rolle \'Kind\' und weise mindestens einen Guardian zu.'**
   String get errorChildAccountRoleLocked;
+
+  /// No description provided for @errorRemoveLastGuardianTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Entfernen nicht möglich'**
+  String get errorRemoveLastGuardianTitle;
+
+  /// No description provided for @errorRemoveLastGuardianContent.
+  ///
+  /// In de, this message translates to:
+  /// **'Dieses Mitglied ist der einzige Guardian eines oder mehrerer Kinder in dieser Organisation. Weise zuerst andere Guardians zu.'**
+  String get errorRemoveLastGuardianContent;
 
   /// No description provided for @editGroup.
   ///

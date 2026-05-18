@@ -53,7 +53,7 @@
             "databaseId": "guardian",
             "name": "Users",
             "enabled": true,
-            "rowSecurity": false,
+            "rowSecurity": true,
             "columns": [
                 {
                     "key": "email",
@@ -159,7 +159,7 @@
             "databaseId": "guardian",
             "name": "Organizations",
             "enabled": true,
-            "rowSecurity": false,
+            "rowSecurity": true,
             "columns": [
                 {
                     "key": "name",
@@ -258,7 +258,7 @@
             "databaseId": "guardian",
             "name": "Members",
             "enabled": true,
-            "rowSecurity": false,
+            "rowSecurity": true,
             "columns": [
                 {
                     "key": "orgId",
@@ -429,7 +429,7 @@
             "databaseId": "guardian",
             "name": "Conversations",
             "enabled": true,
-            "rowSecurity": false,
+            "rowSecurity": true,
             "columns": [
                 {
                     "key": "orgId",
@@ -655,7 +655,7 @@
             "databaseId": "guardian",
             "name": "ChatMessages",
             "enabled": true,
-            "rowSecurity": false,
+            "rowSecurity": true,
             "columns": [
                 {
                     "key": "convId",
@@ -734,8 +734,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854775808,
-                    "max": 9223372036854775807
+                    "min": -9223372036854776000,
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "pollId",
@@ -770,8 +770,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854775808,
-                    "max": 9223372036854775807
+                    "min": -9223372036854776000,
+                    "max": 9223372036854776000
                 },
                 {
                     "key": "editedAt",
@@ -942,7 +942,7 @@
             "databaseId": "guardian",
             "name": "Polls",
             "enabled": true,
-            "rowSecurity": false,
+            "rowSecurity": true,
             "columns": [
                 {
                     "key": "convId",
@@ -1199,7 +1199,7 @@
             "databaseId": "guardian",
             "name": "ScheduledMessages",
             "enabled": true,
-            "rowSecurity": false,
+            "rowSecurity": true,
             "columns": [
                 {
                     "key": "convId",
@@ -1773,6 +1773,23 @@
             "entrypoint": "src/main.js",
             "commands": "npm install",
             "path": "functions/revoke-connection",
+            "vars": {}
+        },
+        {
+            "$id": "merge-oauth-account",
+            "name": "merge-oauth-account",
+            "runtime": "node-16.0",
+            "execute": [
+                "users"
+            ],
+            "events": [],
+            "schedule": "",
+            "timeout": 30,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/merge-oauth-account",
             "vars": {}
         }
     ],

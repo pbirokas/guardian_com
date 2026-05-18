@@ -248,6 +248,48 @@ abstract class AppLocalizations {
   /// **'Mit Google anmelden'**
   String get signInWithGoogle;
 
+  /// No description provided for @googleSignInHint.
+  ///
+  /// In de, this message translates to:
+  /// **'Bereits ein Konto? Melde dich per E-Mail an und verknüpfe Google danach im Profil.'**
+  String get googleSignInHint;
+
+  /// No description provided for @connectedAccounts.
+  ///
+  /// In de, this message translates to:
+  /// **'Verbundene Konten'**
+  String get connectedAccounts;
+
+  /// No description provided for @linkGoogle.
+  ///
+  /// In de, this message translates to:
+  /// **'Mit Google verknüpfen'**
+  String get linkGoogle;
+
+  /// No description provided for @googleLinked.
+  ///
+  /// In de, this message translates to:
+  /// **'Google-Konto erfolgreich verknüpft.'**
+  String get googleLinked;
+
+  /// No description provided for @googleLinkedStatus.
+  ///
+  /// In de, this message translates to:
+  /// **'Verknüpft'**
+  String get googleLinkedStatus;
+
+  /// No description provided for @unlinkGoogle.
+  ///
+  /// In de, this message translates to:
+  /// **'Google-Verknüpfung trennen'**
+  String get unlinkGoogle;
+
+  /// No description provided for @googleNotLinked.
+  ///
+  /// In de, this message translates to:
+  /// **'Noch nicht verknüpft'**
+  String get googleNotLinked;
+
   /// No description provided for @or.
   ///
   /// In de, this message translates to:
@@ -275,13 +317,13 @@ abstract class AppLocalizations {
   /// No description provided for @sendSignInLink.
   ///
   /// In de, this message translates to:
-  /// **'Anmeldelink senden'**
+  /// **'Code senden'**
   String get sendSignInLink;
 
   /// No description provided for @emailLinkHint.
   ///
   /// In de, this message translates to:
-  /// **'Wir senden dir einen Link per E-Mail.\nKein Passwort nötig.'**
+  /// **'Wir senden dir einen 6-stelligen Code per E-Mail.\nKein Passwort nötig.'**
   String get emailLinkHint;
 
   /// No description provided for @signInFailed.
@@ -293,14 +335,20 @@ abstract class AppLocalizations {
   /// No description provided for @linkSent.
   ///
   /// In de, this message translates to:
-  /// **'Link gesendet!'**
+  /// **'Code gesendet!'**
   String get linkSent;
 
   /// No description provided for @linkSentDescription.
   ///
   /// In de, this message translates to:
-  /// **'Wir haben einen Anmeldelink an\n{email} gesendet.'**
+  /// **'Wir haben einen 6-stelligen Code an\n{email} gesendet.'**
   String linkSentDescription(String email);
+
+  /// No description provided for @verifyCode.
+  ///
+  /// In de, this message translates to:
+  /// **'Bestätigen'**
+  String get verifyCode;
 
   /// No description provided for @desktopLinkInstructions.
   ///
@@ -367,6 +415,18 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Ungültiger Link. Bitte prüfe die URL.'**
   String get invalidLink;
+
+  /// No description provided for @invalidCode.
+  ///
+  /// In de, this message translates to:
+  /// **'Bitte gib den vollständigen 6-stelligen Code ein.'**
+  String get invalidCode;
+
+  /// No description provided for @signInWithPassword.
+  ///
+  /// In de, this message translates to:
+  /// **'Mit Passwort anmelden'**
+  String get signInWithPassword;
 
   /// No description provided for @helpProfileTitle.
   ///

@@ -86,6 +86,28 @@ class AppLocalizationsDe extends AppLocalizations {
   String get signInWithGoogle => 'Mit Google anmelden';
 
   @override
+  String get googleSignInHint =>
+      'Bereits ein Konto? Melde dich per E-Mail an und verknüpfe Google danach im Profil.';
+
+  @override
+  String get connectedAccounts => 'Verbundene Konten';
+
+  @override
+  String get linkGoogle => 'Mit Google verknüpfen';
+
+  @override
+  String get googleLinked => 'Google-Konto erfolgreich verknüpft.';
+
+  @override
+  String get googleLinkedStatus => 'Verknüpft';
+
+  @override
+  String get unlinkGoogle => 'Google-Verknüpfung trennen';
+
+  @override
+  String get googleNotLinked => 'Noch nicht verknüpft';
+
+  @override
   String get or => 'oder';
 
   @override
@@ -98,11 +120,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get invalidEmailAddress => 'Ungültige E-Mail-Adresse';
 
   @override
-  String get sendSignInLink => 'Anmeldelink senden';
+  String get sendSignInLink => 'Code senden';
 
   @override
   String get emailLinkHint =>
-      'Wir senden dir einen Link per E-Mail.\nKein Passwort nötig.';
+      'Wir senden dir einen 6-stelligen Code per E-Mail.\nKein Passwort nötig.';
 
   @override
   String signInFailed(String error) {
@@ -110,12 +132,15 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get linkSent => 'Link gesendet!';
+  String get linkSent => 'Code gesendet!';
 
   @override
   String linkSentDescription(String email) {
-    return 'Wir haben einen Anmeldelink an\n$email gesendet.';
+    return 'Wir haben einen 6-stelligen Code an\n$email gesendet.';
   }
+
+  @override
+  String get verifyCode => 'Bestätigen';
 
   @override
   String get desktopLinkInstructions =>
@@ -151,6 +176,12 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get invalidLink => 'Ungültiger Link. Bitte prüfe die URL.';
+
+  @override
+  String get invalidCode => 'Bitte gib den vollständigen 6-stelligen Code ein.';
+
+  @override
+  String get signInWithPassword => 'Mit Passwort anmelden';
 
   @override
   String get helpProfileTitle => 'Profil – Hilfe';

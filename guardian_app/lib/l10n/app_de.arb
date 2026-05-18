@@ -32,21 +32,29 @@
   },
 
   "signInWithGoogle": "Mit Google anmelden",
+  "googleSignInHint": "Bereits ein Konto? Melde dich per E-Mail an und verknüpfe Google danach im Profil.",
+  "connectedAccounts": "Verbundene Konten",
+  "linkGoogle": "Mit Google verknüpfen",
+  "googleLinked": "Google-Konto erfolgreich verknüpft.",
+  "googleLinkedStatus": "Verknüpft",
+  "unlinkGoogle": "Google-Verknüpfung trennen",
+  "googleNotLinked": "Noch nicht verknüpft",
   "or": "oder",
   "emailAddress": "E-Mail-Adresse",
   "emailHint": "name@beispiel.de",
   "invalidEmailAddress": "Ungültige E-Mail-Adresse",
-  "sendSignInLink": "Anmeldelink senden",
-  "emailLinkHint": "Wir senden dir einen Link per E-Mail.\nKein Passwort nötig.",
+  "sendSignInLink": "Code senden",
+  "emailLinkHint": "Wir senden dir einen 6-stelligen Code per E-Mail.\nKein Passwort nötig.",
   "signInFailed": "Anmeldung fehlgeschlagen: {error}",
   "@signInFailed": {
     "placeholders": { "error": { "type": "String" } }
   },
-  "linkSent": "Link gesendet!",
-  "linkSentDescription": "Wir haben einen Anmeldelink an\n{email} gesendet.",
+  "linkSent": "Code gesendet!",
+  "linkSentDescription": "Wir haben einen 6-stelligen Code an\n{email} gesendet.",
   "@linkSentDescription": {
     "placeholders": { "email": { "type": "String" } }
   },
+  "verifyCode": "Bestätigen",
   "desktopLinkInstructions": "Öffne die E-Mail in deinem Browser, klicke auf den Link\nund kopiere die vollständige URL aus der Adressleiste.",
   "pasteLinkLabel": "Link aus Browser einfügen",
   "signIn": "Anmelden",
@@ -58,6 +66,8 @@
   "resend": "Erneut senden",
   "useOtherEmail": "Andere E-Mail verwenden",
   "invalidLink": "Ungültiger Link. Bitte prüfe die URL.",
+  "invalidCode": "Bitte gib den vollständigen 6-stelligen Code ein.",
+  "signInWithPassword": "Mit Passwort anmelden",
 
   "helpProfileTitle": "Profil – Hilfe",
   "helpProfilePhotoTitle": "Profilbild ändern",

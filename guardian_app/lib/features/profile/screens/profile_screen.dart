@@ -22,6 +22,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late final TextEditingController _nameController;
   bool _saving = false;
   bool _pickingImage = false;
+  bool _linkingGoogle = false;
+  bool? _googleLinked;
   Uint8List? _pickedImageBytes;
 
   @override
@@ -29,6 +31,34 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     super.initState();
     final displayName = ref.read(authStateProvider).value?.displayName ?? '';
     _nameController = TextEditingController(text: displayName);
+    _loadIdentities();
+  }
+
+  Future<void> _loadIdentities() async {
+    final linked = await ref.read(authServiceProvider).isGoogleLinked();
+    if (mounted) setState(() => _googleLinked = linked);
+  }
+
+  Future<void> _linkGoogle() async {
+    setState(() => _linkingGoogle = true);
+    try {
+      await ref.read(authStateProvider.notifier).linkGoogleAccount();
+      if (mounted) {
+        final l = AppLocalizations.of(context);
+        setState(() => _googleLinked = true);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(l.googleLinked)));
+      }
+    } catch (e) {
+      if (mounted) {
+        final l = AppLocalizations.of(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l.errorMessage(e.toString()))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _linkingGoogle = false);
+    }
   }
 
   @override
@@ -252,6 +282,39 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             title: Text(l.privacyTitle),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/settings/privacy'),
+          ),
+          const SizedBox(height: 8),
+          const Divider(),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(l.connectedAccounts,
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            onTap: _googleLinked == true || _linkingGoogle ? null : _linkGoogle,
+            leading: const Text('G',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red)),
+            title: const Text('Google'),
+            subtitle: _googleLinked == null
+                ? null
+                : Text(_googleLinked! ? l.googleLinkedStatus : l.googleNotLinked,
+                    style: TextStyle(
+                        color: _googleLinked!
+                            ? Colors.green
+                            : Theme.of(context).colorScheme.outline)),
+            trailing: _googleLinked == true
+                ? const Icon(Icons.check_circle, color: Colors.green)
+                : _linkingGoogle
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.add_link),
           ),
           const SizedBox(height: 8),
           const Divider(),

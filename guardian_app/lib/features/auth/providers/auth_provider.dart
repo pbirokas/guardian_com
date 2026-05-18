@@ -13,19 +13,17 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     return ref.watch(authServiceProvider).getCurrentAppUser();
   }
 
-  Future<void> signIn(String email, String password) async {
+  Future<void> _authAction(Future<AppUser?> Function() action) async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(
-        () => ref.read(authServiceProvider).signIn(email, password));
+    state = await AsyncValue.guard(action);
     if (state.hasError) Error.throwWithStackTrace(state.error!, state.stackTrace!);
   }
 
-  Future<void> register(String email, String password, String name) async {
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(
-        () => ref.read(authServiceProvider).register(email, password, name));
-    if (state.hasError) Error.throwWithStackTrace(state.error!, state.stackTrace!);
-  }
+  Future<void> signIn(String email, String password) =>
+      _authAction(() => ref.read(authServiceProvider).signIn(email, password));
+
+  Future<void> register(String email, String password, String name) =>
+      _authAction(() => ref.read(authServiceProvider).register(email, password, name));
 
   Future<void> updateProfile(String uid, String displayName,
       {String? photoUrl}) async {
@@ -33,6 +31,16 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     state = await AsyncValue.guard(() => ref
         .read(authServiceProvider)
         .updateProfile(uid, displayName, photoUrl: photoUrl));
+  }
+
+  Future<void> signInWithGoogle() =>
+      _authAction(() => ref.read(authServiceProvider).signInWithGoogle());
+
+  Future<void> confirmMagicLink(String userId, String secret) =>
+      _authAction(() => ref.read(authServiceProvider).confirmMagicLink(userId, secret));
+
+  Future<void> linkGoogleAccount() async {
+    await ref.read(authServiceProvider).linkGoogleAccount();
   }
 
   Future<void> signOut() async {

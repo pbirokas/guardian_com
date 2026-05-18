@@ -106,12 +106,16 @@ class NotificationService {
     final db = _awDb;
     final uid = _awUid;
     if (uid == null || db == null) return;
-    await db.updateDocument(
-      databaseId: 'guardian',
-      collectionId: 'users',
-      documentId: uid,
-      data: {'fcmToken': token},
-    );
+    try {
+      await db.updateDocument(
+        databaseId: 'guardian',
+        collectionId: 'users',
+        documentId: uid,
+        data: {'fcmToken': token},
+      );
+    } on AppwriteException catch (e) {
+      if (kDebugMode) debugPrint('FCM token save failed: ${e.message}');
+    }
   }
 
   void _handleTap(RemoteMessage message) {

@@ -4,6 +4,16 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-18
+
+- **Google-Anmeldung:** Nutzer können sich jetzt direkt mit ihrem Google-Konto anmelden. Der Login erkennt automatisch, ob bereits ein Konto mit dieser E-Mail existiert, und verbindet beide Konten.
+- **E-Mail-Code-Anmeldung:** Statt einem Anmeldelink wird jetzt ein 6-stelliger Code per E-Mail gesendet, der direkt in der App eingegeben werden kann — kein Wechsel in den Browser nötig.
+- **Google-Konto verknüpfen:** Im Profil kann ein bestehendes Konto nachträglich mit Google verknüpft werden, um künftig per Google-Login einzusteigen.
+- **Anmeldebildschirm überarbeitet:** Google, E-Mail-Code und Passwort sind jetzt als drei klare Optionen strukturiert.
+- **Fehlerbehebung:** Ungültige OTP-Codes (unter 6 Stellen) zeigen jetzt eine verständliche Fehlermeldung statt stillschweigend abgebrochen zu werden.
+
+---
+
 ## 2026-05-17
 
 - **Chat zeigt neueste Nachrichten sofort:** Neue Nachrichten in einer Gruppe wurden in der Chat-Übersicht angezeigt, im Chat selbst jedoch erst nach manuellem Scrollen. Dieser Fehler wurde behoben.

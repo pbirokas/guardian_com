@@ -11,10 +11,12 @@
  *
  * Usage:
  *   node migrate.js                  # vollständige Migration
- *   node migrate.js --dry-run        # Vorschau, keine Änderungen
- *   node migrate.js --skip-auth      # Auth-Migration überspringen
- *   node migrate.js --skip-storage   # Storage-Migration überspringen
- *   node migrate.js --only-storage   # nur Storage-Migration
+ *   node migrate.js --dry-run                       # Vorschau, keine Änderungen
+ *   node migrate.js --skip-auth                    # Auth-Migration überspringen
+ *   node migrate.js --skip-messages               # Chat-Nachrichten überspringen (schnellste Option)
+ *   node migrate.js --skip-storage                 # Storage-Migration überspringen
+ *   node migrate.js --only-storage                 # nur Storage-Migration
+ *   node migrate.js --skip-auth --skip-storage --force  # Daten neu einlesen (überschreiben)
  *
  * Erforderliche Umgebungsvariablen (.env):
  *   APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, APPWRITE_API_KEY
@@ -39,9 +41,12 @@ config();
 // ─── Flags ───────────────────────────────────────────────────────────────────
 
 const DRY_RUN      = process.argv.includes('--dry-run');
-const SKIP_AUTH    = process.argv.includes('--skip-auth');
-const SKIP_STORAGE = process.argv.includes('--skip-storage');
-const ONLY_STORAGE = process.argv.includes('--only-storage');
+const SKIP_AUTH     = process.argv.includes('--skip-auth');
+const SKIP_STORAGE  = process.argv.includes('--skip-storage');
+const SKIP_MESSAGES = process.argv.includes('--skip-messages');
+const ONLY_STORAGE  = process.argv.includes('--only-storage');
+// --force: vorhandene Dokumente werden aktualisiert statt übersprungen
+const FORCE         = process.argv.includes('--force');
 
 // ─── Firebase Admin ───────────────────────────────────────────────────────────
 
@@ -124,10 +129,13 @@ async function upsertDoc(colId, docId, data, permissions = []) {
   );
   try {
     await awDb.createDocument(DB_ID, colId, docId, cleaned, permissions);
-    return true;
+    return true; // neu erstellt
   } catch (e) {
-    if (e.code === 409) return false; // already exists
-    throw e;
+    if (e.code !== 409) throw e;
+    if (!FORCE) return false; // bereits vorhanden, überspringen
+    // --force: vorhandenes Dokument aktualisieren
+    await awDb.updateDocument(DB_ID, colId, docId, cleaned);
+    return false; // false = "war bereits vorhanden" (für Statistik)
   }
 }
 
@@ -413,7 +421,7 @@ async function migrateMessages() {
         deletedAt:          ts(d.deletedAt),
         deletedBy:          d.deletedBy ?? null,
       };
-      const created = await upsertDoc('messages', msgDoc.id, data);
+      const created = await upsertDoc('chat_messages', msgDoc.id, data);
       created ? n++ : skip++;
       process.stdout.write(created ? '.' : '~');
     }
@@ -611,7 +619,12 @@ async function migrateReports() {
 
 async function main() {
   if (DRY_RUN) console.log('=== DRY RUN — keine Änderungen ===\n');
-  console.log(`Flags: skip-auth=${SKIP_AUTH}, skip-storage=${SKIP_STORAGE}, only-storage=${ONLY_STORAGE}`);
+  if (FORCE && !DRY_RUN) {
+    console.error(`\n⚠️  WARNUNG: --force überschreibt vorhandene Dokumente in ${process.env.APPWRITE_ENDPOINT}`);
+    console.error('   Alle Daten werden mit Firebase-Daten überschrieben. Nur auf Staging verwenden!\n');
+    await new Promise(resolve => setTimeout(resolve, 3000)); // 3s Bedenkzeit
+  }
+  console.log(`Flags: skip-auth=${SKIP_AUTH}, skip-storage=${SKIP_STORAGE}, skip-messages=${SKIP_MESSAGES}, only-storage=${ONLY_STORAGE}, force=${FORCE}`);
 
   if (!ONLY_STORAGE) {
     if (!SKIP_AUTH) await migrateAuth();
@@ -621,7 +634,7 @@ async function main() {
     await migrateOrganizations();
     await migrateMembers();
     await migrateConversations();   // enthält Storage-Migration für Gruppenbilder
-    await migrateMessages();        // enthält Storage-Migration für Medien
+    if (!SKIP_MESSAGES) await migrateMessages();  // enthält Storage-Migration für Medien
     await migratePolls();
     await migrateScheduledMessages();
     await migrateAnnouncements();
@@ -646,7 +659,7 @@ async function main() {
 async function repairStorageUrls() {
   const collections = [
     { col: 'conversations', fields: ['imageUrl'] },
-    { col: 'messages',      fields: ['imageUrl', 'audioUrl', 'fileUrl'] },
+    { col: 'chat_messages', fields: ['imageUrl', 'audioUrl', 'fileUrl'] },
   ];
   for (const { col, fields } of collections) {
     console.log(`\n  Prüfe ${col}...`);

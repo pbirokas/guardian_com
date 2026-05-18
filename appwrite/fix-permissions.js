@@ -52,7 +52,7 @@ const RCD = [Permission.read(Role.users()), Permission.create(Role.users()), Per
 const RCUD = [Permission.read(Role.users()), Permission.create(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())];
 
 const collectionPermissionOverrides = {
-  users:               R,      // schreiben nur per Document-Permission (auth_service)
+  users:               [Permission.read(Role.users()), Permission.create(Role.users())], // create: Neues User-Doc beim ersten Login; update/delete nur per Document-Permission
   organizations:       RCUD,   // Client erstellt/updated Orgs (memberUids-Array, approveChild)
   members:             RCUD,   // Mitgliedschaft wird vom Client aktualisiert (z.B. guardianUids)
   conversations:       RCUD,   // neue Chats anlegen, Status aktualisieren

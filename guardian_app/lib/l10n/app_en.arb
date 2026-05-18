@@ -32,21 +32,29 @@
   },
 
   "signInWithGoogle": "Sign in with Google",
+  "googleSignInHint": "Already have an account? Sign in with your email first, then link Google in your profile.",
+  "connectedAccounts": "Connected accounts",
+  "linkGoogle": "Link Google account",
+  "googleLinked": "Google account linked successfully.",
+  "googleLinkedStatus": "Linked",
+  "unlinkGoogle": "Unlink Google",
+  "googleNotLinked": "Not linked yet",
   "or": "or",
   "emailAddress": "Email address",
   "emailHint": "name@example.com",
   "invalidEmailAddress": "Invalid email address",
-  "sendSignInLink": "Send sign-in link",
-  "emailLinkHint": "We'll send you a link by email.\nNo password needed.",
+  "sendSignInLink": "Send code",
+  "emailLinkHint": "We'll send you a 6-digit code by email.\nNo password needed.",
   "signInFailed": "Sign-in failed: {error}",
   "@signInFailed": {
     "placeholders": { "error": { "type": "String" } }
   },
-  "linkSent": "Link sent!",
-  "linkSentDescription": "We sent a sign-in link to\n{email}.",
+  "linkSent": "Code sent!",
+  "linkSentDescription": "We sent a 6-digit code to\n{email}.",
   "@linkSentDescription": {
     "placeholders": { "email": { "type": "String" } }
   },
+  "verifyCode": "Confirm",
   "desktopLinkInstructions": "Open the email in your browser, click the link\nand copy the full URL from the address bar.",
   "pasteLinkLabel": "Paste link from browser",
   "signIn": "Sign in",
@@ -58,6 +66,8 @@
   "resend": "Resend",
   "useOtherEmail": "Use a different email",
   "invalidLink": "Invalid link. Please check the URL.",
+  "invalidCode": "Please enter the complete 6-digit code.",
+  "signInWithPassword": "Sign in with password",
 
   "helpProfileTitle": "Profile – Help",
   "helpProfilePhotoTitle": "Changing your profile picture",

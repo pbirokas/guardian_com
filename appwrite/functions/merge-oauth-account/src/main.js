@@ -17,7 +17,7 @@ module.exports = async ({ req, res, log, error }) => {
   if (!newUid) return res.json({ merged: false, reason: 'unauthenticated' }, 401);
 
   const client = new Client()
-    .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT)
+    .setEndpoint((process.env.APPWRITE_FUNCTION_API_ENDPOINT || "").replace(/^http:\/\//, "https://"))
     .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)
     .setKey(process.env.APPWRITE_API_KEY);
 
@@ -49,6 +49,10 @@ module.exports = async ({ req, res, log, error }) => {
       log(`No old account found for ${email} — nothing to merge.`);
       return res.json({ merged: false, reason: 'no_old_account' });
     }
+    if (candidates.length > 1) {
+      error(`Multiple old accounts for ${email}: ${candidates.map((d) => d.$id).join(', ')}`);
+      return res.json({ merged: false, reason: 'ambiguous_old_account' }, 409);
+    }
     oldDoc = candidates[0];
   } catch (e) {
     error(`listDocuments failed: ${e.message}`);
@@ -56,6 +60,18 @@ module.exports = async ({ req, res, log, error }) => {
   }
 
   const oldUid = oldDoc.$id;
+
+  // ── Auth-seitige E-Mail des alten Accounts verifizieren ───────────────────
+  try {
+    const oldAuthUser = await users.get(oldUid);
+    if (oldAuthUser.email?.toLowerCase() !== email) {
+      error(`Auth email mismatch for ${oldUid}: ${oldAuthUser.email} !== ${email}`);
+      return res.json({ merged: false, reason: 'email_mismatch' }, 403);
+    }
+  } catch (e) {
+    error(`users.get(${oldUid}) failed: ${e.message}`);
+    return res.json({ merged: false, reason: 'old_user_not_found' }, 404);
+  }
   log(`Merging ${oldUid} → ${newUid} (email: ${email})`);
 
   // ── Hilfsfunktionen ────────────────────────────────────────────────────────
@@ -144,7 +160,34 @@ module.exports = async ({ req, res, log, error }) => {
     error(`orgs update failed: ${e.message}`);
   }
 
-  // ── 4. conversations aktualisieren ────────────────────────────────────────
+  // ── 4. verifiedParentUids / verifiedChildUids in anderen User-Docs ───────
+  try {
+    const seenUserIds = new Set();
+
+    async function updateUserVerified(queryFn) {
+      const userDocs = await listAll('users', [queryFn]);
+      for (const doc of userDocs) {
+        if (seenUserIds.has(doc.$id)) continue;
+        seenUserIds.add(doc.$id);
+        const updates = {};
+        if (doc.verifiedParentUids?.includes(oldUid))
+          updates.verifiedParentUids = replaceUid(doc.verifiedParentUids, oldUid, newUid);
+        if (doc.verifiedChildUids?.includes(oldUid))
+          updates.verifiedChildUids = replaceUid(doc.verifiedChildUids, oldUid, newUid);
+        if (Object.keys(updates).length)
+          await db.updateDocument(DB_ID, 'users', doc.$id, updates);
+      }
+    }
+
+    await updateUserVerified(Query.contains('verifiedParentUids', oldUid));
+    await updateUserVerified(Query.contains('verifiedChildUids', oldUid));
+    log(`${seenUserIds.size} user docs updated (verified links)`);
+  } catch (e) {
+    error(`verified links update failed: ${e.message}`);
+    return res.json({ merged: false, reason: 'verified_links_failed' }, 500);
+  }
+
+  // ── 5. conversations aktualisieren ────────────────────────────────────────
   try {
     const seenIds = new Set();
 
@@ -174,7 +217,7 @@ module.exports = async ({ req, res, log, error }) => {
     error(`conversations update failed: ${e.message}`);
   }
 
-  // ── 5. Alten Account aufräumen ────────────────────────────────────────────
+  // ── 6. Alten Account aufräumen ────────────────────────────────────────────
   try {
     await db.deleteDocument(DB_ID, 'users', oldUid);
     log(`users/${oldUid} deleted`);

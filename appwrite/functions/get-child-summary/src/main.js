@@ -11,7 +11,7 @@ module.exports = async ({ req, res, log, error }) => {
   if (!uid) return res.json({ error: 'Unauthenticated' }, 401);
 
   const client = new Client()
-    .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT)
+    .setEndpoint((process.env.APPWRITE_FUNCTION_API_ENDPOINT || "").replace(/^http:\/\//, "https://"))
     .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)
     .setKey(process.env.APPWRITE_API_KEY);
 

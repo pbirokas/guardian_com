@@ -6,8 +6,9 @@ const COL_USERS = 'users';
 const COL_MEMBERS = 'members';
 
 module.exports = async ({ req, res, log, error }) => {
+  const endpoint = (process.env.APPWRITE_FUNCTION_API_ENDPOINT || '').replace(/^http:\/\//, 'https://');
   const client = new Client()
-    .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT)
+    .setEndpoint(endpoint)
     .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)
     .setKey(process.env.APPWRITE_API_KEY);
 

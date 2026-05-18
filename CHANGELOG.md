@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-18 (2)
+
+- **Eltern-Kind-Verknüpfung funktioniert wieder:** Die Bestätigung einer Verknüpfungsanfrage wurde durch einen internen Verbindungsfehler blockiert. Dieser Fehler wurde in allen Backend-Funktionen behoben.
+- **"Meine Verknüpfungen" aktualisiert sich automatisch:** Nach einer bestätigten Verknüpfungsanfrage wurde die Ansicht erst nach einem Neustart der App aktualisiert. Die Seite lädt sich jetzt selbst neu.
+- **Kontenzusammenführung berücksichtigt jetzt alle Verknüpfungen:** Beim Zusammenführen eines bestehenden Kontos mit dem Google-Login wurden bestehende Eltern-Kind-Verknüpfungen in anderen Konten nicht immer aktualisiert. Dieser Fehler wurde behoben.
+
+---
+
 ## 2026-05-18
 
 - **Google-Anmeldung:** Nutzer können sich jetzt direkt mit ihrem Google-Konto anmelden. Der Login erkennt automatisch, ob bereits ein Konto mit dieser E-Mail existiert, und verbindet beide Konten.

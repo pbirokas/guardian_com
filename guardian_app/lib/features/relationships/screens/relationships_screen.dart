@@ -21,6 +21,7 @@ class RelationshipsScreen extends ConsumerStatefulWidget {
 class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
   final _emailController = TextEditingController();
   bool _sending = false;
+  int _prevPendingOutgoing = -1;
 
   @override
   void dispose() {
@@ -258,6 +259,20 @@ class _RelationshipsScreenState extends ConsumerState<RelationshipsScreen> {
     final l = AppLocalizations.of(context);
     final incomingAsync = ref.watch(incomingClaimRequestsProvider);
     final outgoingAsync = ref.watch(outgoingClaimRequestsProvider);
+
+    ref.listen(outgoingClaimRequestsProvider, (_, next) {
+      if (!next.hasValue) return;
+      final pending = next.value!.where((r) => r.isPending).length;
+      if (_prevPendingOutgoing == -1) {
+        _prevPendingOutgoing = pending;
+        return;
+      }
+      if (_prevPendingOutgoing > 0 && pending < _prevPendingOutgoing) {
+        ref.invalidate(myChildrenProvider);
+        ref.invalidate(myParentsProvider);
+      }
+      _prevPendingOutgoing = pending;
+    });
     final childrenAsync = ref.watch(myChildrenProvider);
     final parentsAsync = ref.watch(myParentsProvider);
     final consentsAsync = ref.watch(pendingOrgConsentsProvider);

@@ -13,6 +13,8 @@ import 'core/providers/connectivity_provider.dart';
 import 'core/providers/share_provider.dart';
 import 'core/services/share_service.dart';
 import 'features/chat/providers/chat_provider.dart';
+import 'features/organizations/providers/organizations_provider.dart';
+import 'features/relationships/providers/relationships_provider.dart';
 import 'features/share/share_picker_sheet.dart';
 import 'core/providers/locale_provider.dart' show localeProvider;
 import 'core/providers/chat_font_size_provider.dart';
@@ -99,26 +101,61 @@ class GuardianApp extends ConsumerStatefulWidget {
 
 class _GuardianAppState extends ConsumerState<GuardianApp>
     with WidgetsBindingObserver {
+  bool _wasInBackground = false;
+  DateTime? _lastInvalidation;
+  ProviderSubscription<AsyncValue<bool>>? _connectivitySub;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Kalt-Start: ggf. geteilten Inhalt aus dem Share-Intent lesen
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForSharedData());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForSharedData();
+      _connectivitySub = ref.listenManual<AsyncValue<bool>>(
+        connectivityProvider,
+        (prev, next) {
+          final wasOffline = prev?.value == false;
+          final isNowOnline = next.value == true;
+          if (wasOffline && isNowOnline) _invalidateRealtimeProviders();
+        },
+      );
+    });
   }
 
   @override
   void dispose() {
+    _connectivitySub?.close();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
+  void _invalidateRealtimeProviders() {
+    if (ref.read(authStateProvider).value == null) return;
+    if (ref.read(connectivityProvider).value != true) return;
+    final now = DateTime.now();
+    if (_lastInvalidation != null &&
+        now.difference(_lastInvalidation!) < const Duration(minutes: 2)) {
+      return;
+    }
+    _lastInvalidation = now;
+    ref.invalidate(chatServiceProvider);
+    ref.invalidate(organizationServiceProvider);
+    ref.invalidate(parentClaimServiceProvider);
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _wasInBackground = true;
+    }
     if (state == AppLifecycleState.resumed) {
       NotificationService.clearAll();
-      // Warm-Start via onNewIntent (Share aus anderer App)
       _checkForSharedData();
+      if (_wasInBackground) {
+        _wasInBackground = false;
+        _invalidateRealtimeProviders();
+      }
     }
   }
 

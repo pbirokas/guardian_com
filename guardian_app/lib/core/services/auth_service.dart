@@ -37,25 +37,6 @@ class AuthService {
     }
   }
 
-  Future<AppUser> signIn(String email, String password) async {
-    await _account.createEmailPasswordSession(email: email, password: password);
-    await cacheRealtimeSessionCookie(_client);
-    final account = await _account.get();
-    return _afterAuth(account);
-  }
-
-  Future<AppUser> register(String email, String password, String name) async {
-    final account = await _account.create(
-      userId: ID.unique(),
-      email: email,
-      password: password,
-      name: name,
-    );
-    await _account.createEmailPasswordSession(email: email, password: password);
-    await cacheRealtimeSessionCookie(_client);
-    return _afterAuth(account);
-  }
-
   Future<AppUser> updateProfile(String uid, String displayName,
       {String? photoUrl}) async {
     await _account.updateName(name: displayName);

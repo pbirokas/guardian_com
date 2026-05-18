@@ -19,12 +19,6 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     if (state.hasError) Error.throwWithStackTrace(state.error!, state.stackTrace!);
   }
 
-  Future<void> signIn(String email, String password) =>
-      _authAction(() => ref.read(authServiceProvider).signIn(email, password));
-
-  Future<void> register(String email, String password, String name) =>
-      _authAction(() => ref.read(authServiceProvider).register(email, password, name));
-
   Future<void> updateProfile(String uid, String displayName,
       {String? photoUrl}) async {
     state = const AsyncValue.loading();

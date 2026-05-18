@@ -4,6 +4,13 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-18 (3)
+
+- **Passwort-Login entfernt:** Der "Mit Passwort anmelden"-Button wurde vom Login-Screen entfernt. Die Anmeldung erfolgt ausschließlich über Google oder E-Mail-Code.
+- **Automatische Datenaktualisierung nach Verbindungsunterbrechung:** Wenn die App aus dem Hintergrund zurückkehrt oder das Netz nach einer Unterbrechung wiederhergestellt wird, werden alle Chats und Organisationen automatisch neu geladen.
+
+---
+
 ## 2026-05-18 (2)
 
 - **Eltern-Kind-Verknüpfung funktioniert wieder:** Die Bestätigung einer Verknüpfungsanfrage wurde durch einen internen Verbindungsfehler blockiert. Dieser Fehler wurde in allen Backend-Funktionen behoben.

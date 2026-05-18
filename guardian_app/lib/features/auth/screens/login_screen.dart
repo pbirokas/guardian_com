@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:guardian_app/l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 
-enum _Mode { main, otpPending, password }
+enum _Mode { main, otpPending }
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -17,14 +17,10 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   _Mode _mode = _Mode.main;
   bool _loading = false;
-  bool _isRegister = false;
-  bool _obscure = true;
   String _sentEmail = '';
   String _pendingUserId = '';
 
   final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _nameController = TextEditingController();
   final _otpController = TextEditingController();
 
   static final _emailRegex = RegExp(r'^[\w.+\-]+@[\w\-]+\.[\w.\-]+$');
@@ -32,8 +28,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void dispose() {
     _emailController.dispose();
-    _passwordController.dispose();
-    _nameController.dispose();
     _otpController.dispose();
     super.dispose();
   }
@@ -45,7 +39,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     } catch (e) {
       if (mounted) {
         final l = AppLocalizations.of(context);
-        // Zeige den echten Fehler im Debug-Modus, damit wir ihn diagonstizieren können
         final msg = kDebugMode ? e.toString() : l.googleSignInHint;
         _showError(msg);
       }
@@ -96,27 +89,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  Future<void> _submitPassword() async {
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
-    if (!_emailRegex.hasMatch(email) || password.isEmpty) return;
-    if (_isRegister && _nameController.text.trim().isEmpty) return;
-
-    setState(() => _loading = true);
-    try {
-      if (_isRegister) {
-        await ref.read(authStateProvider.notifier).register(
-            email, password, _nameController.text.trim());
-      } else {
-        await ref.read(authStateProvider.notifier).signIn(email, password);
-      }
-    } catch (e) {
-      if (mounted) _showError(e.toString());
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
   void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
@@ -158,7 +130,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget _buildBody(AppLocalizations l) => switch (_mode) {
         _Mode.main => _buildMain(l),
         _Mode.otpPending => _buildOtpPending(l),
-        _Mode.password => _buildPassword(l),
       };
 
   Widget _buildMain(AppLocalizations l) {
@@ -207,13 +178,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         FilledButton(
           onPressed: _sendOtp,
           child: Text(l.sendSignInLink),
-        ),
-        const SizedBox(height: 24),
-        _orDivider(l),
-        const SizedBox(height: 4),
-        TextButton(
-          onPressed: () => setState(() => _mode = _Mode.password),
-          child: Text(l.signInWithPassword),
         ),
       ],
     );
@@ -271,68 +235,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             _pendingUserId = '';
           }),
           child: Text(l.useOtherEmail),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPassword(AppLocalizations l) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (_isRegister) ...[
-          TextField(
-            controller: _nameController,
-            textInputAction: TextInputAction.next,
-            decoration: InputDecoration(
-              labelText: l.displayName,
-              border: const OutlineInputBorder(),
-              prefixIcon: const Icon(Icons.person_outline),
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-        TextField(
-          controller: _emailController,
-          keyboardType: TextInputType.emailAddress,
-          textInputAction: TextInputAction.next,
-          decoration: InputDecoration(
-            labelText: l.emailAddress,
-            border: const OutlineInputBorder(),
-            prefixIcon: const Icon(Icons.email_outlined),
-          ),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _passwordController,
-          obscureText: _obscure,
-          textInputAction: TextInputAction.done,
-          onSubmitted: (_) => _submitPassword(),
-          decoration: InputDecoration(
-            labelText: l.password,
-            border: const OutlineInputBorder(),
-            prefixIcon: const Icon(Icons.lock_outline),
-            suffixIcon: IconButton(
-              icon: Icon(_obscure
-                  ? Icons.visibility_outlined
-                  : Icons.visibility_off_outlined),
-              onPressed: () => setState(() => _obscure = !_obscure),
-            ),
-          ),
-        ),
-        const SizedBox(height: 24),
-        FilledButton(
-          onPressed: _submitPassword,
-          child: Text(_isRegister ? l.register : l.signIn),
-        ),
-        const SizedBox(height: 4),
-        TextButton(
-          onPressed: () => setState(() => _isRegister = !_isRegister),
-          child: Text(_isRegister ? l.alreadyHaveAccount : l.noAccount),
-        ),
-        TextButton(
-          onPressed: () => setState(() => _mode = _Mode.main),
-          child: const Text('←'),
         ),
       ],
     );

@@ -2,7 +2,8 @@
 
 [![License: PolyForm Noncommercial](https://img.shields.io/badge/License-PolyForm_NC_1.0-blue.svg)](LICENSE)
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
-[![Firebase](https://img.shields.io/badge/Firebase-Backend-FFCA28?logo=firebase)](https://firebase.google.com)
+[![Appwrite](https://img.shields.io/badge/Appwrite-Backend-FD366E?logo=appwrite)](https://appwrite.io)
+[![Firebase](https://img.shields.io/badge/Firebase-FCM%20%7C%20Crashlytics-FFCA28?logo=firebase)](https://firebase.google.com)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Windows-green)](#builds)
 
 Eine Flutter-App für sichere, überwachte Kommunikation zwischen Kindern, Erziehungsberechtigten und Organisationen.
@@ -348,9 +349,11 @@ guardian_app/
 │   │   ├── router/          # GoRouter-Konfiguration
 │   │   ├── widgets/         # Gemeinsam genutzte Widgets:
 │   │   │                    #   HelpSheet, HelpTopic (In-App-Hilfe)
-│   │   └── services/        # Firebase-Dienste:
-│   │                        #   Auth, Chat, Organization, ParentClaim,
-│   │                        #   Notification, DesktopNotification, TrayService
+│   │   ├── appwrite_client.dart  # Appwrite Client + Realtime-Patch
+│   │   └── services/        # Dienste:
+│   │                        #   Auth (Appwrite), Chat, Organization,
+│   │                        #   ParentClaim, Notification (FCM),
+│   │                        #   DesktopNotification, TrayService, ShareService
 │   └── features/
 │       ├── auth/            # Login-Screen, Provider
 │       ├── chat/            # Chat-Screen, Provider
@@ -363,109 +366,171 @@ guardian_app/
     ├── icon/                # App-Icons
     └── bulk_import_example.csv
 
-firestore.rules              # Firestore Security Rules
-storage.rules                # Firebase Storage Security Rules
-firebase.json                # Firebase-Konfiguration (Firestore, Storage, Functions)
-functions/
-└── index.js                 # Cloud Functions:
-                             #   onNewMessage, onNewConversationRequest,
-                             #   onNewInvitation (inkl. E-Mail), onNewReport,
-                             #   onPollVote, onClaimRequest, onClaimConfirmed,
-                             #   onChildOrgInvite, onParentConsent,
-                             #   processMyInvitations, getCustomToken
+appwrite/
+├── appwrite.config.json     # Datenbank-Schema, Functions-Definitionen, Storage-Bucket
+├── functions/               # Appwrite Cloud Functions (Node.js):
+│   │                        #   on-new-message, on-new-conversation-request,
+│   │                        #   on-new-invitation, on-new-report, on-new-announcement,
+│   │                        #   on-poll-vote, on-claim-request, on-claim-confirmed,
+│   │                        #   on-child-org-invite, on-parent-consent,
+│   │                        #   on-member-guardians-changed, on-org-admin-transferred,
+│   │                        #   get-child-summary, process-my-invitations,
+│   │                        #   revoke-connection, merge-oauth-account,
+│   │                        #   cleanup-old-messages, cleanup-expired-polls,
+│   │                        #   cleanup-expired-announcements
+│   └── _shared/             # Geteilte Hilfsfunktionen (FCM, E-Mail, DB-Zugriff)
+└── setup.js                 # Einmalige Initialisierung (Collections, Permissions)
+
+firestore.rules              # Firestore Security Rules (FCM-Hilfsdaten)
+firebase.json                # Firebase-Konfiguration (FCM, Crashlytics, App Check)
 ```
 
 ---
 
-## Firebase-Struktur (Firestore)
+## Appwrite-Datenbankstruktur
+
+Datenbank-ID: `guardian`  
+Alle Collections sind flach (keine Subcollections). Verweise erfolgen über IDs.
 
 ```
-users/{uid}
-  memberships[]
+users/{$id}
+  email, displayName, photoUrl
   isChild                       ← Kind-Konto (sperrt nicht-Kind-Rollen)
-  fcmToken
   verifiedParentUids[]          ← Verifizierte Eltern (konto-übergreifend)
   verifiedChildUids[]           ← Verifizierte Kinder (konto-übergreifend)
+  membershipsJson               ← JSON: Org-Mitgliedschaften (gecacht)
 
-organizations/{orgId}
-  members/{uid}
-    messageAlertInterval
-    childAlertInterval
-    lastMessageAlertAt
-    lastChildAlertAt
-  announcements/{announcementId}
-    reactions/{uid}               ← Emoji-String (Pinnwand-Reaktionen)
-  auditLog/{entryId}              ← Änderungsprotokoll
-    actorUid, actorName
-    action                        ← invitationSent | memberConfirmed | memberRemoved |
-                                  #   settingsChanged | roleChanged | adminTransferred |
-                                  #   keywordsChanged
-    details{}
-    timestamp
+organizations/{$id}
+  name, tag, adminUid
+  memberUids[]
+  isArchived
+  messageRetentionDays          ← Aufbewahrungszeitraum (30–365 Tage, Standard 90)
+  keywords[]                    ← Schlüsselwörter-Monitoring
 
-conversations/{convId}
-  pinnedMessageId               ← Angepinnte Nachricht
-  pinnedMessageText
-  typingUsers/{uid}             ← Timestamp (Tipp-Indikator)
-  messages/{msgId}
-    reactions/{uid}             ← Emoji-String (Nachrichten-Reaktionen)
-    type                        ← 'user' | 'system'
-    systemEvent                 ← 'memberAdded' | 'memberRemoved'
-    systemActorName, systemTargetName
-  polls/{pollId}
-    isAnonymous
-    votes{}
-  scheduledMessages/{smId}      ← Geplante Nachrichten
+members/{$id}
+  orgId, uid
+  displayName, email, photoUrl
+  role                          ← admin | moderator | member | child
+  status                        ← active | pending
+  guardianUids[]
+  messageAlertInterval          ← always | hourly | daily | never
+  childAlertInterval            ← always | hourly | daily | never
+  notificationsEnabled
+  hideEmail
+  lastChildAlertAtJson          ← Map<orgId, timestamp> als JSON
 
-invitations/{inviteId}
-invitationLookup/{email}
-reports/{reportId}
+conversations/{$id}
+  orgId, orgAdminUid
+  participantUids[]
+  requestedBy
+  status                        ← pending | approved | rejected | archived
+  isGroup
+  guardianUids[]
+  canApproveUids[]
+  pinnedMessageId, pinnedMessageText
+  lastMessage, lastMessageAt
+  name, imageUrl
+  lastReadAtJson                ← Map<uid, timestamp> als JSON
+  personalNamesJson             ← Map<uid, name> als JSON (persönliche Chat-Namen)
 
-claimRequests/{requestId}       ← Verknüpfungsanfragen Elternteil→Kind
+chat_messages/{$id}
+  convId, orgId
+  senderUid, senderName
+  text, sentAt
+  type                          ← 'user' | 'system'
+  systemEvent                   ← 'memberAdded' | 'memberRemoved'
+  systemActorName, systemTargetName
+  imageUrl
+  audioUrl, audioDurationMs
+  fileUrl, fileName, fileSizeBytes
+  pollId
+  replyToId, replyToSenderName, replyToText
+  editedAt
+  deletedAt, deletedBy
+  isArchived, archivedByUid, archivedByName
+  reactionsJson                 ← Map<uid, emoji> als JSON
+  isGif
+
+polls/{$id}
+  convId, orgId
+  question, createdBy, createdByName
+  multipleChoice, isClosed, isAnonymous
+  expiresAt
+  optionsJson                   ← Array<{id, text}> als JSON
+  votesJson                     ← Map<uid, optionId[]> als JSON
+
+scheduled_messages/{$id}
+  convId, senderUid, senderName
+  text, scheduledFor
+
+announcements/{$id}
+  orgId, title, content
+  authorUid, authorName
+  type                          ← 'announcement' | 'event'
+  expiresAt
+  eventDate, eventEndDate, location
+  reactionsJson                 ← Map<uid, emoji> als JSON
+  rsvpJson                      ← Map<uid, {status, name}> als JSON
+  rsvpPublic
+
+claim_requests/{$id}            ← Verknüpfungsanfragen Elternteil→Kind
   fromUid, fromName, fromEmail
   toUid, toEmail
   status                        ← pending | confirmed | rejected | cancelled
   createdAt, expiresAt
 
-orgInviteConsents/{consentId}   ← Einwilligung der Eltern für Org-Einladungen
-  childUid, childName
-  orgId, orgName
+invitations/{$id}               ← Org-Einladungen (inkl. Pre-Registrierung)
+org_invite_consents/{$id}       ← Einwilligung der Eltern für Org-Einladungen
+  childUid, orgId
   parentUids[]                  ← Alle verifizierten Eltern
-  proposedGuardianUids[]
   status                        ← pending | approved | vetoed
-  approvedBy, vetoedBy
+reports/{$id}                   ← Gemeldete Nachrichten
 ```
+
+Storage-Bucket `media` (Appwrite): Bilder, Sprachnachrichten, Dateianhänge (max. 30 MB).
 
 ---
 
-## Cloud Functions
+## Appwrite Functions
+
+Alle Functions laufen in Appwrite (Node.js 16). Event-getriggerte Functions reagieren auf Datenbankänderungen; Callable Functions werden direkt aus der App aufgerufen.
 
 | Funktion | Trigger | Beschreibung |
 |---|---|---|
-| `onNewMessage` | Firestore Create | FCM-Push bei neuer Nachricht, Cooldown-Logik, Keyword-Monitoring |
-| `onNewConversationRequest` | Firestore Create | Push an Approver, Guardian und Angefragten bei Chat-Anfrage |
-| `onNewInvitation` | Firestore Create | Push an Guardians (Kind-Einladung) + E-Mail an nicht registrierte Nutzer |
-| `onNewReport` | Firestore Create | Push an Admin + Moderatoren bei gemeldeter Nachricht |
-| `onPollVote` | Firestore Update | Push an Ersteller bei neuer Abstimmung (nicht-anonym, nicht geschlossen) |
-| `onClaimRequest` | Firestore Create | Push an Kind: „X möchte dein Elternteil sein" |
-| `onClaimConfirmed` | Firestore Update | Aktualisiert `verifiedParentUids` / `verifiedChildUids` beidseitig; Push an Elternteil |
-| `onChildOrgInvite` | Firestore Create | Push an alle verifizierten Eltern bei Org-Einladung des Kindes |
-| `onParentConsent` | Firestore Update | Bei Genehmigung: Kind als `pending`-Mitglied hinzufügen; Push an einladenden Admin |
-| `processMyInvitations` | Callable | Verarbeitet ausstehende Einladungen beim Login |
+| `on-new-message` | DB Create `chat_messages` | FCM-Push bei neuer Nachricht, Cooldown-Logik, Keyword-Monitoring |
+| `on-new-conversation-request` | DB Create `conversations` | Push an Approver, Guardian und Angefragten bei Chat-Anfrage |
+| `on-new-invitation` | DB Create `invitations` | Push an Guardians (Kind-Einladung) + E-Mail an nicht registrierte Nutzer |
+| `on-new-announcement` | DB Create `announcements` | Push an alle Org-Mitglieder bei neuer Ankündigung/Termin |
+| `on-new-report` | DB Create `reports` | Push an Admin + Moderatoren bei gemeldeter Nachricht |
+| `on-poll-vote` | DB Update `polls` | Push an Ersteller bei neuer Abstimmung (nicht-anonym, nicht geschlossen) |
+| `on-claim-request` | DB Create `claim_requests` | Push an Kind: „X möchte dein Elternteil sein" |
+| `on-claim-confirmed` | DB Update `claim_requests` | Aktualisiert `verifiedParentUids` / `verifiedChildUids` beidseitig; Push an Elternteil |
+| `on-member-guardians-changed` | DB Update `members` | Propagiert Guardian-Änderungen in alle bestehenden Chats des Kindes |
+| `on-org-admin-transferred` | DB Update `organizations` | Synchronisiert Berechtigungen nach Admin-Übertragung |
+| `on-child-org-invite` | DB Create `org_invite_consents` | Push an alle verifizierten Eltern bei Org-Einladung des Kindes |
+| `on-parent-consent` | DB Update `org_invite_consents` | Bei Genehmigung: Kind als `pending`-Mitglied hinzufügen; Push an Admin |
+| `process-my-invitations` | Callable | Verarbeitet ausstehende Einladungen beim Login |
+| `get-child-summary` | Callable | Gibt Aktivitätszusammenfassung eines Kindes zurück (24 h / 7 Tage) |
+| `revoke-connection` | Callable | Trennt eine verifizierte Eltern-Kind-Verbindung |
+| `merge-oauth-account` | Callable | Verknüpft Google-OAuth mit bestehendem Konto |
+| `cleanup-old-messages` | Cron `30 3 * * *` | Löscht Nachrichten älter als `messageRetentionDays` |
+| `cleanup-expired-polls` | Cron `5 3 * * *` | Schließt abgelaufene Abstimmungen |
+| `cleanup-expired-announcements` | Cron `0 3 * * *` | Entfernt abgelaufene Ankündigungen |
 
 ---
 
 ## Setup
 
-> **Hinweis:** Konfigurationsdateien (`google-services.json`, `firebase_options.dart`, `key.properties`) sind nicht im Repository enthalten — sie müssen für die eigene Instanz erstellt werden.
+> **Hinweis:** Konfigurationsdateien (`google-services.json`, `firebase_options.dart`, `key.properties`) sind nicht im Repository enthalten — sie müssen für die eigene Instanz erstellt werden. Appwrite-Zugangsdaten (Endpunkt, Projekt-ID, Bucket-ID) werden direkt in [`guardian_app/lib/core/appwrite_client.dart`](guardian_app/lib/core/appwrite_client.dart) eingetragen.
 
 ### Voraussetzungen
 
 - [Flutter SDK](https://docs.flutter.dev/get-started/install) ≥ 3.x
-- [Firebase CLI](https://firebase.google.com/docs/cli) + [FlutterFire CLI](https://firebase.flutter.dev/docs/cli)
-- Appwrite-Instanz (self-hosted oder Cloud) mit aktiviertem Google-OAuth und E-Mail-OTP
+- [Appwrite](https://appwrite.io) (self-hosted oder Cloud) mit aktiviertem Google-OAuth und E-Mail-OTP
+- [Appwrite CLI](https://appwrite.io/docs/tooling/command-line/installation) (für Functions-Deployment)
+- [Firebase CLI](https://firebase.google.com/docs/cli) + [FlutterFire CLI](https://firebase.flutter.dev/docs/cli) (nur für FCM / Crashlytics)
 - Android Studio (für Android-Builds) oder Visual Studio 2022 mit C++-Workload (für Windows-Builds)
-- Node.js 22 (für Cloud Functions)
+- Node.js 22 (für Appwrite Functions)
 
 ### Schritt-für-Schritt
 
@@ -475,49 +540,48 @@ git clone https://github.com/pbirokas/guardian_com.git
 cd guardian_com
 
 # 2. Appwrite-Projekt einrichten
-#    → Projekt anlegen, Endpunkt + Projekt-ID in lib/core/appwrite_client.dart eintragen
+#    → Projekt anlegen (Appwrite Console oder CLI)
+#    → Endpunkt + Projekt-ID + Bucket-ID in guardian_app/lib/core/appwrite_client.dart eintragen
 #    → Authentication: Google OAuth + E-Mail-OTP aktivieren
-#    → Storage-Bucket anlegen (Bucket-ID in appwrite_client.dart eintragen)
+#    → Storage-Bucket "media" anlegen
+#    → Datenbank "guardian" anlegen + Schema deployen:
+cd appwrite
+node setup.js          # legt Collections, Indexes und Permissions an
 
-# 3. Firebase-Projekt erstellen (console.firebase.google.com)
-#    → Firestore Database anlegen
+# 3. Appwrite Functions deployen
+appwrite deploy function --all
+
+# 4. Umgebungsvariablen für Functions setzen (Appwrite Console → Functions → Variables)
+#    APPWRITE_API_KEY   → Server-API-Key mit vollen Datenbankrechten
+#    FCM_SERVER_KEY     → Firebase Cloud Messaging Server Key (für Push)
+#    GMAIL_USER         → Absender-E-Mail-Adresse (optional, für Einladungs-E-Mails)
+#    GMAIL_APP_PASSWORD → Gmail App-Passwort (optional)
+
+# 5. Firebase-Projekt einrichten (console.firebase.google.com) — nur für FCM & Crashlytics
 #    → Cloud Messaging aktivieren
-#    → Cloud Functions aktivieren (Blaze-Plan)
 #    → App Check aktivieren (Android: Play Integrity)
 #    → Crashlytics aktivieren (Android)
 
-# 4. FlutterFire konfigurieren (erzeugt firebase_options.dart + google-services.json)
-cd guardian_app
+# 6. FlutterFire konfigurieren (erzeugt firebase_options.dart + google-services.json)
+cd ../guardian_app
 flutterfire configure --platforms=android,windows
 
-# 5. Abhängigkeiten installieren
+# 7. Flutter-Abhängigkeiten installieren
 flutter pub get
 
-# 6. Cloud Functions Abhängigkeiten installieren
-cd ../functions
-npm install
-
-# 7. Gmail App-Passwort für Einladungs-E-Mails hinterlegen (optional)
-firebase functions:secrets:set GMAIL_APP_PASSWORD
-
-# 8. Firebase-Regeln & Functions deployen
-cd ..
-firebase deploy --only firestore:rules,storage,functions
-
-# 9. App starten
-cd guardian_app
+# 8. App starten
 flutter run                     # Android
 flutter run -d windows          # Windows
 ```
 
 ### Hinweis zum Windows-Login
 
-Der E-Mail-Code-Login (OTP) auf Windows läuft vollständig über Appwrite — kein Browser-Wechsel und keine zusätzliche IAM-Konfiguration nötig. Der Nutzer gibt den 6-stelligen Code direkt in der Desktop-App ein.
+Der E-Mail-Code-Login (OTP) auf Windows läuft vollständig über Appwrite — kein Browser-Wechsel und keine zusätzliche Konfiguration nötig. Der Nutzer gibt den 6-stelligen Code direkt in der Desktop-App ein.
 
 ### Vorlage für firebase_options.dart
 
 Eine Vorlage befindet sich unter [`guardian_app/lib/firebase_options.example.dart`](guardian_app/lib/firebase_options.example.dart).  
-Umbenennen und mit eigenen Firebase-Werten befüllen, oder `flutterfire configure` verwenden.
+Umbenennen und mit eigenen Firebase-Werten befüllen, oder `flutterfire configure` verwenden (empfohlen).
 
 ---
 

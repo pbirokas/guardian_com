@@ -28,7 +28,7 @@
 <body>
 
 <h1>Datenschutzerklärung</h1>
-<p class="meta">App: <strong>Guardian Com</strong> &nbsp;|&nbsp; Stand: April 2026</p>
+<p class="meta">App: <strong>Guardian Com</strong> &nbsp;|&nbsp; Stand: Mai 2026</p>
 
 <!-- ─── 1. Verantwortlicher ─────────────────────────────────────── -->
 <h2>1. Verantwortlicher</h2>
@@ -65,14 +65,15 @@
   <li>Profilbild (URL)</li>
   <li>Eine eindeutige Nutzer-ID (Google UID)</li>
 </ul>
-<p><strong>E-Mail-Link (passwortlos):</strong> Du gibst deine E-Mail-Adresse ein
-  und erhältst einen Anmeldelink per E-Mail. Dabei werden folgende Daten erhoben:</p>
+<p><strong>E-Mail-Code (passwortlos):</strong> Du gibst deine E-Mail-Adresse ein
+  und erhältst einen 6-stelligen Einmalcode per E-Mail, der direkt in der App eingegeben wird.
+  Dabei werden folgende Daten erhoben:</p>
 <ul>
   <li>E-Mail-Adresse</li>
-  <li>Eine eindeutige Nutzer-ID (Firebase UID)</li>
+  <li>Eine eindeutige Nutzer-ID (Appwrite User-ID)</li>
 </ul>
 <p>
-  Bei der E-Mail-Link-Anmeldung wird kein Passwort gespeichert. Die
+  Bei der E-Mail-Code-Anmeldung wird kein Passwort gespeichert. Die
   E-Mail-Adresse wird lokal auf dem Gerät zwischengespeichert, bis der
   Anmeldevorgang abgeschlossen ist, und danach entfernt.
 </p>
@@ -162,7 +163,7 @@
     <td>Art. 6 Abs. 1 lit. f – Berechtigtes Interesse (Stabilität der App)</td>
   </tr>
   <tr>
-    <td>Authentifizierung (Google Sign-In oder E-Mail-Link)</td>
+    <td>Authentifizierung (Google Sign-In oder E-Mail-Code)</td>
     <td>Art. 6 Abs. 1 lit. b – Vertragserfüllung</td>
   </tr>
   <tr>
@@ -208,45 +209,41 @@
 <!-- ─── 6. Drittanbieter ───────────────────────────────────────── -->
 <h2>6. Drittanbieter und Datenübermittlung</h2>
 <p>
-  Wir nutzen folgende Dienste von Google LLC (USA). Die Übermittlung in die USA
-  erfolgt auf Basis der EU-Standardvertragsklauseln (Art. 46 DSGVO) sowie des
-  EU-US Data Privacy Frameworks.
+  Wir nutzen folgende Dienste. Daten an Google LLC (USA) werden auf Basis der
+  EU-Standardvertragsklauseln (Art. 46 DSGVO) sowie des EU-US Data Privacy
+  Frameworks übermittelt. Appwrite wird auf eigenen Servern in der EU (Deutschland / Finnland)
+  betrieben — es findet dabei keine Übermittlung in Drittstaaten statt.
 </p>
 <table>
-  <tr><th>Dienst</th><th>Zweck</th><th>Datenschutzerklärung</th></tr>
+  <tr><th>Dienst</th><th>Zweck</th><th>Datenschutzinformationen</th></tr>
   <tr>
-    <td>Firebase Authentication</td>
-    <td>Anmeldung und Nutzerkonten (Google Sign-In und E-Mail-Link)</td>
-    <td>policies.google.com/privacy</td>
+    <td>Appwrite (self-hosted)</td>
+    <td>Anmeldung und Nutzerkonten (Google Sign-In und E-Mail-Code), Dateiablage (Bilder, Sprachnachrichten, Dateien)</td>
+    <td>appwrite.io/privacy</td>
   </tr>
   <tr>
-    <td>Cloud Firestore</td>
+    <td>Cloud Firestore (Google)</td>
     <td>Speicherung von Nachrichten, Profilen und Organisationsdaten</td>
     <td>policies.google.com/privacy</td>
   </tr>
   <tr>
-    <td>Firebase Storage</td>
-    <td>Speicherung von Bildern und Sprachnachrichten</td>
-    <td>policies.google.com/privacy</td>
-  </tr>
-  <tr>
-    <td>Firebase Cloud Messaging</td>
+    <td>Firebase Cloud Messaging (Google)</td>
     <td>Push-Benachrichtigungen</td>
     <td>policies.google.com/privacy</td>
   </tr>
   <tr>
-    <td>Firebase Crashlytics</td>
+    <td>Firebase Crashlytics (Google)</td>
     <td>Absturz- und Fehlerberichte (nur Android)</td>
     <td>policies.google.com/privacy</td>
   </tr>
   <tr>
-    <td>Firebase App Check</td>
-    <td>Schutz vor missbräuchlichem API-Zugriff (Android, Web)</td>
+    <td>Firebase App Check (Google)</td>
+    <td>Schutz vor missbräuchlichem API-Zugriff (Android)</td>
     <td>policies.google.com/privacy</td>
   </tr>
   <tr>
-    <td>Google Sign-In</td>
-    <td>Authentifizierung</td>
+    <td>Google Sign-In (Google)</td>
+    <td>Authentifizierung via Google-Konto</td>
     <td>policies.google.com/privacy</td>
   </tr>
 </table>
@@ -263,8 +260,8 @@
     Konto existiert.
   </li>
   <li>
-    <strong>Sprachnachrichten und Bilder</strong> bleiben gespeichert, bis der
-    Chat oder die Organisation gelöscht wird, oder bis du dein Konto löschst.
+    <strong>Sprachnachrichten, Bilder und Dateien</strong> bleiben in der Appwrite-Ablage
+    gespeichert, bis der Chat oder die Organisation gelöscht wird, oder bis du dein Konto löschst.
   </li>
   <li>
     <strong>Absturzberichte (Crashlytics)</strong> werden von Google für

@@ -10,15 +10,35 @@ Eine Flutter-App für sichere, überwachte Kommunikation zwischen Kindern, Erzie
 Diese App wurde vollständig durch vibe-coding generiert.
 Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 
+---
+
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center"><img src="pics/Main.png" width="180"/><br/><sub>Startbildschirm</sub></td>
+    <td align="center"><img src="pics/ORG_Screen.png" width="180"/><br/><sub>Organisationen</sub></td>
+    <td align="center"><img src="pics/Chat_Screen.png" width="180"/><br/><sub>Chat-Übersicht</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="pics/Announcements.png" width="180"/><br/><sub>Pinnwand</sub></td>
+    <td align="center"><img src="pics/Activity.png" width="180"/><br/><sub>Aktivitätszusammenfassung</sub></td>
+    <td align="center"><img src="pics/Parent_Child.png" width="180"/><br/><sub>Meine Verknüpfungen</sub></td>
+  </tr>
+</table>
+
+---
+
 ## Technologie
 
 | Bereich | Stack |
 |---|---|
 | **Frontend** | Flutter 3.x (Dart) |
-| **Backend** | Firebase (Auth, Firestore, Storage, FCM, App Check) |
+| **Authentifizierung & Dateiablage** | Appwrite (self-hosted) |
+| **Datenbank, Push & Fehlerberichte** | Firebase (Firestore, FCM, Crashlytics, App Check) |
 | **State Management** | Riverpod 3.x |
 | **Navigation** | GoRouter |
-| **Authentifizierung** | Google Sign-In (Android), E-Mail-Link (Android, Windows) |
+| **Anmeldemethoden** | Google Sign-In (Android), E-Mail-Code/OTP (Android, Windows) |
 | **Cloud Functions** | Node.js 22 (Benachrichtigungen, E-Mail-Einladungen) |
 
 ---
@@ -27,20 +47,20 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 
 ### Authentifizierung
 - **Google Sign-In** (Android)
-- **E-Mail-Link (passwortlos):** Nutzer gibt E-Mail ein → erhält Anmeldelink per E-Mail → Klick öffnet die App und meldet direkt an. Kein Passwort nötig.
-  - Auf Android: Deep Link öffnet die App automatisch (App Links mit assetlinks.json)
-  - Auf Windows: Link aus dem Browser kopieren und in der App einfügen
+- **E-Mail-Code (passwortlos):** Nutzer gibt E-Mail ein → erhält 6-stelligen Code per E-Mail → Code direkt in der App eingeben. Kein Passwort, kein Browser-Wechsel nötig. Funktioniert auf Android und Windows.
+- **Google-Konto verknüpfen:** Im Profil kann ein bestehendes Konto nachträglich mit Google verknüpft werden, um künftig per Google-Login einzusteigen
 - Automatische Benutzerprofil-Erstellung bei der ersten Anmeldung
 - Pre-Registrierung: Einladungen werden beim ersten Login automatisch verarbeitet, sodass Rollen sofort aktiv sind
 
 ### Organisationen
-- Organisationen erstellen mit Name, Kategorie (Familie, Freunde, Schule, Vereine, Sonstiges) und Chat-Modus
+- Organisationen erstellen mit Name und Kategorie (Familie, Freunde, Schule, Vereine, Sonstiges)
 - Namen sind auf 40 Zeichen begrenzt
 - Mitglieder per E-Mail einladen mit Rollenzuweisung
-- **Bulk-Import:** Mehrere Mitglieder gleichzeitig per CSV-Datei importieren (nur für Admins in Sheltered-Orgs)
+- **Adressbuch:** Beim Einladen können Mitglieder aus anderen Organisationen des Admins/Moderators direkt ausgewählt werden (ohne erneute E-Mail-Eingabe) — dedupliziert, mit Rollen- und Guardian-Auswahl
+- **Bulk-Import:** Mehrere Mitglieder gleichzeitig per CSV-Datei importieren
 - **Automatische Einladungs-E-Mail** an noch nicht registrierte Nutzer (via Gmail SMTP + Cloud Function)
 - **Pre-Registrierung:** Einladung für noch nicht registrierte Nutzer — beim ersten Login erhalten sie automatisch die richtige Rolle
-- Organisation bearbeiten (Name und Kategorie — Chat-Modus ist nach Erstellung fest)
+- Organisation bearbeiten (Name und Kategorie)
 - Organisation archivieren (read-only) oder dauerhaft löschen
 - Admin-Rolle auf ein anderes Mitglied übertragen
 - Aus einer Organisation austreten (nicht für Admins)
@@ -60,7 +80,9 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 
 ### Chat-Modi
 
-#### Guardian-Modus
+Jede Organisation unterstützt beide Chat-Typen gleichzeitig — kein separater Modus-Schalter bei der Erstellung mehr nötig.
+
+#### Chat-Anfragen (1-zu-1 & Gruppen auf Anfrage)
 - Mitglieder können Chats mit anderen Mitgliedern anfordern
 - Admin oder Moderator genehmigt oder lehnt Anfragen ab
 - Abgelehnte Anfragen werden gelöscht → neue Anfrage jederzeit möglich
@@ -70,15 +92,14 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 - **Chat-Info (ⓘ):** Guardians, Eltern, Admins und Moderatoren können in der Kachel eines überwachten Chats auf ⓘ tippen, um Teilnehmer und Supervisoren des Chats anzuzeigen
 - **Typ-Indikator:** Jede Kachel in der „Überwachte Chats"-Liste zeigt „Gruppe" oder „Direktnachricht", damit Gruppen- und 1-zu-1-Chats auf einen Blick unterscheidbar sind
 - „Chat Starten" aus der Mitgliederliste öffnet immer einen eigenen 1-zu-1-Chat, auch wenn bereits eine Gruppenkonversation mit derselben Person existiert
-- **Gruppen umbenennen:** Admins und Moderatoren können Gruppenkonversationen jederzeit umbenennen — über das ✏️-Icon in der AppBar oder das `⋮`-Menü der Chat-Kachel
-- **Persönlicher Chatname:** Jeder Teilnehmer eines Direktchats kann für sich einen eigenen Anzeigenamen vergeben (nur für ihn sichtbar) — per ✏️-Icon in der AppBar, `⋮`-Menü oder Long-Press auf die Chat-Kachel
 
-#### Sheltered-Modus
-- Admin legt vorab fest, wer mit wem kommunizieren darf
-- Nur freigegebene Verbindungen sind möglich
+#### Admin-verwaltete Gruppen
+- Admins können Gruppen-Chats anlegen und Mitglieder direkt zuweisen
 - Moderatoren haben Einsicht in alle Chats der Organisation
-- Gruppen-Chats möglich
-- **Abstimmungen/Umfragen** können von Teilnehmern gestartet werden (Einzel- oder Mehrfachauswahl)
+- **Gruppen umbenennen:** Admins und Moderatoren können Gruppenkonversationen jederzeit umbenennen — über das ✏️-Icon in der AppBar oder das `⋮`-Menü der Chat-Kachel
+- **Gruppenbild:** Admins und Moderatoren können ein Bild für eine Gruppenkonversation festlegen — erscheint als Avatar in Kachel und Chat-Header; kann jederzeit geändert oder entfernt werden
+- **Persönlicher Chatname:** Jeder Teilnehmer eines Direktchats kann für sich einen eigenen Anzeigenamen vergeben (nur für ihn sichtbar) — per ✏️-Icon in der AppBar, `⋮`-Menü oder Long-Press auf die Chat-Kachel
+- **Abstimmungen/Umfragen** können in allen Gruppenkonversationen gestartet werden (Einzel- oder Mehrfachauswahl)
 
 ### Guardian-Kind-Beziehung (Org-lokal)
 - Kind-Mitglieder werden einem oder mehreren Guardians innerhalb der Organisation zugewiesen
@@ -144,22 +165,23 @@ Erreichbar über **Profil → Meine Verknüpfungen**. Der Screen vereint alle As
 - Bilder im Chat werden zwischengespeichert (keine Laderuckler beim Scrollen)
 - Sprachnachrichten aufnehmen und abspielen (AAC/Opus, max. 10 MB)
 - **Dateien senden** (max. 5 MB, beliebige Dateitypen) — per „+"-Menü im Chat
-- **Abstimmungen** in Sheltered-Chats erstellen und abstimmen
+- **Abstimmungen** in Gruppen-Chats erstellen und abstimmen
 - **Tipp-Indikator** — „schreibt gerade…" in Echtzeit über der Eingabeleiste, mit animierten Punkten
 - **Nachrichten-Reaktionen** — per langem Druck Emoji-Reaktion wählen (👍❤️😂😮😢😡👎), Reaktionen erscheinen als Chips unter der Nachricht; erneutes Antippen entfernt die eigene Reaktion
 - **Antworten auf Nachrichten** (Reply-Zitat in der Blase)
+- **Chat-Schriftgröße** einstellbar im Profil (Klein / Mittel / Groß / Sehr groß)
 - Scrollbar an der rechten Seite
 - Ältere Nachrichten automatisch nachladen beim Hochscrollen
 - **Nachrichten anpinnen** — Admin/Moderator kann eine Nachricht anpinnen; wird als Banner oben im Chat angezeigt
 - **Geplante Nachrichten** — Nachricht für einen späteren Zeitpunkt planen
 - **Abstimmungen (Polls)** — Frage mit Optionen erstellen (Einzel- oder Mehrfachauswahl), optionale Anonymisierung; Abstimmungsergebnisse mit Wähler-Namen (bei nicht-anonymen Umfragen); optionales Ablaufdatum mit Uhrzeit — abgelaufene Umfragen schließen automatisch
-- **System-Nachrichten** — bei Sheltered-Gruppen-Chats erscheint beim Hinzufügen oder Entfernen von Mitgliedern eine zentrierte, graue Info-Zeile im Chatverlauf
+- **System-Nachrichten** — in Gruppen-Chats erscheint beim Hinzufügen oder Entfernen von Mitgliedern eine zentrierte, graue Info-Zeile im Chatverlauf
 
 ### Chat-Verwaltung (Admin & Moderator)
 - Chats archivieren (werden read-only)
 - Chats dauerhaft löschen (inkl. aller Nachrichten)
 - Ausstehende Chat-Anfragen genehmigen oder ablehnen
-- **Geplante Nachrichten** können auch von Admins/Moderatoren geplant werden, die nicht direkte Chat-Teilnehmer sind (z. B. Admin in Sheltered-Gruppen)
+- **Geplante Nachrichten** können auch von Admins/Moderatoren geplant werden, die nicht direkte Chat-Teilnehmer sind
 
 ### Ungelesene Nachrichten
 - Badge-Anzeige auf Chat-Kacheln
@@ -192,7 +214,7 @@ Erreichbar über **Profil → Meine Verknüpfungen**. Der Screen vereint alle As
 - Tooltip zeigt Anzahl ungelesener Chats
 
 ### Bulk-Import (CSV)
-- Admins von Sheltered-Orgs können Mitglieder per CSV-Datei importieren
+- Admins können Mitglieder per CSV-Datei importieren
 - Delimiter (`,` oder `;`) wird automatisch erkannt
 - Spalten: `email`, `rolle`, `guardians` (Leerzeichen-getrennte E-Mails)
 - Vorschau mit Validierung vor dem Import (✓ gültig, ⚠ Warnung, ✗ Fehler)
@@ -272,6 +294,8 @@ Die Schritt-für-Schritt-Tour auf der Organisations-Übersicht hebt die wichtigs
 - Nach dem Senden wird direkt in den Ziel-Chat navigiert
 
 ### Sonstiges
+- **E-Mail-Datenschutz:** Schalter „E-Mail-Adresse verbergen" in den Datenschutz-Einstellungen (Profil → Datenschutz) — ersetzt die Adresse in der Mitgliederliste durch ein Datenschutz-Icon
+- **Automatische Datenaktualisierung:** Alle Chats und Organisationen werden nach einer Netzwerkunterbrechung oder Rückkehr aus dem Hintergrund automatisch neu geladen
 - Dark / Light Mode
 - **UI-Skalierung (Windows/Linux)** — 100 % bis 200 % in Schritten, einstellbar im Profil — optimiert für 4K-Monitore
 - **„Über die App"-Dialog** — zeigt Versionsnummer, Open-Source-Lizenzen und GitHub-Link
@@ -287,8 +311,8 @@ Die Schritt-für-Schritt-Tour auf der Organisations-Übersicht hebt die wichtigs
 
 | Plattform | Status | Besonderheiten |
 |---|---|---|
-| **Android** | ✅ | Google Play, FCM, Google Sign-In + E-Mail-Link, App Check |
-| **Windows** | ✅ | System Tray, Taskleisten-Badge, E-Mail-Link |
+| **Android** | ✅ | Google Play, FCM, Google Sign-In + E-Mail-Code, App Check |
+| **Windows** | ✅ | System Tray, Taskleisten-Badge, E-Mail-Code (OTP) |
 | **iOS / macOS** | ⏳ nicht konfiguriert | – |
 
 ### Windows-Build erstellen
@@ -428,18 +452,18 @@ orgInviteConsents/{consentId}   ← Einwilligung der Eltern für Org-Einladungen
 | `onChildOrgInvite` | Firestore Create | Push an alle verifizierten Eltern bei Org-Einladung des Kindes |
 | `onParentConsent` | Firestore Update | Bei Genehmigung: Kind als `pending`-Mitglied hinzufügen; Push an einladenden Admin |
 | `processMyInvitations` | Callable | Verarbeitet ausstehende Einladungen beim Login |
-| `getCustomToken` | HTTP | Tauscht Firebase-idToken gegen Custom Token (Windows E-Mail-Link-Login) |
 
 ---
 
 ## Setup
 
-> **Hinweis:** Firebase-Konfigurationsdateien (`google-services.json`, `firebase_options.dart`, `key.properties`) sind nicht im Repository enthalten — sie müssen für deine eigene Firebase-Instanz erstellt werden.
+> **Hinweis:** Konfigurationsdateien (`google-services.json`, `firebase_options.dart`, `key.properties`) sind nicht im Repository enthalten — sie müssen für die eigene Instanz erstellt werden.
 
 ### Voraussetzungen
 
 - [Flutter SDK](https://docs.flutter.dev/get-started/install) ≥ 3.x
 - [Firebase CLI](https://firebase.google.com/docs/cli) + [FlutterFire CLI](https://firebase.flutter.dev/docs/cli)
+- Appwrite-Instanz (self-hosted oder Cloud) mit aktiviertem Google-OAuth und E-Mail-OTP
 - Android Studio (für Android-Builds) oder Visual Studio 2022 mit C++-Workload (für Windows-Builds)
 - Node.js 22 (für Cloud Functions)
 
@@ -450,49 +474,45 @@ orgInviteConsents/{consentId}   ← Einwilligung der Eltern für Org-Einladungen
 git clone https://github.com/pbirokas/guardian_com.git
 cd guardian_com
 
-# 2. Firebase-Projekt erstellen (console.firebase.google.com)
-#    → Authentication (Google Sign-In + E-Mail-Link aktivieren)
+# 2. Appwrite-Projekt einrichten
+#    → Projekt anlegen, Endpunkt + Projekt-ID in lib/core/appwrite_client.dart eintragen
+#    → Authentication: Google OAuth + E-Mail-OTP aktivieren
+#    → Storage-Bucket anlegen (Bucket-ID in appwrite_client.dart eintragen)
+
+# 3. Firebase-Projekt erstellen (console.firebase.google.com)
 #    → Firestore Database anlegen
-#    → Storage aktivieren
+#    → Cloud Messaging aktivieren
 #    → Cloud Functions aktivieren (Blaze-Plan)
 #    → App Check aktivieren (Android: Play Integrity)
+#    → Crashlytics aktivieren (Android)
 
-# 3. FlutterFire konfigurieren (erzeugt firebase_options.dart + google-services.json)
+# 4. FlutterFire konfigurieren (erzeugt firebase_options.dart + google-services.json)
 cd guardian_app
 flutterfire configure --platforms=android,windows
 
-# 4. Abhängigkeiten installieren
+# 5. Abhängigkeiten installieren
 flutter pub get
 
-# 5. Cloud Functions Abhängigkeiten installieren
+# 6. Cloud Functions Abhängigkeiten installieren
 cd ../functions
 npm install
 
-# 6. Gmail App-Passwort für Einladungs-E-Mails hinterlegen (optional)
+# 7. Gmail App-Passwort für Einladungs-E-Mails hinterlegen (optional)
 firebase functions:secrets:set GMAIL_APP_PASSWORD
 
-# 7. Firebase-Regeln & Functions deployen
+# 8. Firebase-Regeln & Functions deployen
 cd ..
 firebase deploy --only firestore:rules,storage,functions
 
-# 8. App starten
+# 9. App starten
 cd guardian_app
 flutter run                     # Android
 flutter run -d windows          # Windows
 ```
 
-### IAM-Berechtigung für Custom Token (Windows-Login)
+### Hinweis zum Windows-Login
 
-Damit der E-Mail-Link-Login auf Windows funktioniert, benötigt der Cloud Functions
-Service Account die Berechtigung zum Erstellen von Tokens:
-
-```bash
-gcloud projects add-iam-policy-binding PROJEKT_ID \
-  --member="serviceAccount:PROJEKTNUMMER-compute@developer.gserviceaccount.com" \
-  --role="roles/iam.serviceAccountTokenCreator"
-```
-
-Projektnummer findest du unter: Firebase Console → Projekteinstellungen → Allgemein.
+Der E-Mail-Code-Login (OTP) auf Windows läuft vollständig über Appwrite — kein Browser-Wechsel und keine zusätzliche IAM-Konfiguration nötig. Der Nutzer gibt den 6-stelligen Code direkt in der Desktop-App ein.
 
 ### Vorlage für firebase_options.dart
 

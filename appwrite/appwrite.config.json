@@ -1791,6 +1791,21 @@
             "commands": "npm install",
             "path": "functions/merge-oauth-account",
             "vars": {}
+        },
+        {
+            "$id": "daily-error-report",
+            "name": "daily-error-report",
+            "runtime": "node-16.0",
+            "execute": [],
+            "events": [],
+            "schedule": "0 7 * * *",
+            "timeout": 300,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/daily-error-report",
+            "vars": {}
         }
     ],
     "buckets": [

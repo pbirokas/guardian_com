@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-22
+
+- **Täglicher Fehler-Report per E-Mail:** Administratoren erhalten täglich um 07:00 Uhr eine automatische E-Mail mit einer Übersicht aller fehlgeschlagenen Backend-Funktionen der letzten 24 Stunden — inklusive Fehleranzahl und Fehlerauszug je Funktion.
+
+---
+
 ## 2026-05-18 (3)
 
 - **Passwort-Login entfernt:** Der "Mit Passwort anmelden"-Button wurde vom Login-Screen entfernt. Die Anmeldung erfolgt ausschließlich über Google oder E-Mail-Code.

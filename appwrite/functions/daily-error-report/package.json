@@ -1,0 +1,7 @@
+{
+  "name": "daily-error-report",
+  "version": "1.0.0",
+  "dependencies": {
+    "node-appwrite": "14.2.0"
+  }
+}

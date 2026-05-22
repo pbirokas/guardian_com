@@ -2513,7 +2513,7 @@ class _ReactionChips extends StatelessWidget {
   }
 }
 
-class _InputBar extends StatelessWidget {
+class _InputBar extends StatefulWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final VoidCallback onSend;
@@ -2552,10 +2552,23 @@ class _InputBar extends StatelessWidget {
     this.onContentInserted,
   });
 
+  @override
+  State<_InputBar> createState() => _InputBarState();
+}
+
+class _InputBarState extends State<_InputBar> {
+  final _inputScrollController = ScrollController();
+
   String _formatDuration(Duration d) {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$m:$s';
+  }
+
+  @override
+  void dispose() {
+    _inputScrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -2566,7 +2579,7 @@ class _InputBar extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (replyMessage != null)
+          if (widget.replyMessage != null)
             Container(
               padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
               decoration: BoxDecoration(
@@ -2583,7 +2596,7 @@ class _InputBar extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          l.replyingTo(replyMessage!.senderName),
+                          l.replyingTo(widget.replyMessage!.senderName),
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
@@ -2591,13 +2604,13 @@ class _InputBar extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          replyMessage!.imageUrl != null
+                          widget.replyMessage!.imageUrl != null
                               ? '🖼'
-                              : replyMessage!.audioUrl != null
+                              : widget.replyMessage!.audioUrl != null
                                   ? '🎤'
-                                  : replyMessage!.fileUrl != null
-                                      ? replyMessage!.fileName ?? '📎'
-                                      : replyMessage!.text,
+                                  : widget.replyMessage!.fileUrl != null
+                                      ? widget.replyMessage!.fileName ?? '📎'
+                                      : widget.replyMessage!.text,
                           style: TextStyle(
                             fontSize: 12,
                             color: colorScheme.onSurfaceVariant,
@@ -2610,7 +2623,7 @@ class _InputBar extends StatelessWidget {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close, size: 18),
-                    onPressed: onCancelReply,
+                    onPressed: widget.onCancelReply,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
@@ -2619,7 +2632,7 @@ class _InputBar extends StatelessWidget {
             ),
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
-            child: isRecording
+            child: widget.isRecording
                 ? _buildRecordingBar(context)
                 : _buildNormalBar(context),
           ),
@@ -2635,7 +2648,7 @@ class _InputBar extends StatelessWidget {
         IconButton(
           icon: const Icon(Icons.delete_outline, color: Colors.red),
           tooltip: l.cancel,
-          onPressed: onCancelRecording,
+          onPressed: widget.onCancelRecording,
         ),
         Expanded(
           child: Container(
@@ -2650,7 +2663,7 @@ class _InputBar extends StatelessWidget {
                 const Icon(Icons.circle, color: Colors.red, size: 10),
                 const SizedBox(width: 8),
                 Text(
-                  _formatDuration(recordingDuration),
+                  _formatDuration(widget.recordingDuration),
                   style: const TextStyle(
                       fontFeatures: [FontFeature.tabularFigures()]),
                 ),
@@ -2663,7 +2676,7 @@ class _InputBar extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         FilledButton(
-          onPressed: onStopAndSend,
+          onPressed: widget.onStopAndSend,
           style: FilledButton.styleFrom(
             shape: const CircleBorder(),
             padding: const EdgeInsets.all(14),
@@ -2685,21 +2698,21 @@ class _InputBar extends StatelessWidget {
             ListTile(
               leading: const Icon(Icons.image_outlined),
               title: Text(l.sendImage),
-              onTap: onSendImage == null
+              onTap: widget.onSendImage == null
                   ? null
                   : () {
                       Navigator.pop(context);
-                      onSendImage!();
+                      widget.onSendImage!();
                     },
             ),
             ListTile(
               leading: const Icon(Icons.attach_file),
               title: Text(l.sendFile),
-              onTap: onSendFile == null
+              onTap: widget.onSendFile == null
                   ? null
                   : () {
                       Navigator.pop(context);
-                      onSendFile!();
+                      widget.onSendFile!();
                     },
             ),
             ListTile(
@@ -2707,16 +2720,16 @@ class _InputBar extends StatelessWidget {
               title: Text(l.voiceRecording),
               onTap: () {
                 Navigator.pop(context);
-                onStartRecording();
+                widget.onStartRecording();
               },
             ),
-            if (onCreatePoll != null)
+            if (widget.onCreatePoll != null)
               ListTile(
                 leading: const Icon(Icons.poll_outlined),
                 title: Text(l.createPoll),
                 onTap: () {
                   Navigator.pop(context);
-                  onCreatePoll!();
+                  widget.onCreatePoll!();
                 },
               ),
             ListTile(
@@ -2724,7 +2737,7 @@ class _InputBar extends StatelessWidget {
               title: Text(l.scheduleMessage),
               onTap: () {
                 Navigator.pop(context);
-                onSchedule?.call();
+                widget.onSchedule?.call();
               },
             ),
           ],
@@ -2736,48 +2749,68 @@ class _InputBar extends StatelessWidget {
   Widget _buildNormalBar(BuildContext context) {
     final l = AppLocalizations.of(context);
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        IconButton(
-          icon: const Icon(Icons.add_circle_outline),
-          tooltip: l.attachmentTooltip,
-          onPressed: () => _showAttachMenu(context),
-        ),
-        Expanded(
-          child: TextField(
-            controller: controller,
-            focusNode: focusNode,
-            textCapitalization: TextCapitalization.sentences,
-            maxLines: null,
-            contentInsertionConfiguration: onContentInserted != null
-                ? ContentInsertionConfiguration(
-                    allowedMimeTypes: const [
-                      'image/gif',
-                      'image/png',
-                      'image/jpeg',
-                      'image/webp',
-                    ],
-                    onContentInserted: onContentInserted!,
-                  )
-                : null,
-            decoration: InputDecoration(
-              hintText: l.messageHint,
-              filled: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(24),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: Icon(widget.showEmojiIcon ? Icons.keyboard : Icons.emoji_emotions_outlined),
+              onPressed: widget.onToggleEmoji,
+              iconSize: 20,
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(),
             ),
-            onSubmitted: (_) => onSend(),
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline),
+              tooltip: l.attachmentTooltip,
+              onPressed: () => _showAttachMenu(context),
+              iconSize: 20,
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(),
+            ),
+          ],
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Scrollbar(
+            controller: _inputScrollController,
+            thumbVisibility: true,
+            child: TextField(
+              controller: widget.controller,
+              focusNode: widget.focusNode,
+              scrollController: _inputScrollController,
+              textCapitalization: TextCapitalization.sentences,
+              minLines: 1,
+              maxLines: 12,
+              contentInsertionConfiguration: widget.onContentInserted != null
+                  ? ContentInsertionConfiguration(
+                      allowedMimeTypes: const [
+                        'image/gif',
+                        'image/png',
+                        'image/jpeg',
+                        'image/webp',
+                      ],
+                      onContentInserted: widget.onContentInserted!,
+                    )
+                  : null,
+              decoration: InputDecoration(
+                hintText: l.messageHint,
+                filled: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+              onSubmitted: (_) => widget.onSend(),
+            ),
           ),
         ),
-        IconButton(
-          icon: Icon(showEmojiIcon ? Icons.keyboard : Icons.emoji_emotions_outlined),
-          onPressed: onToggleEmoji,
-        ),
+        const SizedBox(width: 8),
         FilledButton(
-          onPressed: onSend,
+          onPressed: widget.onSend,
           style: FilledButton.styleFrom(
             shape: const CircleBorder(),
             padding: const EdgeInsets.all(14),

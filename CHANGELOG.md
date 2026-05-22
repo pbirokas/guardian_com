@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-22 (2)
+
+- **Google Play Store Freigabe:** Nicht erforderliche Medien-Berechtigungen (`READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_MEDIA_AUDIO`) wurden entfernt. Die App nutzt den systemnativen Android Photo Picker, der keine expliziten Berechtigungen benötigt.
+
+---
+
 ## 2026-05-22
 
 - **Täglicher Fehler-Report per E-Mail:** Administratoren erhalten täglich um 07:00 Uhr eine automatische E-Mail mit einer Übersicht aller fehlgeschlagenen Backend-Funktionen der letzten 24 Stunden — inklusive Fehleranzahl und Fehlerauszug je Funktion.

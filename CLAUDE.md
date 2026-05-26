@@ -116,6 +116,10 @@ Flutter side: `ShareService` wraps the channel; `pendingShareProvider` (Notifier
 
 Conversations in the picker are filtered to the user's current orgs (`myOrganizationsProvider`). Direct-chat titles resolve via `userDisplayNameProvider(uid)` (FutureProvider.family, cached per UID).
 
+### Realtime / WebSocket
+
+All Appwrite Realtime subscriptions go through a single shared `RealtimeBroadcaster` instance provided by `appwriteRealtimeBroadcasterProvider` (in `core/appwrite_client.dart`). The broadcaster ref-counts subscriptions per channel: multiple services listening to the same collection share one WebSocket slot. Services receive a `RealtimeBroadcaster` via constructor injection and call `broadcaster.stream(channel)` instead of creating their own `Realtime` instance. When invalidating `appwriteRealtimeProvider` (on logout or reconnect), always also invalidate `appwriteRealtimeBroadcasterProvider`.
+
 ### Desktop (Windows)
 
 Windows uses Firestore listeners for notifications instead of FCM. `TrayService` manages the system tray icon; `DesktopNotificationService` shows native toasts. Platform-specific code is behind stub files (`*_stub.dart`) to keep Android unaffected.

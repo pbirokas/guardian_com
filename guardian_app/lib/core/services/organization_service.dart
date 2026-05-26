@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:appwrite/appwrite.dart';
 import 'package:appwrite/models.dart' as aw;
-import '../appwrite_client.dart';
+import '../appwrite_client.dart' show RealtimeBroadcaster;
 import '../models/announcement.dart';
 import '../models/app_user.dart';
 import '../models/member_suggestion.dart';
@@ -17,17 +17,18 @@ import '../models/org_audit_entry.dart';
 class OrganizationService {
   OrganizationService({
     required Client client,
+    required RealtimeBroadcaster broadcaster,
     required String uid,
     required String displayName,
     String? email,
   })  : _db = Databases(client),
-        _realtime = createPatchedRealtime(client),
+        _broadcaster = broadcaster,
         _uid = uid,
         _displayName = displayName,
         _email = email ?? '';
 
   final Databases _db;
-  final Realtime _realtime;
+  final RealtimeBroadcaster _broadcaster;
   final String _uid;
   final String _displayName;
   final String _email;
@@ -73,9 +74,8 @@ class OrganizationService {
     }
 
     ctrl = StreamController(onCancel: dispose);
-    realtimeSub = _realtime
-        .subscribe(['databases.$_dbId.collections.$collectionId.documents'])
-        .stream
+    realtimeSub = _broadcaster
+        .stream('databases.$_dbId.collections.$collectionId.documents')
         .listen((_) => reload(), onDone: dispose, onError: (_) {});
     reload();
     return ctrl.stream;
@@ -222,10 +222,8 @@ class OrganizationService {
     }
 
     ctrl.onCancel = dispose;
-    realtimeSub = _realtime
-        .subscribe(
-            ['databases.$_dbId.collections.$_colOrgs.documents.$orgId'])
-        .stream
+    realtimeSub = _broadcaster
+        .stream('databases.$_dbId.collections.$_colOrgs.documents.$orgId')
         .listen((_) => reload(), onDone: dispose, onError: (_) {});
     reload();
     return ctrl.stream;
@@ -899,11 +897,8 @@ class OrganizationService {
     }
 
     ctrl = StreamController(onCancel: dispose);
-    realtimeSub = _realtime
-        .subscribe([
-          'databases.$_dbId.collections.$_colMembers.documents.$memberId'
-        ])
-        .stream
+    realtimeSub = _broadcaster
+        .stream('databases.$_dbId.collections.$_colMembers.documents.$memberId')
         .listen((_) => reload(), onDone: dispose, onError: (_) {});
     reload();
     return ctrl.stream;

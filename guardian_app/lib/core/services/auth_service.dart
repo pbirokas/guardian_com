@@ -11,18 +11,18 @@ import '../models/notification_settings.dart';
 import 'notification_service.dart';
 
 class AuthService {
-  AuthService(Client client)
+  AuthService(Client client, RealtimeBroadcaster broadcaster)
       : _client = client,
         _account = Account(client),
         _db = Databases(client),
         _functions = Functions(client),
-        _realtime = createPatchedRealtime(client);
+        _broadcaster = broadcaster;
 
   final Client _client;
   final Account _account;
   final Databases _db;
   final Functions _functions;
-  final Realtime _realtime;
+  final RealtimeBroadcaster _broadcaster;
 
   static const _dbId = 'guardian';
   static const _colUsers = 'users';
@@ -199,9 +199,8 @@ class AuthService {
     }
 
     ctrl = StreamController(onCancel: dispose);
-    realtimeSub = _realtime
-        .subscribe(['databases.$_dbId.collections.$_colUsers.documents.$uid'])
-        .stream
+    realtimeSub = _broadcaster
+        .stream('databases.$_dbId.collections.$_colUsers.documents.$uid')
         .listen((_) => reload(), onDone: dispose, onError: (_) {});
     reload();
     return ctrl.stream;

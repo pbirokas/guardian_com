@@ -14,6 +14,7 @@ final organizationServiceProvider = Provider<OrganizationService>((ref) {
   final client = ref.watch(appwriteClientProvider);
   return OrganizationService(
     client: client,
+    broadcaster: ref.watch(appwriteRealtimeBroadcasterProvider),
     uid: user?.uid ?? '',
     displayName: user?.displayName ?? '',
     email: user?.email,

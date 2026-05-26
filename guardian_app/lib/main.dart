@@ -138,6 +138,10 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
       return;
     }
     _lastInvalidation = now;
+    // Realtime zuerst invalidieren: neue Services erhalten eine frische Instanz
+    // mit _reconnect=true statt der nach _closeConnection() auf false gesetzten.
+    ref.invalidate(appwriteRealtimeProvider);
+    ref.invalidate(appwriteRealtimeBroadcasterProvider);
     ref.invalidate(chatServiceProvider);
     ref.invalidate(organizationServiceProvider);
     ref.invalidate(parentClaimServiceProvider);
@@ -182,9 +186,11 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
       final client = ref.read(appwriteClientProvider);
       if (user != null) {
         NotificationService().initialize(Databases(client), user.uid);
-        if (_isDesktop) DesktopNotificationService().startListening(client, user.uid);
+        if (_isDesktop) DesktopNotificationService().startListening(client, ref.read(appwriteRealtimeBroadcasterProvider), user.uid);
       } else {
         if (_isDesktop) DesktopNotificationService().stopListening();
+        ref.invalidate(appwriteRealtimeProvider);
+        ref.invalidate(appwriteRealtimeBroadcasterProvider);
       }
     });
 

@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:appwrite/appwrite.dart';
 import 'package:appwrite/enums.dart';
-import '../appwrite_client.dart';
+import '../appwrite_client.dart' show RealtimeBroadcaster;
 import '../models/child_summary.dart';
 import '../models/claim_request.dart';
 import '../models/org_invite_consent.dart';
@@ -19,18 +19,19 @@ import '../models/org_invite_consent.dart';
 class ParentClaimService {
   ParentClaimService({
     required Client client,
+    required RealtimeBroadcaster broadcaster,
     required String uid,
     required String displayName,
     required String email,
   })  : _db = Databases(client),
-        _realtime = createPatchedRealtime(client),
+        _broadcaster = broadcaster,
         _functions = Functions(client),
         _uid = uid,
         _displayName = displayName,
         _email = email;
 
   final Databases _db;
-  final Realtime _realtime;
+  final RealtimeBroadcaster _broadcaster;
   final Functions _functions;
   final String _uid;
   final String _displayName;
@@ -74,9 +75,8 @@ class ParentClaimService {
     }
 
     ctrl = StreamController(onCancel: dispose);
-    realtimeSub = _realtime
-        .subscribe(['databases.$_dbId.collections.$collectionId.documents'])
-        .stream
+    realtimeSub = _broadcaster
+        .stream('databases.$_dbId.collections.$collectionId.documents')
         .listen((_) => reload(), onDone: dispose, onError: (_) {});
     reload();
     return ctrl.stream;
@@ -222,10 +222,8 @@ class ParentClaimService {
     }
 
     ctrl = StreamController(onCancel: dispose);
-    realtimeSub = _realtime
-        .subscribe(
-            ['databases.$_dbId.collections.$_colUsers.documents.$_uid'])
-        .stream
+    realtimeSub = _broadcaster
+        .stream('databases.$_dbId.collections.$_colUsers.documents.$_uid')
         .listen((_) => reload(), onDone: dispose, onError: (_) {});
     reload();
     return ctrl.stream;

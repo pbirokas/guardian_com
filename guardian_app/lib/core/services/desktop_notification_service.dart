@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:appwrite/appwrite.dart';
+import '../appwrite_client.dart' show RealtimeBroadcaster;
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
-import '../appwrite_client.dart';
 import 'package:local_notifier/local_notifier.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -28,7 +28,7 @@ class DesktopNotificationService {
   static bool _initialized = false;
 
   Databases? _db;
-  Realtime? _realtime;
+  RealtimeBroadcaster? _broadcaster;
 
   StreamSubscription? _convSub;
   StreamSubscription? _unreadSub;
@@ -46,10 +46,10 @@ class DesktopNotificationService {
     debugPrint('DesktopNotificationService initialized');
   }
 
-  void startListening(Client client, String uid) {
+  void startListening(Client client, RealtimeBroadcaster broadcaster, String uid) {
     stopListening();
     _db = Databases(client);
-    _realtime = createPatchedRealtime(client);
+    _broadcaster = broadcaster;
     _startConversationTracking(uid);
     _startUnreadTracking(uid);
   }
@@ -66,16 +66,13 @@ class DesktopNotificationService {
     _unreadCount = 0;
     TrayService.instance.updateBadge(0);
     _db = null;
-    _realtime = null;
+    _broadcaster = null;
   }
 
   // ── Toast-Notifications ────────────────────────────────────────────────────
 
   void _startConversationTracking(String uid) {
     final db = _db!;
-    final realtime = _realtime!;
-    final convSub = realtime.subscribe(
-        ['databases.guardian.collections.conversations.documents']);
 
     Future<void> refresh() async {
       try {
@@ -93,7 +90,6 @@ class DesktopNotificationService {
         for (final doc in result.documents) {
           if (!_msgSubs.containsKey(doc.$id)) {
             _watchMessages(
-              realtime: realtime,
               convId: doc.$id,
               convName: doc.data['name'] as String?,
               currentUid: uid,
@@ -109,21 +105,21 @@ class DesktopNotificationService {
       } catch (_) {}
     }
 
-    _convSub = convSub.stream.listen((_) => refresh());
+    _convSub = _broadcaster!
+        .stream('databases.guardian.collections.conversations.documents')
+        .listen((_) => refresh());
     refresh();
   }
 
   void _watchMessages({
-    required Realtime realtime,
     required String convId,
     required String? convName,
     required String currentUid,
   }) {
     final startTime = DateTime.now();
 
-    final sub = realtime
-        .subscribe(['databases.guardian.collections.chat_messages.documents'])
-        .stream
+    final sub = _broadcaster!
+        .stream('databases.guardian.collections.chat_messages.documents')
         .listen((event) {
       // Only care about newly created messages in this conversation
       final isCreate =
@@ -190,9 +186,6 @@ class DesktopNotificationService {
 
   void _startUnreadTracking(String uid) {
     final db = _db!;
-    final realtime = _realtime!;
-    final convSub = realtime.subscribe(
-        ['databases.guardian.collections.conversations.documents']);
 
     Future<void> recalculate() async {
       try {
@@ -232,7 +225,9 @@ class DesktopNotificationService {
       } catch (_) {}
     }
 
-    _unreadSub = convSub.stream.listen((_) => recalculate());
+    _unreadSub = _broadcaster!
+        .stream('databases.guardian.collections.conversations.documents')
+        .listen((_) => recalculate());
     recalculate();
   }
 

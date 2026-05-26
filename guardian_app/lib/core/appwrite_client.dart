@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
@@ -29,6 +30,85 @@ final appwriteRealtimeProvider = Provider<Realtime>((ref) {
 
 final appwriteStorageProvider = Provider<Storage>((ref) {
   return Storage(ref.watch(appwriteClientProvider));
+});
+
+/// Ref-counted Realtime channel multiplexer.
+/// Multiple concurrent listeners to the same channel share one WebSocket slot;
+/// the Realtime subscription is opened on the first listen and cancelled
+/// automatically when the last listener unsubscribes.
+class RealtimeBroadcaster {
+  RealtimeBroadcaster(this._realtime);
+
+  final Realtime _realtime;
+  final Map<String, Stream<dynamic>> _cache = {};
+
+  Stream<dynamic> stream(String channel) {
+    return _cache.putIfAbsent(channel, () {
+      // LinkedHashSet.identity(): O(1) add/remove by object identity.
+      final sinks = LinkedHashSet<MultiStreamController<dynamic>>.identity();
+      StreamSubscription<dynamic>? sub;
+      // Guard against reentrant cancellation during fan-out: if a listener
+      // cancels synchronously inside its onData, defer the remove until after
+      // the current dispatch loop finishes to avoid concurrent modification.
+      bool dispatching = false;
+      final deferred = <MultiStreamController<dynamic>>[];
+
+      void fanOut(void Function(MultiStreamController<dynamic>) fn) {
+        dispatching = true;
+        for (final s in sinks) {
+          if (!s.isClosed) fn(s);
+        }
+        dispatching = false;
+        for (final s in deferred) { sinks.remove(s); }
+        deferred.clear();
+        if (sinks.isEmpty) {
+          sub?.cancel();
+          sub = null;
+          _cache.remove(channel);
+        }
+      }
+
+      return Stream<dynamic>.multi(
+        (controller) {
+          if (sinks.isEmpty) {
+            sub = _realtime.subscribe([channel]).stream.listen(
+              (event) => fanOut((s) => s.add(event)),
+              onDone: () {
+                // Clean up cache first so any onCancel triggered by s.close()
+                // finds sub == null and _cache already evicted (both no-ops).
+                sub = null;
+                _cache.remove(channel);
+                for (final s in List.of(sinks)) {
+                  if (!s.isClosed) s.close();
+                }
+                sinks.clear();
+              },
+              onError: (Object e, StackTrace st) =>
+                  fanOut((s) => s.addError(e, st)),
+            );
+          }
+          sinks.add(controller);
+          controller.onCancel = () {
+            if (dispatching) {
+              deferred.add(controller);
+            } else {
+              sinks.remove(controller);
+              if (sinks.isEmpty) {
+                sub?.cancel();
+                sub = null;
+                _cache.remove(channel);
+              }
+            }
+          };
+        },
+        isBroadcast: true,
+      );
+    });
+  }
+}
+
+final appwriteRealtimeBroadcasterProvider = Provider<RealtimeBroadcaster>((ref) {
+  return RealtimeBroadcaster(ref.watch(appwriteRealtimeProvider));
 });
 
 /// Call after every successful login/session-restore to cache the Appwrite
@@ -110,8 +190,19 @@ Realtime createPatchedRealtime(Client client) {
         ? {HttpHeaders.cookieHeader: cookieStr}
         : <String, String>{};
 
+    // Dart doesn't register a default port for the wss/ws schemes (only for
+    // http/https), so wsUri.port is 0 when no explicit port was given.
+    // WebSocket.connect converts wss:// → https:// internally while preserving
+    // the port, which produces "https://host:0/..." and fails immediately.
+    // Fix: add the standard port before connecting, but keep wsUri unchanged
+    // above so httpsUri (used for cookie lookup) still has no explicit port —
+    // matching the cookies stored under https://host/v1 (no explicit port).
+    final connectUri = wsUri.port == 0
+        ? wsUri.replace(port: wsUri.scheme == 'wss' ? 443 : 80)
+        : wsUri;
+
     return IOWebSocketChannel(
-        await WebSocket.connect(wsUri.toString(), headers: headers));
+        await WebSocket.connect(connectUri.toString(), headers: headers));
   };
 
   dyn.getFallbackCookie = () => _realtimeSessionCookie;

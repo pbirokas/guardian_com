@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-26 (2)
+
+- **Stabilere Echtzeit-Verbindung:** Ein Fehler führte dazu, dass die WebSocket-Verbindung für Echtzeit-Updates regelmäßig mit einem Verbindungsfehler abbricht. Alle Dienste teilen sich nun eine gemeinsame Verbindung, was Verbindungsabbrüche deutlich reduziert.
+
+---
+
 ## 2026-05-26
 
 - **Geplante Backend-Funktionen laufen wieder zuverlässig:** Zeitgesteuerte Aufgaben (z. B. Aufräumen abgelaufener Inhalte) schlugen bei automatischer Ausführung mit einem Verbindungsfehler fehl. Der Endpunkt wird nun korrekt konfiguriert.

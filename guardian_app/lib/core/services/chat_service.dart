@@ -15,17 +15,18 @@ import '../models/scheduled_message.dart';
 class ChatService {
   ChatService({
     required Client client,
+    required RealtimeBroadcaster broadcaster,
     required String uid,
     required String displayName,
   })  : _db = Databases(client),
         _storage = Storage(client),
-        _realtime = createPatchedRealtime(client),
+        _broadcaster = broadcaster,
         _uid = uid,
         _displayName = displayName;
 
   final Databases _db;
   final Storage _storage;
-  final Realtime _realtime;
+  final RealtimeBroadcaster _broadcaster;
   final String _uid;
   final String _displayName;
 
@@ -92,9 +93,8 @@ class ChatService {
     }
 
     ctrl = StreamController(onCancel: dispose);
-    realtimeSub = _realtime
-        .subscribe(['databases.$_dbId.collections.$collectionId.documents'])
-        .stream
+    realtimeSub = _broadcaster
+        .stream('databases.$_dbId.collections.$collectionId.documents')
         .listen((_) => reload(), onDone: dispose, onError: (_) {});
     reload();
     return ctrl.stream;
@@ -133,10 +133,8 @@ class ChatService {
     }
 
     ctrl = StreamController(onCancel: dispose);
-    realtimeSub = _realtime
-        .subscribe(
-            ['databases.$_dbId.collections.$collectionId.documents.$docId'])
-        .stream
+    realtimeSub = _broadcaster
+        .stream('databases.$_dbId.collections.$collectionId.documents.$docId')
         .listen((_) => reload(), onDone: dispose, onError: (_) {});
     reload();
     return ctrl.stream;

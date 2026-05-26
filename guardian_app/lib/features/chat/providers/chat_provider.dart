@@ -12,6 +12,7 @@ final chatServiceProvider = Provider<ChatService>((ref) {
   final client = ref.watch(appwriteClientProvider);
   return ChatService(
     client: client,
+    broadcaster: ref.watch(appwriteRealtimeBroadcasterProvider),
     uid: user?.uid ?? '',
     displayName: user?.displayName ?? '',
   );

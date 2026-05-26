@@ -4,6 +4,13 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-26
+
+- **Geplante Backend-Funktionen laufen wieder zuverlässig:** Zeitgesteuerte Aufgaben (z. B. Aufräumen abgelaufener Inhalte) schlugen bei automatischer Ausführung mit einem Verbindungsfehler fehl. Der Endpunkt wird nun korrekt konfiguriert.
+- **Vergangene Events werden automatisch gelöscht:** Events auf der Organisations-Pinnwand, deren Datum abgelaufen ist, werden jetzt täglich automatisch entfernt — auch wenn kein explizites Ablaufdatum gesetzt wurde.
+
+---
+
 ## 2026-05-22 (2)
 
 - **Google Play Store Freigabe:** Nicht erforderliche Medien-Berechtigungen (`READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_MEDIA_AUDIO`) wurden entfernt. Die App nutzt den systemnativen Android Photo Picker, der keine expliziten Berechtigungen benötigt.

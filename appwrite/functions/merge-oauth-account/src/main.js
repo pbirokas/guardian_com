@@ -1,4 +1,4 @@
-/**
+﻿/**
  * merge-oauth-account
  *
  * Wird nach erfolgreichem Google-OAuth-Login aufgerufen.
@@ -17,7 +17,7 @@ module.exports = async ({ req, res, log, error }) => {
   if (!newUid) return res.json({ merged: false, reason: 'unauthenticated' }, 401);
 
   const client = new Client()
-    .setEndpoint((process.env.APPWRITE_FUNCTION_API_ENDPOINT || "").replace(/^http:\/\//, "https://"))
+    .setEndpoint(process.env.APPWRITE_ENDPOINT)
     .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)
     .setKey(process.env.APPWRITE_API_KEY);
 

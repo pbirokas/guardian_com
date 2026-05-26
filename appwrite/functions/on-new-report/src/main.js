@@ -1,4 +1,4 @@
-const { Client, Databases, Query } = require('node-appwrite');
+﻿const { Client, Databases, Query } = require('node-appwrite');
 const { sendToUsers } = require('./fcm');
 
 const DB_ID = 'guardian';
@@ -7,7 +7,7 @@ const COL_ORGANIZATIONS = 'organizations';
 
 module.exports = async ({ req, res, log, error }) => {
   const client = new Client()
-    .setEndpoint((process.env.APPWRITE_FUNCTION_API_ENDPOINT || "").replace(/^http:\/\//, "https://"))
+    .setEndpoint(process.env.APPWRITE_ENDPOINT)
     .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)
     .setKey(process.env.APPWRITE_API_KEY);
 

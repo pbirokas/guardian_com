@@ -1,15 +1,15 @@
 /**
- * Setzt APPWRITE_API_KEY als Environment-Variable für alle Cloud Functions.
+ * Setzt APPWRITE_API_KEY und APPWRITE_ENDPOINT als Environment-Variablen für alle Cloud Functions.
  *
- * Hintergrund: Appwrite v1.9.0 injiziert den API Key nicht automatisch.
- * Die Funktion braucht ihn um Datenbank-Operationen mit API-Key-Auth
- * (statt User-Session) auszuführen — sonst 401 bei documentSecurity:true.
+ * Hintergrund: Appwrite injiziert APPWRITE_FUNCTION_API_ENDPOINT im Schedule-Trigger auf
+ * localhost, was zu Connection-Fehlern führt. Stattdessen wird APPWRITE_ENDPOINT explizit
+ * als Function-Variable gesetzt.
  *
  * Usage:
  *   node set-function-vars.js            (setzt/überschreibt bei allen Functions)
  *   node set-function-vars.js --dry-run  (zeigt nur was getan werden würde)
  *
- * Idempotent: existierende Variable wird überschrieben (delete + create).
+ * Idempotent: existierende Variablen werden überschrieben (delete + create).
  */
 
 import { config } from 'dotenv';
@@ -19,10 +19,18 @@ config();
 
 const DRY_RUN = process.argv.includes('--dry-run');
 
+const API_KEY_VALUE = process.env.APPWRITE_API_KEY;
+const ENDPOINT_VALUE = process.env.APPWRITE_ENDPOINT;
+
+if (!API_KEY_VALUE || !ENDPOINT_VALUE) {
+  console.error('Fatal: APPWRITE_API_KEY or APPWRITE_ENDPOINT not set in environment');
+  process.exit(1);
+}
+
 const client = new Client()
-  .setEndpoint(process.env.APPWRITE_ENDPOINT)
+  .setEndpoint(ENDPOINT_VALUE)
   .setProject(process.env.APPWRITE_PROJECT_ID)
-  .setKey(process.env.APPWRITE_API_KEY);
+  .setKey(API_KEY_VALUE);
 
 const functions = new Functions(client);
 
@@ -30,7 +38,9 @@ const FUNCTION_IDS = [
   'cleanup-expired-announcements',
   'cleanup-expired-polls',
   'cleanup-old-messages',
+  'daily-error-report',
   'get-child-summary',
+  'merge-oauth-account',
   'on-child-org-invite',
   'on-claim-confirmed',
   'on-claim-request',
@@ -47,32 +57,36 @@ const FUNCTION_IDS = [
   'revoke-connection',
 ];
 
-const API_KEY_VALUE = process.env.APPWRITE_API_KEY;
+const VARS_TO_SET = [
+  { key: 'APPWRITE_API_KEY', value: API_KEY_VALUE },
+  { key: 'APPWRITE_ENDPOINT', value: ENDPOINT_VALUE },
+];
 
 async function setVarForFunction(fnId) {
-  // Bestehende Variablen auflisten um Duplikate zu vermeiden
-  let existingVarId = null;
+  let existingVars = [];
   try {
     const vars = await functions.listVariables(fnId);
-    const existing = vars.variables.find((v) => v.key === 'APPWRITE_API_KEY');
-    if (existing) existingVarId = existing.$id;
+    existingVars = vars.variables;
   } catch (e) {
     console.error(`  ✗ ${fnId}: listVariables failed — ${e.message}`);
     return false;
   }
 
   if (DRY_RUN) {
-    console.log(`  [DRY] ${fnId}: would ${existingVarId ? 'update' : 'create'} APPWRITE_API_KEY`);
+    for (const { key } of VARS_TO_SET) {
+      const exists = existingVars.find((v) => v.key === key);
+      console.log(`  [DRY] ${fnId}: would ${exists ? 'update' : 'create'} ${key}`);
+    }
     return true;
   }
 
   try {
-    if (existingVarId) {
-      // Delete first (handles secret→non-secret transition)
-      await functions.deleteVariable(fnId, existingVarId);
-    }
-    await functions.createVariable(fnId, 'APPWRITE_API_KEY', API_KEY_VALUE);
-    console.log(`  ✓ ${fnId}: ${existingVarId ? 're-created' : 'created'}`);
+    await Promise.all(VARS_TO_SET.map(async ({ key, value }) => {
+      const existing = existingVars.find((v) => v.key === key);
+      if (existing) await functions.deleteVariable(fnId, existing.$id);
+      await functions.createVariable(fnId, key, value);
+    }));
+    console.log(`  ✓ ${fnId}: APPWRITE_API_KEY + APPWRITE_ENDPOINT set`);
     return true;
   } catch (e) {
     console.error(`  ✗ ${fnId}: ${e.message}`);
@@ -83,14 +97,11 @@ async function setVarForFunction(fnId) {
 async function main() {
   console.log('=== set-function-vars ===');
   console.log(`Mode: ${DRY_RUN ? 'DRY RUN' : 'LIVE'}`);
-  console.log(`Setting APPWRITE_API_KEY for ${FUNCTION_IDS.length} functions...\n`);
+  console.log(`Setting APPWRITE_API_KEY + APPWRITE_ENDPOINT for ${FUNCTION_IDS.length} functions...\n`);
 
-  let ok = 0;
-  let fail = 0;
-  for (const fnId of FUNCTION_IDS) {
-    const success = await setVarForFunction(fnId);
-    success ? ok++ : fail++;
-  }
+  const results = await Promise.all(FUNCTION_IDS.map(setVarForFunction));
+  const ok = results.filter(Boolean).length;
+  const fail = results.length - ok;
 
   console.log(`\nDone: ${ok} OK, ${fail} failed`);
   if (!DRY_RUN && ok > 0) {

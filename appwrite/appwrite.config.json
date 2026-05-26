@@ -1470,6 +1470,15 @@
                         "eventDate"
                     ],
                     "orders": []
+                },
+                {
+                    "key": "eventEndDate_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "eventEndDate"
+                    ],
+                    "orders": []
                 }
             ]
         }

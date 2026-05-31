@@ -4,6 +4,13 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-31 (2)
+
+- **Sicherheit: Ungelesen-Status manipulationssicher:** Das Setzen des eigenen „Gelesen"-Zeitstempels läuft jetzt über eine gesicherte Server-Funktion statt direkt in die Datenbank. Andere Nutzer können den eigenen Lesestatus nicht mehr von außen verändern.
+- **Hilfsskript für Deployments robuster:** Das Script zum Setzen der Serverkonfiguration schlägt nicht mehr zufällig fehl wenn viele Funktionen gleichzeitig aktualisiert werden.
+
+---
+
 ## 2026-05-31
 
 - **Ungelesen-Badge zuverlässig:** Eigene Nachrichten wurden fälschlicherweise als ungelesen angezeigt; beim Öffnen eines Chats wurde der Badge manchmal erst nach mehreren Versuchen zurückgesetzt. Beides ist nun behoben.

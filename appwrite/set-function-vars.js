@@ -55,6 +55,7 @@ const FUNCTION_IDS = [
   'on-poll-vote',
   'process-my-invitations',
   'revoke-connection',
+  'mark-as-read',
 ];
 
 const VARS_TO_SET = [
@@ -68,7 +69,8 @@ async function setVarForFunction(fnId) {
     const vars = await functions.listVariables(fnId);
     existingVars = vars.variables;
   } catch (e) {
-    console.error(`  ✗ ${fnId}: listVariables failed — ${e.message}`);
+    const code = e.code ?? e.status ?? '?';
+    console.error(`  ✗ ${fnId}: listVariables failed — ${e.message} (code=${code})`);
     return false;
   }
 
@@ -81,15 +83,16 @@ async function setVarForFunction(fnId) {
   }
 
   try {
-    await Promise.all(VARS_TO_SET.map(async ({ key, value }) => {
+    for (const { key, value } of VARS_TO_SET) {
       const existing = existingVars.find((v) => v.key === key);
       if (existing) await functions.deleteVariable(fnId, existing.$id);
       await functions.createVariable(fnId, key, value);
-    }));
+    }
     console.log(`  ✓ ${fnId}: APPWRITE_API_KEY + APPWRITE_ENDPOINT set`);
     return true;
   } catch (e) {
-    console.error(`  ✗ ${fnId}: ${e.message}`);
+    const code = e.code ?? e.status ?? '?';
+    console.error(`  ✗ ${fnId}: ${e.message} (code=${code})`);
     return false;
   }
 }
@@ -99,7 +102,10 @@ async function main() {
   console.log(`Mode: ${DRY_RUN ? 'DRY RUN' : 'LIVE'}`);
   console.log(`Setting APPWRITE_API_KEY + APPWRITE_ENDPOINT for ${FUNCTION_IDS.length} functions...\n`);
 
-  const results = await Promise.all(FUNCTION_IDS.map(setVarForFunction));
+  const results = [];
+  for (const fnId of FUNCTION_IDS) {
+    results.push(await setVarForFunction(fnId));
+  }
   const ok = results.filter(Boolean).length;
   const fail = results.length - ok;
 

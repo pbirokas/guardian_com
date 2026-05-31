@@ -210,7 +210,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ? conv.lastMessageAt!
           : now;
       _chatService
-          .markAsRead(widget.chatId, conv.lastReadAt, readAt: readAt)
+          .markAsRead(widget.chatId, readAt: readAt)
           .catchError((_) {});
     });
   }

@@ -1815,6 +1815,23 @@
             "commands": "npm install",
             "path": "functions/daily-error-report",
             "vars": {}
+        },
+        {
+            "$id": "mark-as-read",
+            "name": "mark-as-read",
+            "runtime": "node-16.0",
+            "execute": [
+                "users"
+            ],
+            "events": [],
+            "schedule": "",
+            "timeout": 15,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/mark-as-read",
+            "vars": {}
         }
     ],
     "buckets": [

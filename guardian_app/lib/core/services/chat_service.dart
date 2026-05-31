@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:appwrite/appwrite.dart';
+import 'package:appwrite/enums.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../appwrite_client.dart';
@@ -20,12 +21,14 @@ class ChatService {
     required String displayName,
   })  : _db = Databases(client),
         _storage = Storage(client),
+        _functions = Functions(client),
         _broadcaster = broadcaster,
         _uid = uid,
         _displayName = displayName;
 
   final Databases _db;
   final Storage _storage;
+  final Functions _functions;
   final RealtimeBroadcaster _broadcaster;
   final String _uid;
   final String _displayName;
@@ -457,17 +460,15 @@ class ChatService {
         data: {'name': name.trim()});
   }
 
-  Future<void> markAsRead(
-      String convId, Map<String, DateTime> currentLastReadAt,
-      {DateTime? readAt}) async {
-    final readMap =
-        currentLastReadAt.map((k, v) => MapEntry(k, v.toIso8601String()));
-    readMap[_uid] = (readAt ?? DateTime.now().toUtc()).toIso8601String();
-    await _db.updateDocument(
-        databaseId: _dbId,
-        collectionId: _colConvs,
-        documentId: convId,
-        data: {'lastReadAtJson': jsonEncode(readMap)});
+  Future<void> markAsRead(String convId, {DateTime? readAt}) async {
+    await _functions.createExecution(
+      functionId: 'mark-as-read',
+      body: jsonEncode({
+        'convId': convId,
+        if (readAt != null) 'readAt': readAt.toIso8601String(),
+      }),
+      method: ExecutionMethod.pOST,
+    );
   }
 
   Future<void> setPersonalName(String convId, String name) async {

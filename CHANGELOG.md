@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-05-31
+
+- **Ungelesen-Badge zuverlässig:** Eigene Nachrichten wurden fälschlicherweise als ungelesen angezeigt; beim Öffnen eines Chats wurde der Badge manchmal erst nach mehreren Versuchen zurückgesetzt. Beides ist nun behoben.
+- **Nachrichten erscheinen sofort nach dem Senden:** Eine Race Condition konnte dazu führen, dass eine gesendete Nachricht im Chat-Fenster nicht angezeigt wurde, obwohl sie erfolgreich übertragen wurde.
+- **Nachrichtenreihenfolge bei verschiedenen Zeitzonen:** Nachrichten von Geräten in anderen Zeitzonen wurden falsch sortiert. Alle Zeitstempel werden nun einheitlich in UTC gespeichert.
+- **Schaltflächen in der Organisations-Ansicht vollständig sichtbar:** Aktions-Schaltflächen am unteren Bildschirmrand (z. B. „Mitglieder vorschlagen") wurden auf Geräten mit Navigationsleiste abgeschnitten.
+
+---
+
 ## 2026-05-26 (2)
 
 - **Stabilere Echtzeit-Verbindung:** Ein Fehler führte dazu, dass die WebSocket-Verbindung für Echtzeit-Updates regelmäßig mit einem Verbindungsfehler abbricht. Alle Dienste teilen sich nun eine gemeinsame Verbindung, was Verbindungsabbrüche deutlich reduziert.

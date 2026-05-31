@@ -60,6 +60,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Timer? _scheduleTimer;
   late ChatService _chatService;
 
+  // ── Debounce-Timer ────────────────────────────────────────────────────────
+  Timer? _markReadTimer;
+  Timer? _refreshTimer;
+
   // ── Tipp-Indikator ────────────────────────────────────────────────────────
   Timer? _typingTimer;
   bool _isTyping = false;
@@ -195,7 +199,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _markRead() {
-    _chatService.markAsRead(widget.chatId).catchError((_) {});
+    _markReadTimer?.cancel();
+    _markReadTimer = Timer(const Duration(milliseconds: 500), () {
+      final conv = ref.read(conversationProvider(widget.chatId)).value;
+      if (!mounted || conv == null) return;
+      // Falls lastMessageAt von einem Gerät mit vorgestellter Uhr stammt,
+      // setzen wir readAt auf max(now, lastMessageAt) damit hasUnread() false wird.
+      final now = DateTime.now().toUtc();
+      final readAt = conv.lastMessageAt != null && conv.lastMessageAt!.isAfter(now)
+          ? conv.lastMessageAt!
+          : now;
+      _chatService
+          .markAsRead(widget.chatId, conv.lastReadAt, readAt: readAt)
+          .catchError((_) {});
+    });
   }
 
   Future<void> _showEditGroupDialog(Conversation conv) =>
@@ -249,6 +266,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _inputFocusNode.dispose();
     _scheduleTimer?.cancel();
     _recordingTimer?.cancel();
+    _markReadTimer?.cancel();
+    _refreshTimer?.cancel();
     _recorder.dispose();
     super.dispose();
   }
@@ -650,9 +669,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
-  // Realtime ist nicht zuverlässig → nach jedem Send manuell refreshen.
+  // Fallback: falls das Realtime-Event die neue Nachricht nicht liefert,
+  // nach 800 ms manuell nachladen (Delay schützt die aktive Subscription).
   void _refreshMessages() {
-    ref.invalidate(messagesProvider((convId: widget.chatId, limit: _limit)));
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer(const Duration(milliseconds: 800), () {
+      if (mounted) {
+        ref.invalidate(messagesProvider((convId: widget.chatId, limit: _limit)));
+      }
+    });
   }
 
   Future<void> _send() async {
@@ -970,6 +995,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final conv = ref.watch(conversationProvider(widget.chatId)).value;
     final isArchived = conv?.status == ConversationStatus.archived;
     final currentUid = ref.read(authStateProvider).value!.uid;
+
+    ref.listen(conversationProvider(widget.chatId), (_, next) {
+      final c = next.value;
+      if (c == null) return;
+      if (c.hasUnread(currentUid)) _markRead();
+    });
 
     final members = conv == null
         ? null

@@ -84,7 +84,7 @@ class OrganizationService {
   // ── Organisations-CRUD ─────────────────────────────────────────────────────
 
   Future<Organization> createOrganization(String name, OrgTag tag) async {
-    final now = DateTime.now();
+    final now = DateTime.now().toUtc();
     final orgId = ID.unique();
 
     final org = Organization(
@@ -457,7 +457,7 @@ class OrganizationService {
           'inviterName': _displayName,
           'invitedByUid': _uid,
           'status': 'pending',
-          'createdAt': DateTime.now().toIso8601String(),
+          'createdAt': DateTime.now().toUtc().toIso8601String(),
         },
       );
       return;
@@ -489,7 +489,7 @@ class OrganizationService {
     final parentUids =
         List<String>.from(userData['verifiedParentUids'] as List? ?? []);
     if (parentUids.isNotEmpty) {
-      final now = DateTime.now();
+      final now = DateTime.now().toUtc();
       await _db.createDocument(
         databaseId: _dbId,
         collectionId: _colOrgConsents,
@@ -527,7 +527,7 @@ class OrganizationService {
           email: userData['email'] as String,
           photoUrl: userData['photoUrl'] as String?,
           role: effectiveRole,
-          joinedAt: DateTime.now(),
+          joinedAt: DateTime.now().toUtc(),
           guardianUids: isChild ? guardianUids : [],
           status: memberStatus,
         ).toAppwrite(),
@@ -735,7 +735,7 @@ class OrganizationService {
       content: content,
       authorUid: _uid,
       authorName: _displayName,
-      createdAt: DateTime.now(),
+      createdAt: DateTime.now().toUtc(),
       expiresAt: expiresAt,
     );
     await _db.createDocument(
@@ -753,7 +753,7 @@ class OrganizationService {
     final updates = <String, dynamic>{
       'title': title,
       'content': content,
-      'updatedAt': DateTime.now().toIso8601String(),
+      'updatedAt': DateTime.now().toUtc().toIso8601String(),
       if (expiresAt != null) 'expiresAt': expiresAt.toIso8601String(),
       if (clearExpiry) 'expiresAt': null,
     };
@@ -804,7 +804,7 @@ class OrganizationService {
       content: content,
       authorUid: _uid,
       authorName: _displayName,
-      createdAt: DateTime.now(),
+      createdAt: DateTime.now().toUtc(),
       type: AnnouncementType.event,
       eventDate: eventDate,
       eventEndDate: eventEndDate,
@@ -838,7 +838,7 @@ class OrganizationService {
           'title': title,
           'content': content,
           'eventDate': eventDate.toIso8601String(),
-          'updatedAt': DateTime.now().toIso8601String(),
+          'updatedAt': DateTime.now().toUtc().toIso8601String(),
           'eventEndDate': eventEndDate?.toIso8601String(),
           'location':
               (location != null && location.isNotEmpty) ? location : null,
@@ -1012,7 +1012,7 @@ class OrganizationService {
         actorName: _displayName,
         action: action,
         details: details,
-        timestamp: DateTime.now(),
+        timestamp: DateTime.now().toUtc(),
       );
       await _db.createDocument(
         databaseId: _dbId,

@@ -297,7 +297,7 @@ class ChatService {
       participantUids: [_uid, targetUid],
       requestedBy: _uid,
       status: ConversationStatus.pending,
-      createdAt: DateTime.now(),
+      createdAt: DateTime.now().toUtc(),
       requestorGuardianUid: guardianUid,
       canApproveUids: supervisors.canApproveUids,
       guardianUids: supervisors.guardianUids,
@@ -347,9 +347,9 @@ class ChatService {
       participantUids: [_uid, targetUid],
       requestedBy: _uid,
       status: ConversationStatus.approved,
-      createdAt: DateTime.now(),
+      createdAt: DateTime.now().toUtc(),
       approvedBy: _uid,
-      approvedAt: DateTime.now(),
+      approvedAt: DateTime.now().toUtc(),
       canApproveUids: supervisors.canApproveUids,
       guardianUids: supervisors.guardianUids,
     );
@@ -381,9 +381,9 @@ class ChatService {
       participantUids: memberUids,
       requestedBy: _uid,
       status: ConversationStatus.approved,
-      createdAt: DateTime.now(),
+      createdAt: DateTime.now().toUtc(),
       approvedBy: _uid,
-      approvedAt: DateTime.now(),
+      approvedAt: DateTime.now().toUtc(),
       name: name,
       isGroup: true,
       canApproveUids: supervisors.canApproveUids,
@@ -410,7 +410,7 @@ class ChatService {
       data: {
         'status': ConversationStatus.approved.name,
         'approvedBy': _uid,
-        'approvedAt': DateTime.now().toIso8601String(),
+        'approvedAt': DateTime.now().toUtc().toIso8601String(),
       },
     );
   }
@@ -457,19 +457,17 @@ class ChatService {
         data: {'name': name.trim()});
   }
 
-  Future<void> markAsRead(String convId) async {
-    final doc = await _db.getDocument(
-        databaseId: _dbId, collectionId: _colConvs, documentId: convId);
-    final conv = Conversation.fromAppwrite({r'$id': doc.$id, ...doc.data});
-    final lastReadAt = Map<String, String>.from(
-      conv.lastReadAt.map((k, v) => MapEntry(k, v.toIso8601String())),
-    );
-    lastReadAt[_uid] = DateTime.now().toIso8601String();
+  Future<void> markAsRead(
+      String convId, Map<String, DateTime> currentLastReadAt,
+      {DateTime? readAt}) async {
+    final readMap =
+        currentLastReadAt.map((k, v) => MapEntry(k, v.toIso8601String()));
+    readMap[_uid] = (readAt ?? DateTime.now().toUtc()).toIso8601String();
     await _db.updateDocument(
         databaseId: _dbId,
         collectionId: _colConvs,
         documentId: convId,
-        data: {'lastReadAtJson': jsonEncode(lastReadAt)});
+        data: {'lastReadAtJson': jsonEncode(readMap)});
   }
 
   Future<void> setPersonalName(String convId, String name) async {
@@ -644,7 +642,7 @@ class ChatService {
       senderUid: _uid,
       senderName: _displayName,
       text: text,
-      sentAt: DateTime.now(),
+      sentAt: DateTime.now().toUtc(),
       replyToId: replyToId,
       replyToSenderName: replyToSenderName,
       replyToText: replyToText,
@@ -674,7 +672,7 @@ class ChatService {
         documentId: messageId,
         data: {
           'text': newText,
-          'editedAt': DateTime.now().toIso8601String(),
+          'editedAt': DateTime.now().toUtc().toIso8601String(),
           if (archive) 'isArchived': true,
           if (archive && archivedByUid != null) 'archivedByUid': archivedByUid,
           if (archive && archivedByName != null)
@@ -688,7 +686,7 @@ class ChatService {
         collectionId: _colMessages,
         documentId: messageId,
         data: {
-          'deletedAt': DateTime.now().toIso8601String(),
+          'deletedAt': DateTime.now().toUtc().toIso8601String(),
           'deletedBy': _uid,
         });
   }
@@ -773,7 +771,7 @@ class ChatService {
       senderUid: _uid,
       senderName: _displayName,
       text: '',
-      sentAt: DateTime.now(),
+      sentAt: DateTime.now().toUtc(),
       audioUrl: audioUrl,
       audioDurationMs: durationMs,
     );
@@ -841,7 +839,7 @@ class ChatService {
       senderUid: _uid,
       senderName: _displayName,
       text: '',
-      sentAt: DateTime.now(),
+      sentAt: DateTime.now().toUtc(),
       imageUrl: imageUrl,
       isGif: isGif,
     );
@@ -881,7 +879,7 @@ class ChatService {
       senderUid: _uid,
       senderName: _displayName,
       text: '',
-      sentAt: DateTime.now(),
+      sentAt: DateTime.now().toUtc(),
       fileUrl: fileUrl,
       fileName: fileName,
       fileSizeBytes: fileSize,
@@ -924,7 +922,7 @@ class ChatService {
           .toList(),
       createdBy: _uid,
       createdByName: _displayName,
-      createdAt: DateTime.now(),
+      createdAt: DateTime.now().toUtc(),
       multipleChoice: multipleChoice,
       isAnonymous: isAnonymous,
       expiresAt: expiresAt,
@@ -944,7 +942,7 @@ class ChatService {
       senderUid: _uid,
       senderName: _displayName,
       text: preview,
-      sentAt: DateTime.now(),
+      sentAt: DateTime.now().toUtc(),
       pollId: pollId,
     );
     await _db.createDocument(
@@ -1030,7 +1028,7 @@ class ChatService {
       senderUid: _uid,
       senderName: _displayName,
       scheduledFor: scheduledFor,
-      createdAt: DateTime.now(),
+      createdAt: DateTime.now().toUtc(),
     );
     await _db.createDocument(
       databaseId: _dbId,
@@ -1073,7 +1071,7 @@ class ChatService {
         'msgId': message.id,
         'messageText': message.text,
         'messageSenderName': message.senderName,
-        'createdAt': DateTime.now().toIso8601String(),
+        'createdAt': DateTime.now().toUtc().toIso8601String(),
         'status': 'pending',
       },
       permissions: [Permission.read(Role.users())],
@@ -1123,7 +1121,7 @@ class ChatService {
       documentId: convId,
       data: {
         'lastMessage': preview,
-        'lastMessageAt': DateTime.now().toIso8601String(),
+        'lastMessageAt': DateTime.now().toUtc().toIso8601String(),
       },
     );
   }
@@ -1136,7 +1134,7 @@ class ChatService {
       senderUid: 'system',
       senderName: 'system',
       text: '',
-      sentAt: DateTime.now(),
+      sentAt: DateTime.now().toUtc(),
       type: 'system',
       systemEvent: event,
       systemActorName: _displayName,

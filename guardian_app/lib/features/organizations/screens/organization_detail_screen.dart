@@ -1143,7 +1143,7 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
             // FAB für Admin: Gruppe erstellen
             if (isAdmin)
               Positioned(
-                bottom: 16,
+                bottom: 16 + MediaQuery.of(context).padding.bottom,
                 right: 16,
                 child: membersAsync.maybeWhen(
                   data: (members) => FloatingActionButton.extended(
@@ -1344,6 +1344,7 @@ class _MembersTab extends ConsumerWidget {
         final currentUid = ref.read(authStateProvider).value!.uid;
         final currentMember =
             members.where((m) => m.uid == currentUid).firstOrNull;
+        final fabBottom = 16.0 + MediaQuery.of(context).padding.bottom;
         final isRegularMember = !isAdmin &&
             !isModerator &&
             currentMember?.role == OrgRole.member;
@@ -1445,7 +1446,7 @@ class _MembersTab extends ConsumerWidget {
             ),
           if (isAdmin || isModerator)
             Positioned(
-              bottom: 16,
+              bottom: fabBottom,
               right: 16,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1485,7 +1486,7 @@ class _MembersTab extends ConsumerWidget {
             ),
           if (isRegularMember)
             Positioned(
-              bottom: 16,
+              bottom: fabBottom,
               right: 16,
               child: FloatingActionButton.extended(
                 heroTag: 'suggest',
@@ -1497,7 +1498,7 @@ class _MembersTab extends ConsumerWidget {
             ),
           if (!isAdmin && !isModerator && !isRegularMember)
             Positioned(
-              bottom: 16,
+              bottom: fabBottom,
               right: 16,
               child: FloatingActionButton.extended(
                 heroTag: 'chat_request',
@@ -3906,7 +3907,7 @@ class _PinnwandTabState extends ConsumerState<_PinnwandTab> {
           if (widget.canManage)
             Positioned(
               right: 16,
-              bottom: 16,
+              bottom: 16 + MediaQuery.of(context).padding.bottom,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,

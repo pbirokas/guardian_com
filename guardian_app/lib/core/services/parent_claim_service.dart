@@ -109,7 +109,7 @@ class ParentClaimService {
       throw const _ClaimException('already_exists');
     }
 
-    final now = DateTime.now();
+    final now = DateTime.now().toUtc();
     await _db.createDocument(
       databaseId: _dbId,
       collectionId: _colClaims,

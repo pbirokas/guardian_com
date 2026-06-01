@@ -465,7 +465,7 @@ class ChatService {
       functionId: 'mark-as-read',
       body: jsonEncode({
         'convId': convId,
-        if (readAt != null) 'readAt': readAt.toIso8601String(),
+        if (readAt != null) 'readAt': readAt.toUtc().toIso8601String(),
       }),
       method: ExecutionMethod.pOST,
     );

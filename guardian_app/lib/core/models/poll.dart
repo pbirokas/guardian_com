@@ -117,12 +117,12 @@ class Poll {
       options: options,
       createdBy: data['createdBy'] as String,
       createdByName: data['createdByName'] as String? ?? '',
-      createdAt: DateTime.parse(data['createdAt'] as String),
+      createdAt: DateTime.parse(data['createdAt'] as String).toLocal(),
       multipleChoice: data['multipleChoice'] as bool? ?? false,
       isClosed: data['isClosed'] as bool? ?? false,
       isAnonymous: data['isAnonymous'] as bool? ?? false,
       expiresAt: data['expiresAt'] != null
-          ? DateTime.parse(data['expiresAt'] as String)
+          ? DateTime.parse(data['expiresAt'] as String).toLocal()
           : null,
       votes: votes,
     );
@@ -134,11 +134,11 @@ class Poll {
         'optionsJson': jsonEncode(options.map((o) => o.toMap()).toList()),
         'createdBy': createdBy,
         'createdByName': createdByName,
-        'createdAt': createdAt.toIso8601String(),
+        'createdAt': createdAt.toUtc().toIso8601String(),
         'multipleChoice': multipleChoice,
         'isClosed': isClosed,
         'isAnonymous': isAnonymous,
-        if (expiresAt != null) 'expiresAt': expiresAt!.toIso8601String(),
+        if (expiresAt != null) 'expiresAt': expiresAt!.toUtc().toIso8601String(),
         'votesJson': jsonEncode({for (final o in options) o.id: <String>[]}),
       };
 }

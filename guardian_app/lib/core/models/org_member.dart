@@ -100,7 +100,7 @@ class OrgMember {
     final rawJson = data['lastChildAlertAtJson'] as String?;
     final lastChildAlertAt = (rawJson != null && rawJson.isNotEmpty)
         ? (jsonDecode(rawJson) as Map<String, dynamic>)
-            .map((k, v) => MapEntry(k, DateTime.parse(v as String)))
+            .map((k, v) => MapEntry(k, DateTime.parse(v as String).toLocal()))
         : <String, DateTime>{};
     return OrgMember(
       uid: data['uid'] as String,
@@ -110,7 +110,7 @@ class OrgMember {
       email: data['email'] as String? ?? '',
       photoUrl: data['photoUrl'] as String?,
       role: OrgRole.values.byName(data['role'] as String),
-      joinedAt: DateTime.parse(data['joinedAt'] as String),
+      joinedAt: DateTime.parse(data['joinedAt'] as String).toLocal(),
       guardianUids: List<String>.from(data['guardianUids'] as List? ?? []),
       status: MemberStatus.values.byName(data['status'] as String? ?? 'active'),
       childAlertInterval: ChildAlertInterval.values
@@ -133,7 +133,7 @@ class OrgMember {
         'email': email,
         if (photoUrl != null) 'photoUrl': photoUrl,
         'role': role.name,
-        'joinedAt': joinedAt.toIso8601String(),
+        'joinedAt': joinedAt.toUtc().toIso8601String(),
         'guardianUids': guardianUids,
         'status': status.name,
         'childAlertInterval': childAlertInterval.name,
@@ -141,7 +141,7 @@ class OrgMember {
         'messageAlertInterval': messageAlertInterval.name,
         'hideEmail': hideEmail,
         'lastChildAlertAtJson': jsonEncode(
-          lastChildAlertAt.map((k, v) => MapEntry(k, v.toIso8601String())),
+          lastChildAlertAt.map((k, v) => MapEntry(k, v.toUtc().toIso8601String())),
         ),
       };
 }

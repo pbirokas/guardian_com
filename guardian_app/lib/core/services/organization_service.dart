@@ -754,7 +754,7 @@ class OrganizationService {
       'title': title,
       'content': content,
       'updatedAt': DateTime.now().toUtc().toIso8601String(),
-      if (expiresAt != null) 'expiresAt': expiresAt.toIso8601String(),
+      if (expiresAt != null) 'expiresAt': expiresAt.toUtc().toIso8601String(),
       if (clearExpiry) 'expiresAt': null,
     };
     await _db.updateDocument(
@@ -837,9 +837,9 @@ class OrganizationService {
         data: {
           'title': title,
           'content': content,
-          'eventDate': eventDate.toIso8601String(),
+          'eventDate': eventDate.toUtc().toIso8601String(),
           'updatedAt': DateTime.now().toUtc().toIso8601String(),
-          'eventEndDate': eventEndDate?.toIso8601String(),
+          'eventEndDate': eventEndDate?.toUtc().toIso8601String(),
           'location':
               (location != null && location.isNotEmpty) ? location : null,
           'rsvpPublic': rsvpPublic,

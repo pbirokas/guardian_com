@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-06-01
+
+- **Uhrzeit-Anzeige in Nachrichten korrekt:** Nachrichten wurden in der falschen Zeitzone angezeigt (z. B. 21:28 statt 23:28 für Nutzer in UTC+2). Alle Zeitstempel werden jetzt korrekt in der lokalen Gerätezeit dargestellt.
+- **App-Absturz beim Öffnen von Chats behoben:** Ein seltener Crash trat auf, wenn der Chat-Bildschirm noch geöffnet war während der Nutzer gleichzeitig ausgeloggt wurde. Die App bleibt in diesem Fall nun stabil.
+- **Zeitstempel konsistent in UTC gespeichert:** Alle Datum-/Zeitangaben werden beim Speichern einheitlich in UTC mit Zeitzonenkennung abgelegt, um stille Fehler bei gemischten Schreibpfaden zu verhindern.
+
+---
+
 ## 2026-05-31 (2)
 
 - **Sicherheit: Ungelesen-Status manipulationssicher:** Das Setzen des eigenen „Gelesen"-Zeitstempels läuft jetzt über eine gesicherte Server-Funktion statt direkt in die Datenbank. Andere Nutzer können den eigenen Lesestatus nicht mehr von außen verändern.

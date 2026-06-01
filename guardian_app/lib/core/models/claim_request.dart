@@ -68,8 +68,8 @@ class ClaimRequest {
         toEmail: data['toEmail'] as String? ?? '',
         status: ClaimRequestStatus.values
             .byName(data['status'] as String? ?? 'pending'),
-        createdAt: DateTime.parse(data['createdAt'] as String),
-        expiresAt: DateTime.parse(data['expiresAt'] as String),
+        createdAt: DateTime.parse(data['createdAt'] as String).toLocal(),
+        expiresAt: DateTime.parse(data['expiresAt'] as String).toLocal(),
       );
 
   Map<String, dynamic> toAppwrite() => {
@@ -79,7 +79,7 @@ class ClaimRequest {
         'toUid': toUid,
         'toEmail': toEmail,
         'status': status.name,
-        'createdAt': createdAt.toIso8601String(),
-        'expiresAt': expiresAt.toIso8601String(),
+        'createdAt': createdAt.toUtc().toIso8601String(),
+        'expiresAt': expiresAt.toUtc().toIso8601String(),
       };
 }

@@ -994,7 +994,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         messagesProvider((convId: widget.chatId, limit: _limit)));
     final conv = ref.watch(conversationProvider(widget.chatId)).value;
     final isArchived = conv?.status == ConversationStatus.archived;
-    final currentUid = ref.read(authStateProvider).value!.uid;
+    final authUser = ref.read(authStateProvider).value;
+    if (authUser == null) return const SizedBox.shrink();
+    final currentUid = authUser.uid;
 
     ref.listen(conversationProvider(widget.chatId), (_, next) {
       final c = next.value;
@@ -1468,7 +1470,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 2     = alle haben gelesen
   int _readStatus(Conversation conv, Message msg) {
     final others = conv.participantUids
-        .where((uid) => uid != ref.read(authStateProvider).value!.uid)
+        .where((uid) => uid != ref.read(authStateProvider).value?.uid)
         .toList();
     if (others.isEmpty) return 2;
     final readCount = others
@@ -3035,7 +3037,7 @@ class _PollBubbleState extends ConsumerState<_PollBubble> {
     final l = AppLocalizations.of(context);
     final pollAsync = ref.watch(
         pollProvider((convId: widget.convId, pollId: widget.pollId)));
-    final currentUid = ref.read(authStateProvider).value!.uid;
+    final currentUid = ref.read(authStateProvider).value?.uid ?? '';
     final scheme = Theme.of(context).colorScheme;
     final onColor = widget.isMe ? scheme.onPrimary : null;
     final labelColor = onColor ?? scheme.onSurface;

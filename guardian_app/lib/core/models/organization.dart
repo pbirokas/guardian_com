@@ -105,7 +105,7 @@ class Organization {
         adminUid: data['adminUid'] as String,
         tag: OrgTag.values.byName(data['tag'] as String? ?? 'sonstiges'),
         memberUids: List<String>.from(data['memberUids'] as List? ?? []),
-        createdAt: DateTime.parse(data['createdAt'] as String),
+        createdAt: DateTime.parse(data['createdAt'] as String).toLocal(),
         isArchived: data['isArchived'] as bool? ?? false,
         keywords: List<String>.from(data['keywords'] as List? ?? []),
         messageRetentionDays:
@@ -119,7 +119,7 @@ class Organization {
         'adminUid': adminUid,
         'tag': tag.name,
         'memberUids': memberUids,
-        'createdAt': createdAt.toIso8601String(),
+        'createdAt': createdAt.toUtc().toIso8601String(),
         'isArchived': isArchived,
         'keywords': keywords,
         'messageRetentionDays': messageRetentionDays,

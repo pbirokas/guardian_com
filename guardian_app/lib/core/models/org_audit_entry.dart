@@ -39,7 +39,7 @@ class OrgAuditEntry {
           ? Map<String, dynamic>.from(
               jsonDecode(data['detailsJson'] as String) as Map)
           : {},
-      timestamp: DateTime.parse(data['timestamp'] as String),
+      timestamp: DateTime.parse(data['timestamp'] as String).toLocal(),
     );
   }
 
@@ -49,6 +49,6 @@ class OrgAuditEntry {
         'actorName': actorName,
         'action': action.name,
         'detailsJson': jsonEncode(details),
-        'timestamp': timestamp.toIso8601String(),
+        'timestamp': timestamp.toUtc().toIso8601String(),
       };
 }

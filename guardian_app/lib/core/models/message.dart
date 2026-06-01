@@ -135,7 +135,7 @@ class Message {
       senderUid: data['senderUid'] as String,
       senderName: data['senderName'] as String? ?? '',
       text: data['text'] as String? ?? '',
-      sentAt: DateTime.parse(data['sentAt'] as String),
+      sentAt: DateTime.parse(data['sentAt'] as String).toLocal(),
       imageUrl: data['imageUrl'] as String?,
       audioUrl: data['audioUrl'] as String?,
       audioDurationMs: data['audioDurationMs'] as int?,
@@ -144,7 +144,7 @@ class Message {
       fileName: data['fileName'] as String?,
       fileSizeBytes: data['fileSizeBytes'] as int?,
       editedAt: data['editedAt'] != null
-          ? DateTime.parse(data['editedAt'] as String)
+          ? DateTime.parse(data['editedAt'] as String).toLocal()
           : null,
       isArchived: data['isArchived'] as bool? ?? false,
       archivedByUid: data['archivedByUid'] as String?,
@@ -159,7 +159,7 @@ class Message {
       systemTargetName: data['systemTargetName'] as String?,
       isGif: data['isGif'] as bool? ?? false,
       deletedAt: data['deletedAt'] != null
-          ? DateTime.parse(data['deletedAt'] as String)
+          ? DateTime.parse(data['deletedAt'] as String).toLocal()
           : null,
       deletedBy: data['deletedBy'] as String?,
     );
@@ -169,7 +169,7 @@ class Message {
         'senderUid': senderUid,
         'senderName': senderName,
         'text': text,
-        'sentAt': sentAt.toIso8601String(),
+        'sentAt': sentAt.toUtc().toIso8601String(),
         'type': type,
         if (systemEvent != null) 'systemEvent': systemEvent,
         if (systemActorName != null) 'systemActorName': systemActorName,
@@ -181,7 +181,7 @@ class Message {
         if (fileUrl != null) 'fileUrl': fileUrl,
         if (fileName != null) 'fileName': fileName,
         if (fileSizeBytes != null) 'fileSizeBytes': fileSizeBytes,
-        if (editedAt != null) 'editedAt': editedAt!.toIso8601String(),
+        if (editedAt != null) 'editedAt': editedAt!.toUtc().toIso8601String(),
         'isArchived': isArchived,
         if (archivedByUid != null) 'archivedByUid': archivedByUid,
         if (archivedByName != null) 'archivedByName': archivedByName,
@@ -189,7 +189,7 @@ class Message {
         if (replyToSenderName != null) 'replyToSenderName': replyToSenderName,
         if (replyToText != null) 'replyToText': replyToText,
         if (isGif) 'isGif': true,
-        if (deletedAt != null) 'deletedAt': deletedAt!.toIso8601String(),
+        if (deletedAt != null) 'deletedAt': deletedAt!.toUtc().toIso8601String(),
         if (deletedBy != null) 'deletedBy': deletedBy,
         'reactionsJson': jsonEncode(reactions),
       };

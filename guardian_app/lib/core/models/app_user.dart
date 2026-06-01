@@ -95,7 +95,7 @@ class AppUser {
       photoUrl: data['photoUrl'] as String?,
       memberships:
           decoded.map((m) => OrgMembership.fromMap(m as Map<String, dynamic>)).toList(),
-      createdAt: DateTime.parse(data['createdAt'] as String),
+      createdAt: DateTime.parse(data['createdAt'] as String).toLocal(),
       isChild: data['isChild'] as bool? ?? false,
       verifiedParentUids:
           List<String>.from(data['verifiedParentUids'] as List? ?? []),
@@ -111,7 +111,7 @@ class AppUser {
         if (photoUrl != null) 'photoUrl': photoUrl,
         'membershipsJson':
             jsonEncode(memberships.map((m) => m.toMap()).toList()),
-        'createdAt': createdAt.toIso8601String(),
+        'createdAt': createdAt.toUtc().toIso8601String(),
         'isChild': isChild,
         'verifiedParentUids': verifiedParentUids,
         'verifiedChildUids': verifiedChildUids,

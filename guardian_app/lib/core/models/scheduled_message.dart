@@ -48,8 +48,8 @@ class ScheduledMessage {
         text: data['text'] as String,
         senderUid: data['senderUid'] as String,
         senderName: data['senderName'] as String? ?? '',
-        scheduledFor: DateTime.parse(data['scheduledFor'] as String),
-        createdAt: DateTime.parse(data['createdAt'] as String),
+        scheduledFor: DateTime.parse(data['scheduledFor'] as String).toLocal(),
+        createdAt: DateTime.parse(data['createdAt'] as String).toLocal(),
       );
 
   Map<String, dynamic> toAppwrite() => {
@@ -57,7 +57,7 @@ class ScheduledMessage {
         'text': text,
         'senderUid': senderUid,
         'senderName': senderName,
-        'scheduledFor': scheduledFor.toIso8601String(),
-        'createdAt': createdAt.toIso8601String(),
+        'scheduledFor': scheduledFor.toUtc().toIso8601String(),
+        'createdAt': createdAt.toUtc().toIso8601String(),
       };
 }

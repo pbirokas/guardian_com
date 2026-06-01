@@ -135,22 +135,22 @@ class Announcement {
       content: data['content'] as String? ?? '',
       authorUid: data['authorUid'] as String? ?? '',
       authorName: data['authorName'] as String? ?? '',
-      createdAt: DateTime.parse(data['createdAt'] as String),
+      createdAt: DateTime.parse(data['createdAt'] as String).toLocal(),
       updatedAt: data['updatedAt'] != null
-          ? DateTime.parse(data['updatedAt'] as String)
+          ? DateTime.parse(data['updatedAt'] as String).toLocal()
           : null,
       expiresAt: data['expiresAt'] != null
-          ? DateTime.parse(data['expiresAt'] as String)
+          ? DateTime.parse(data['expiresAt'] as String).toLocal()
           : null,
       reactions: reactions,
       type: typeStr == 'event'
           ? AnnouncementType.event
           : AnnouncementType.announcement,
       eventDate: data['eventDate'] != null
-          ? DateTime.parse(data['eventDate'] as String)
+          ? DateTime.parse(data['eventDate'] as String).toLocal()
           : null,
       eventEndDate: data['eventEndDate'] != null
-          ? DateTime.parse(data['eventEndDate'] as String)
+          ? DateTime.parse(data['eventEndDate'] as String).toLocal()
           : null,
       location: data['location'] as String?,
       rsvp: rsvp,
@@ -163,13 +163,13 @@ class Announcement {
         'content': content,
         'authorUid': authorUid,
         'authorName': authorName,
-        'createdAt': createdAt.toIso8601String(),
-        if (updatedAt != null) 'updatedAt': updatedAt!.toIso8601String(),
-        if (expiresAt != null) 'expiresAt': expiresAt!.toIso8601String(),
+        'createdAt': createdAt.toUtc().toIso8601String(),
+        if (updatedAt != null) 'updatedAt': updatedAt!.toUtc().toIso8601String(),
+        if (expiresAt != null) 'expiresAt': expiresAt!.toUtc().toIso8601String(),
         'type': type == AnnouncementType.event ? 'event' : 'announcement',
-        if (eventDate != null) 'eventDate': eventDate!.toIso8601String(),
+        if (eventDate != null) 'eventDate': eventDate!.toUtc().toIso8601String(),
         if (eventEndDate != null)
-          'eventEndDate': eventEndDate!.toIso8601String(),
+          'eventEndDate': eventEndDate!.toUtc().toIso8601String(),
         if (location != null && location!.isNotEmpty) 'location': location,
         if (rsvpPublic) 'rsvpPublic': true,
         'reactionsJson': jsonEncode(reactions),

@@ -140,7 +140,7 @@ class Conversation {
     final lastReadJson = data['lastReadAtJson'] as String?;
     final lastReadAt = (lastReadJson != null && lastReadJson.isNotEmpty)
         ? (jsonDecode(lastReadJson) as Map<String, dynamic>)
-            .map((k, v) => MapEntry(k, DateTime.parse(v as String)))
+            .map((k, v) => MapEntry(k, DateTime.parse(v as String).toLocal()))
         : <String, DateTime>{};
     final namesJson = data['personalNamesJson'] as String?;
     final personalNames = (namesJson != null && namesJson.isNotEmpty)
@@ -155,14 +155,14 @@ class Conversation {
       requestedBy: data['requestedBy'] as String,
       status: ConversationStatus.values
           .byName(data['status'] as String? ?? 'pending'),
-      createdAt: DateTime.parse(data['createdAt'] as String),
+      createdAt: DateTime.parse(data['createdAt'] as String).toLocal(),
       approvedBy: data['approvedBy'] as String?,
       approvedAt: data['approvedAt'] != null
-          ? DateTime.parse(data['approvedAt'] as String)
+          ? DateTime.parse(data['approvedAt'] as String).toLocal()
           : null,
       lastMessage: data['lastMessage'] as String?,
       lastMessageAt: data['lastMessageAt'] != null
-          ? DateTime.parse(data['lastMessageAt'] as String)
+          ? DateTime.parse(data['lastMessageAt'] as String).toLocal()
           : null,
       name: data['name'] as String?,
       imageUrl: data['imageUrl'] as String?,
@@ -184,12 +184,12 @@ class Conversation {
         'participantUids': participantUids,
         'requestedBy': requestedBy,
         'status': status.name,
-        'createdAt': createdAt.toIso8601String(),
+        'createdAt': createdAt.toUtc().toIso8601String(),
         'isGroup': isGroup,
         'canApproveUids': canApproveUids,
         'guardianUids': guardianUids,
         'lastReadAtJson': jsonEncode(
-          lastReadAt.map((k, v) => MapEntry(k, v.toIso8601String())),
+          lastReadAt.map((k, v) => MapEntry(k, v.toUtc().toIso8601String())),
         ),
         'personalNamesJson': jsonEncode(personalNames),
         if (requestorGuardianUid != null)
@@ -197,10 +197,10 @@ class Conversation {
         if (name != null) 'name': name,
         if (imageUrl != null) 'imageUrl': imageUrl,
         if (approvedBy != null) 'approvedBy': approvedBy,
-        if (approvedAt != null) 'approvedAt': approvedAt!.toIso8601String(),
+        if (approvedAt != null) 'approvedAt': approvedAt!.toUtc().toIso8601String(),
         if (lastMessage != null) 'lastMessage': lastMessage,
         if (lastMessageAt != null)
-          'lastMessageAt': lastMessageAt!.toIso8601String(),
+          'lastMessageAt': lastMessageAt!.toUtc().toIso8601String(),
         if (pinnedMessageId != null) 'pinnedMessageId': pinnedMessageId,
         if (pinnedMessageText != null) 'pinnedMessageText': pinnedMessageText,
       };

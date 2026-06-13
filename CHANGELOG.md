@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-06-13
+
+- **Sicherheit: Rollenänderungen nur noch über Server möglich:** Alle privilegierten Mitglieder-Operationen (Rolle ändern, Mitglied entfernen, Kind bestätigen, Admin übertragen) laufen jetzt über eine gesicherte Cloud-Funktion. Dadurch können Nutzer ihre eigene Rolle nicht mehr direkt in der Datenbank manipulieren.
+- **Sicherheit: Eigenständiges Verlassen einer Organisation datenkonsistent:** Das Verlassen einer Organisation wird jetzt ebenfalls serverseitig abgewickelt, sodass alle Verweise (Mitgliederliste, Mitgliedschafts-Cache) korrekt bereinigt werden.
+- **Datenschutz: E-Mail-Adresse von Kinder-Accounts geschützt:** Die E-Mail-Adresse minderjähriger Nutzer wird nicht mehr in der Mitgliederliste gespeichert, die für alle Organisationsmitglieder lesbar ist.
+- **Einladung bestehender Mitglieder repariert:** Ein Fehler verhinderte, dass ein Admin einen Nutzer erneut einladen konnte, nachdem dieser die Organisation verlassen hatte. Die Berechtigungsstruktur wurde grundlegend korrigiert.
+
+---
+
 ## 2026-06-01
 
 - **Uhrzeit-Anzeige in Nachrichten korrekt:** Nachrichten wurden in der falschen Zeitzone angezeigt (z. B. 21:28 statt 23:28 für Nutzer in UTC+2). Alle Zeitstempel werden jetzt korrekt in der lokalen Gerätezeit dargestellt.

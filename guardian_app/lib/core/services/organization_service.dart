@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:appwrite/appwrite.dart';
+import 'package:appwrite/enums.dart';
 import 'package:appwrite/models.dart' as aw;
 import '../appwrite_client.dart' show RealtimeBroadcaster;
 import '../models/announcement.dart';
@@ -22,16 +23,20 @@ class OrganizationService {
     required String displayName,
     String? email,
   })  : _db = Databases(client),
+        _functions = Functions(client),
         _broadcaster = broadcaster,
         _uid = uid,
         _displayName = displayName,
         _email = email ?? '';
 
   final Databases _db;
+  final Functions _functions;
   final RealtimeBroadcaster _broadcaster;
   final String _uid;
   final String _displayName;
   final String _email;
+
+  static const _adminMemberActionId = 'admin-member-action';
 
   static const _dbId = 'guardian';
   static const _colOrgs = 'organizations';
@@ -126,6 +131,7 @@ class OrganizationService {
       permissions: [
         Permission.read(Role.users()),
         Permission.update(Role.user(_uid)),
+        Permission.delete(Role.user(_uid)),
       ],
     );
     await _updateMembershipsJson(_uid, membership, add: true);
@@ -240,37 +246,28 @@ class OrganizationService {
   }
 
   Future<void> removeMember(String orgId, String targetUid) async {
+    // Vor dem CF-Aufruf den Anzeigenamen für das Audit-Log laden
     final memberId = '${orgId}_$targetUid';
-    final doc = await _db.getDocument(
-        databaseId: _dbId, collectionId: _colMembers, documentId: memberId);
-    final role = OrgRole.values.byName(doc.data['role'] as String);
-    await _updateMembershipsJson(
-        targetUid, OrgMembership(orgId: orgId, role: role),
-        add: false);
-    final targetName = doc.data['displayName'] as String? ?? targetUid;
-    await _db.deleteDocument(
-        databaseId: _dbId, collectionId: _colMembers, documentId: memberId);
-    await _arrayRemove(_colOrgs, orgId, 'memberUids', targetUid);
+    String targetName = targetUid;
+    String roleStr = '';
+    try {
+      final doc = await _db.getDocument(
+          databaseId: _dbId, collectionId: _colMembers, documentId: memberId);
+      targetName = doc.data['displayName'] as String? ?? targetUid;
+      roleStr = doc.data['role'] as String? ?? '';
+    } catch (_) {}
+
+    final result = await _callAdminMemberAction('removeMember', orgId,
+        targetUid: targetUid);
+    if (result['error'] != null) throw Exception(result['error'] as String);
+
     unawaited(_logAuditEvent(orgId, AuditAction.memberRemoved,
-        {'targetUid': targetUid, 'targetName': targetName, 'role': role.name}));
+        {'targetUid': targetUid, 'targetName': targetName, 'role': roleStr}));
   }
 
   Future<void> leaveOrganization(String orgId) async {
-    final memberId = '${orgId}_$_uid';
-    final doc = await _db.getDocument(
-        databaseId: _dbId, collectionId: _colMembers, documentId: memberId);
-    final role = OrgRole.values.byName(doc.data['role'] as String);
-    if (role == OrgRole.admin) {
-      throw Exception(
-          'Als Admin kannst du die Organisation nicht verlassen. '
-          'Übertrage zuerst die Admin-Rolle an ein anderes Mitglied.');
-    }
-    await _updateMembershipsJson(
-        _uid, OrgMembership(orgId: orgId, role: role),
-        add: false);
-    await _db.deleteDocument(
-        databaseId: _dbId, collectionId: _colMembers, documentId: memberId);
-    await _arrayRemove(_colOrgs, orgId, 'memberUids', _uid);
+    final result = await _callAdminMemberAction('leaveOrg', orgId);
+    if (result['error'] != null) throw Exception(result['error'] as String);
   }
 
   Future<void> updateMemberRole(
@@ -283,89 +280,64 @@ class OrganizationService {
       }
     }
 
-    final memberId = '${orgId}_$targetUid';
-    final doc = await _db.getDocument(
-        databaseId: _dbId, collectionId: _colMembers, documentId: memberId);
-    final oldRole = OrgRole.values.byName(doc.data['role'] as String);
+    // Anzeigenamen vor dem CF-Aufruf laden (für Audit-Log)
+    String targetName = targetUid;
+    try {
+      final doc = await _db.getDocument(
+          databaseId: _dbId,
+          collectionId: _colMembers,
+          documentId: '${orgId}_$targetUid');
+      targetName = doc.data['displayName'] as String? ?? targetUid;
+    } catch (_) {}
 
-    await _db.updateDocument(
-        databaseId: _dbId,
-        collectionId: _colMembers,
-        documentId: memberId,
-        data: {'role': newRole.name});
+    final result = await _callAdminMemberAction('updateRole', orgId,
+        targetUid: targetUid, payload: {'newRole': newRole.name});
+    if (result['error'] != null) throw Exception(result['error'] as String);
 
-    await _updateMembershipsJson(
-        targetUid, OrgMembership(orgId: orgId, role: oldRole),
-        add: false);
-    await _updateMembershipsJson(
-        targetUid, OrgMembership(orgId: orgId, role: newRole),
-        add: true);
-    final targetName = doc.data['displayName'] as String? ?? targetUid;
+    final oldRole = result['oldRole'] as String? ?? '';
     unawaited(_logAuditEvent(orgId, AuditAction.roleChanged, {
       'targetUid': targetUid,
       'targetName': targetName,
-      'oldRole': oldRole.name,
+      'oldRole': oldRole,
       'newRole': newRole.name,
     }));
   }
 
   Future<void> transferAdmin(String orgId, String newAdminUid) async {
-    final newMemberId = '${orgId}_$newAdminUid';
-    final snap = await _db.getDocument(
-        databaseId: _dbId, collectionId: _colMembers, documentId: newMemberId);
-    final newAdminOldRole =
-        OrgRole.values.byName(snap.data['role'] as String);
+    // Anzeigenamen vor dem CF-Aufruf laden (für Audit-Log)
+    String newAdminName = newAdminUid;
+    try {
+      final snap = await _db.getDocument(
+          databaseId: _dbId,
+          collectionId: _colMembers,
+          documentId: '${orgId}_$newAdminUid');
+      newAdminName = snap.data['displayName'] as String? ?? newAdminUid;
+    } catch (_) {}
 
-    // Member-Rollen tauschen
-    await _db.updateDocument(
-        databaseId: _dbId,
-        collectionId: _colMembers,
-        documentId: '${orgId}_$_uid',
-        data: {'role': OrgRole.member.name});
-    await _db.updateDocument(
-        databaseId: _dbId,
-        collectionId: _colMembers,
-        documentId: newMemberId,
-        data: {'role': OrgRole.admin.name});
+    final result = await _callAdminMemberAction('transferAdmin', orgId,
+        targetUid: newAdminUid);
+    if (result['error'] != null) throw Exception(result['error'] as String);
 
-    // adminUid auf Org aktualisieren
-    await _db.updateDocument(
-        databaseId: _dbId,
-        collectionId: _colOrgs,
-        documentId: orgId,
-        data: {'adminUid': newAdminUid});
-
-    // Memberships updaten
-    await _updateMembershipsJson(
-        _uid, OrgMembership(orgId: orgId, role: OrgRole.admin),
-        add: false);
-    await _updateMembershipsJson(
-        _uid, OrgMembership(orgId: orgId, role: OrgRole.member),
-        add: true);
-    await _updateMembershipsJson(
-        newAdminUid, OrgMembership(orgId: orgId, role: newAdminOldRole),
-        add: false);
-    await _updateMembershipsJson(
-        newAdminUid, OrgMembership(orgId: orgId, role: OrgRole.admin),
-        add: true);
-    final newAdminName = snap.data['displayName'] as String? ?? newAdminUid;
     unawaited(_logAuditEvent(orgId, AuditAction.adminTransferred,
         {'newAdminUid': newAdminUid, 'newAdminName': newAdminName}));
   }
 
   Future<void> updateGuardians(
       String orgId, String childUid, List<String> guardianUids) async {
-    final memberDoc = await _db.getDocument(
-        databaseId: _dbId,
-        collectionId: _colMembers,
-        documentId: '${orgId}_$childUid');
-    await _db.updateDocument(
-      databaseId: _dbId,
-      collectionId: _colMembers,
-      documentId: '${orgId}_$childUid',
-      data: {'guardianUids': guardianUids},
-    );
-    final childName = memberDoc.data['displayName'] as String? ?? childUid;
+    // Anzeigenamen vor dem CF-Aufruf laden (für Audit-Log)
+    String childName = childUid;
+    try {
+      final doc = await _db.getDocument(
+          databaseId: _dbId,
+          collectionId: _colMembers,
+          documentId: '${orgId}_$childUid');
+      childName = doc.data['displayName'] as String? ?? childUid;
+    } catch (_) {}
+
+    final result = await _callAdminMemberAction('updateGuardians', orgId,
+        targetUid: childUid, payload: {'guardianUids': guardianUids});
+    if (result['error'] != null) throw Exception(result['error'] as String);
+
     unawaited(_logAuditEvent(orgId, AuditAction.guardiansChanged, {
       'childUid': childUid,
       'childName': childName,
@@ -374,15 +346,9 @@ class OrganizationService {
   }
 
   Future<void> approveChildInvite(String orgId, String childUid) async {
-    final memberId = '${orgId}_$childUid';
-    await _db.updateDocument(
-        databaseId: _dbId,
-        collectionId: _colMembers,
-        documentId: memberId,
-        data: {'status': MemberStatus.active.name});
-    await _arrayAdd(_colOrgs, orgId, 'memberUids', childUid);
-    // membershipsJson des Kindes kann der Guardian nicht schreiben (fremdes User-Doc).
-    // Das Kind sieht die Org über die memberUids-Query in watchMyOrganizations.
+    final result = await _callAdminMemberAction('approveChild', orgId,
+        targetUid: childUid);
+    if (result['error'] != null) throw Exception(result['error'] as String);
   }
 
   Future<void> rejectChildInvite(String orgId, String childUid) async {
@@ -513,32 +479,36 @@ class OrganizationService {
     }
 
     final memberStatus = isChild ? MemberStatus.pending : MemberStatus.active;
-    final membership = OrgMembership(orgId: orgId, role: effectiveRole);
 
-    await _db.createDocument(
-      databaseId: _dbId,
-      collectionId: _colMembers,
-      documentId: memberId,
-      data: {
-        ...OrgMember(
-          uid: targetUid,
-          displayName: userData['displayName'] as String? ??
-              userData['email'] as String,
-          email: userData['email'] as String,
-          photoUrl: userData['photoUrl'] as String?,
-          role: effectiveRole,
-          joinedAt: DateTime.now().toUtc(),
-          guardianUids: isChild ? guardianUids : [],
-          status: memberStatus,
-        ).toAppwrite(),
-        'orgId': orgId,
-      },
-    );
+    final memberData = {
+      ...OrgMember(
+        uid: targetUid,
+        displayName: userData['displayName'] as String? ??
+            userData['email'] as String,
+        // Email nur für Nicht-Kinder speichern — Minderjährigendaten werden nicht
+        // in für alle Org-Mitglieder lesbaren Docs persistiert (HIGH #3 / DSGVO).
+        email: isChild ? '' : (userData['email'] as String? ?? ''),
+        photoUrl: userData['photoUrl'] as String?,
+        role: effectiveRole,
+        joinedAt: DateTime.now().toUtc(),
+        guardianUids: isChild ? guardianUids : [],
+        status: memberStatus,
+      ).toAppwrite(),
+      'orgId': orgId,
+    };
 
-    if (!isChild) {
-      await _arrayAdd(_colOrgs, orgId, 'memberUids', targetUid);
-      await _updateMembershipsJson(targetUid, membership, add: true);
+    // Cloud Function erstellt den Member-Doc mit korrekten per-user Permissions
+    // (admin-member-action mit API-Key). Client kann keine user:targetUid Permissions
+    // für fremde UIDs setzen (Appwrite-Einschränkung).
+    final result = await _callAdminMemberAction('addMember', orgId,
+        targetUid: targetUid, payload: {'memberData': memberData, 'isChild': isChild});
+    if (result['error'] == 'already_member') {
+      throw Exception('Dieser Benutzer ist bereits Mitglied.');
     }
+    if (result['error'] != null) {
+      throw Exception(result['error'] as String);
+    }
+
     final targetName = userData['displayName'] as String? ?? normalizedEmail;
     unawaited(_logAuditEvent(orgId, AuditAction.memberConfirmed, {
       'targetUid': targetUid,
@@ -918,32 +888,31 @@ class OrganizationService {
 
   // ── Hilfsmethoden ──────────────────────────────────────────────────────────
 
-  Future<void> _arrayAdd(
-      String col, String docId, String field, String value) async {
-    final doc = await _db.getDocument(
-        databaseId: _dbId, collectionId: col, documentId: docId);
-    final list = List<String>.from(doc.data[field] as List? ?? []);
-    if (!list.contains(value)) {
-      list.add(value);
-      await _db.updateDocument(
-          databaseId: _dbId,
-          collectionId: col,
-          documentId: docId,
-          data: {field: list});
-    }
-  }
-
-  Future<void> _arrayRemove(
-      String col, String docId, String field, String value) async {
-    final doc = await _db.getDocument(
-        databaseId: _dbId, collectionId: col, documentId: docId);
-    final list = List<String>.from(doc.data[field] as List? ?? []);
-    if (list.remove(value)) {
-      await _db.updateDocument(
-          databaseId: _dbId,
-          collectionId: col,
-          documentId: docId,
-          data: {field: list});
+  /// Ruft die admin-member-action Cloud Function auf und gibt den geparsten Body zurück.
+  /// Bei HTTP-Fehler oder CF-Fehler enthält das Ergebnis `{'error': '...'}`.
+  Future<Map<String, dynamic>> _callAdminMemberAction(
+    String action,
+    String orgId, {
+    String? targetUid,
+    Map<String, dynamic> payload = const {},
+  }) async {
+    try {
+      final execution = await _functions.createExecution(
+        functionId: _adminMemberActionId,
+        body: jsonEncode({
+          'action': action,
+          'orgId': orgId,
+          if (targetUid != null) 'targetUid': targetUid,
+          if (payload.isNotEmpty) 'payload': payload,
+        }),
+        method: ExecutionMethod.pOST,
+        xasync: false,
+      );
+      final body = execution.responseBody;
+      if (body.isEmpty) return {'error': 'Empty response from function'};
+      return Map<String, dynamic>.from(jsonDecode(body) as Map);
+    } catch (e) {
+      return {'error': e.toString()};
     }
   }
 

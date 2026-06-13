@@ -181,16 +181,25 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
 
     // FCM-Token bei jedem Auth-State-Wechsel refreshen (Token-Rotation).
     // Desktop: Realtime-Listener starten/stoppen je nach Login-Status.
-    ref.listen<AsyncValue<AppUser?>>(authStateProvider, (_, next) {
+    ref.listen<AsyncValue<AppUser?>>(authStateProvider, (prev, next) {
       final user = next.value;
       final client = ref.read(appwriteClientProvider);
       if (user != null) {
         NotificationService().initialize(Databases(client), user.uid);
         if (_isDesktop) DesktopNotificationService().startListening(client, ref.read(appwriteRealtimeBroadcasterProvider), user.uid);
-      } else {
+      } else if (!next.isLoading && prev?.value != null) {
+        // Nur bei echtem Logout invalidieren (prev war eingeloggt, next ist null).
+        // Nicht bei AsyncLoading (Login-Start) oder initialem Laden (prev == null).
+        // ref.invalidate während eines Provider-Flush würde eine Rebuild-Kaskade
+        // auslösen → Bad state / _skippedNotification assertion.
         if (_isDesktop) DesktopNotificationService().stopListening();
-        ref.invalidate(appwriteRealtimeProvider);
-        ref.invalidate(appwriteRealtimeBroadcasterProvider);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref.invalidate(appwriteRealtimeProvider);
+          ref.invalidate(appwriteRealtimeBroadcasterProvider);
+          ref.invalidate(chatServiceProvider);
+          ref.invalidate(organizationServiceProvider);
+          ref.invalidate(parentClaimServiceProvider);
+        });
       }
     });
 

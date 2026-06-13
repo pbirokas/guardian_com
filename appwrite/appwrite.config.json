@@ -1481,6 +1481,58 @@
                     "orders": []
                 }
             ]
+        },
+        {
+            "$id": "read_receipts",
+            "$permissions": [],
+            "databaseId": "guardian",
+            "name": "ReadReceipts",
+            "enabled": true,
+            "rowSecurity": true,
+            "columns": [
+                {
+                    "key": "convId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "uid",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "readAt",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "convId_uid_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": ["convId", "uid"],
+                    "orders": []
+                },
+                {
+                    "key": "uid_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": ["uid"],
+                    "orders": []
+                }
+            ]
         }
     ],
     "functions": [

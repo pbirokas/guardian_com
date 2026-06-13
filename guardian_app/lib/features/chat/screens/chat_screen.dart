@@ -998,10 +998,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (authUser == null) return const SizedBox.shrink();
     final currentUid = authUser.uid;
 
+    final myReceipts = ref.watch(myReadReceiptsProvider).value ?? {};
     ref.listen(conversationProvider(widget.chatId), (_, next) {
       final c = next.value;
       if (c == null) return;
-      if (c.hasUnread(currentUid)) _markRead();
+      if (c.hasUnreadWith(currentUid, myReceipts)) _markRead();
     });
 
     final members = conv == null

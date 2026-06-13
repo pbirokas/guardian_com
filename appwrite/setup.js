@@ -382,6 +382,19 @@ async function setupAuditLog() {
   await idx('audit_log', 'orgId_ts_idx',     'key', ['orgId', 'timestamp'], ['ASC', 'DESC']);
 }
 
+async function setupReadReceipts() {
+  // Ersetzt lastReadAtJson auf Conversation-Dokumenten.
+  // Jeder Nutzer hat ein eigenes Dokument pro Konversation → keine Write-Konflikte.
+  await createCollection('read_receipts', 'ReadReceipts');
+  await str('read_receipts', 'convId', 36,  true);
+  await str('read_receipts', 'uid',    36,  true);
+  await dt('read_receipts',  'readAt', true);
+  // Composite-Index für den Lookup in mark-as-read: listDocuments(convId, uid)
+  await idx('read_receipts', 'convId_uid_idx', 'key', ['convId', 'uid']);
+  // Index für watchMyReadReceipts: listDocuments(uid)
+  await idx('read_receipts', 'uid_idx', 'key', ['uid']);
+}
+
 async function setupReports() {
   await createCollection('reports', 'Reports');
   await str('reports', 'orgId',             36,   true);
@@ -453,6 +466,7 @@ async function main() {
   await setupOrgInviteConsents();
   await setupReports();
   await setupAuditLog();
+  await setupReadReceipts();
   await setupMediaBucket();
 
   console.log('\n✅ Setup abgeschlossen.');

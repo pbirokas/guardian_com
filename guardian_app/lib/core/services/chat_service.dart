@@ -41,6 +41,7 @@ class ChatService {
   static const _colMembers = 'members';
   static const _colOrgs = 'organizations';
   static const _colReports = 'reports';
+  static const _colReceipts = 'read_receipts';
 
   static bool get _isDesktop =>
       !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
@@ -255,6 +256,50 @@ class ChatService {
 
   Stream<Conversation?> watchConversation(String convId) {
     return _watchDocument(_colConvs, convId, Conversation.fromAppwrite);
+  }
+
+  // ── Read Receipts ──────────────────────────────────────────────────────────
+
+  /// Gibt einen Stream zurück der immer die aktuellen Lesezeitstempel
+  /// des angemeldeten Nutzers für alle seine Konversationen enthält.
+  /// Map<convId, readAt> — wird bei jedem Realtime-Ereignis auf read_receipts neu geladen.
+  Stream<Map<String, DateTime>> watchMyReadReceipts() {
+    late StreamController<Map<String, DateTime>> ctrl;
+    StreamSubscription? realtimeSub;
+
+    Future<void> reload() async {
+      if (ctrl.isClosed) return;
+      try {
+        final result = await _db.listDocuments(
+          databaseId: _dbId,
+          collectionId: _colReceipts,
+          queries: [Query.equal('uid', _uid), Query.limit(500)],
+        );
+        final map = <String, DateTime>{};
+        for (final doc in result.documents) {
+          final convId = doc.data['convId'] as String?;
+          final readAtRaw = doc.data['readAt'] as String?;
+          if (convId != null && readAtRaw != null) {
+            map[convId] = DateTime.parse(readAtRaw).toLocal();
+          }
+        }
+        if (!ctrl.isClosed) ctrl.add(map);
+      } catch (e) {
+        if (!ctrl.isClosed) ctrl.addError(e);
+      }
+    }
+
+    void dispose() {
+      realtimeSub?.cancel();
+      ctrl.close();
+    }
+
+    ctrl = StreamController(onCancel: dispose);
+    realtimeSub = _broadcaster
+        .stream('databases.$_dbId.collections.$_colReceipts.documents')
+        .listen((_) => reload(), onDone: dispose, onError: (_) {});
+    reload();
+    return ctrl.stream;
   }
 
   // ── Konversations-Aktionen ─────────────────────────────────────────────────

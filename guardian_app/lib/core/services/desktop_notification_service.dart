@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:appwrite/appwrite.dart';
 import '../appwrite_client.dart' show RealtimeBroadcaster;
@@ -32,6 +31,7 @@ class DesktopNotificationService {
 
   StreamSubscription? _convSub;
   StreamSubscription? _unreadSub;
+  StreamSubscription? _receiptSub;
 
   /// convId → aktive Message-Subscription (für Toast-Notifications)
   final Map<String, StreamSubscription> _msgSubs = {};
@@ -59,6 +59,8 @@ class DesktopNotificationService {
     _convSub = null;
     _unreadSub?.cancel();
     _unreadSub = null;
+    _receiptSub?.cancel();
+    _receiptSub = null;
     for (final sub in _msgSubs.values) {
       sub.cancel();
     }
@@ -189,32 +191,42 @@ class DesktopNotificationService {
 
     Future<void> recalculate() async {
       try {
-        final result = await db.listDocuments(
-          databaseId: 'guardian',
-          collectionId: 'conversations',
-          queries: [
-            Query.contains('participantUids', [uid]),
-            Query.equal('status', 'approved'),
-            Query.limit(200),
-          ],
-        );
+        // Conversations und Receipts parallel laden
+        final results = await Future.wait([
+          db.listDocuments(
+            databaseId: 'guardian',
+            collectionId: 'conversations',
+            queries: [
+              Query.contains('participantUids', [uid]),
+              Query.equal('status', 'approved'),
+              Query.limit(200),
+            ],
+          ),
+          db.listDocuments(
+            databaseId: 'guardian',
+            collectionId: 'read_receipts',
+            queries: [Query.equal('uid', uid), Query.limit(500)],
+          ),
+        ]);
+
+        // read_receipts → Map<convId, readAt>
+        final receiptMap = <String, DateTime>{};
+        for (final doc in results[1].documents) {
+          final convId = doc.data['convId'] as String?;
+          final raw = doc.data['readAt'] as String?;
+          if (convId != null && raw != null) {
+            final dt = DateTime.tryParse(raw);
+            if (dt != null) receiptMap[convId] = dt;
+          }
+        }
 
         int count = 0;
-        for (final doc in result.documents) {
-          final data = doc.data;
-          final lastMessageAtRaw = data['lastMessageAt'] as String?;
+        for (final doc in results[0].documents) {
+          final lastMessageAtRaw = doc.data['lastMessageAt'] as String?;
           if (lastMessageAtRaw == null) continue;
           final lastMessageAt = DateTime.tryParse(lastMessageAtRaw);
           if (lastMessageAt == null) continue;
-
-          final lastReadJson = data['lastReadAtJson'] as String?;
-          DateTime? lastRead;
-          if (lastReadJson != null) {
-            final map = jsonDecode(lastReadJson) as Map<String, dynamic>?;
-            final raw = map?[uid] as String?;
-            if (raw != null) lastRead = DateTime.tryParse(raw);
-          }
-
+          final lastRead = receiptMap[doc.$id];
           if (lastRead == null || lastMessageAt.isAfter(lastRead)) count++;
         }
 
@@ -227,6 +239,9 @@ class DesktopNotificationService {
 
     _unreadSub = _broadcaster!
         .stream('databases.guardian.collections.conversations.documents')
+        .listen((_) => recalculate());
+    _receiptSub = _broadcaster!
+        .stream('databases.guardian.collections.read_receipts.documents')
         .listen((_) => recalculate());
     recalculate();
   }

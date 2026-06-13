@@ -41,6 +41,7 @@ const collections = [
   { id: 'org_invite_consents', name: 'OrgInviteConsents' },
   { id: 'reports',            name: 'Reports' },
   { id: 'audit_log',          name: 'AuditLog' },
+  { id: 'read_receipts',      name: 'ReadReceipts' },
 ];
 
 // Collection-Level Permissions:
@@ -65,6 +66,10 @@ const collectionPermissionOverrides = {
   claim_requests:      RCUD,   // Eltern-Kind-Verknüpfung
   reports:             RCUD,   // Meldungen erstellen + als geprüft markieren
   audit_log:           RCD,    // Client schreibt Einträge, liest sie (kein update/delete)
+  // read_receipts: Nutzer lesen nur ihre eigenen Dokumente (per Document-Permission);
+  // schreiben ausschließlich via mark-as-read Cloud Function (API-Key).
+  // Collection-Level read ist nötig damit Realtime den Channel öffnen kann.
+  read_receipts:       R,
 };
 
 // audit_log braucht kein documentSecurity — alle Einträge sind für alle Admins/Mods lesbar.

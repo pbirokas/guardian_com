@@ -65,6 +65,7 @@ final shelteredModeratorConversationsProvider = StreamProvider.family<
 /// Anzahl ungelesener Chats in einer Org (für Badge auf dem Startbildschirm)
 final unreadOrgCountProvider = Provider.family<int, String>((ref, orgId) {
   final currentUid = ref.watch(authStateProvider).value?.uid ?? '';
+  final receipts = ref.watch(myReadReceiptsProvider).value ?? {};
   final ownConvs = ref.watch(orgConversationsProvider(orgId)).value ?? [];
   final adminConvs =
       ref.watch(adminConversationsProvider(orgId)).value ?? [];
@@ -72,12 +73,19 @@ final unreadOrgCountProvider = Provider.family<int, String>((ref, orgId) {
   final all = [...ownConvs, ...adminConvs].where((c) => seen.add(c.id)).toList();
   return all
       .where((c) =>
-          c.status == ConversationStatus.approved && c.hasUnread(currentUid))
+          c.status == ConversationStatus.approved &&
+          c.hasUnreadWith(currentUid, receipts))
       .length;
 });
 
 final allMyConversationsProvider = StreamProvider<List<Conversation>>((ref) {
   return ref.watch(chatServiceProvider).watchAllMyApprovedConversations();
+});
+
+/// Map<convId, readAt> für den aktuell angemeldeten Nutzer.
+/// Wird von allen Ungelesen-Badges und der Chat-Screen-Logik genutzt.
+final myReadReceiptsProvider = StreamProvider<Map<String, DateTime>>((ref) {
+  return ref.watch(chatServiceProvider).watchMyReadReceipts();
 });
 
 final conversationProvider =

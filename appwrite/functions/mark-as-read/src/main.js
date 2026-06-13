@@ -1,13 +1,11 @@
-const { Client, Databases } = require('node-appwrite');
+const { Client, Databases, Query, ID, Permission, Role } = require('node-appwrite');
 
-const DB_ID = 'guardian';
-const COL_CONVS = 'conversations';
+const DB_ID       = 'guardian';
+const COL_CONVS   = 'conversations';
+const COL_RECEIPTS = 'read_receipts';
 
-const GET_TIMEOUT_MS = 5_000;
-// updateDocument-Timeout kürzer, damit im Retry-Fall noch Zeit bleibt
-// (14s Gesamtlimit: ~5s getDoc + ~3s update + ~1s Jitter + ~3s Retry = ~12s)
+const GET_TIMEOUT_MS    = 5_000;
 const UPDATE_TIMEOUT_MS = 3_000;
-const MAX_UPDATE_ATTEMPTS = 2;
 
 function withTimeout(promise, label, ms) {
   return Promise.race([
@@ -19,33 +17,6 @@ function withTimeout(promise, label, ms) {
       )
     ),
   ]);
-}
-
-// Retry bei transienten Write-Conflicts (500) und Timeouts mit Jitter,
-// damit gleichzeitige Schreiber sich entzerren.
-async function updateWithRetry(db, convId, data, logFn, errorFn) {
-  for (let attempt = 1; attempt <= MAX_UPDATE_ATTEMPTS; attempt++) {
-    try {
-      await withTimeout(
-        db.updateDocument(DB_ID, COL_CONVS, convId, data),
-        'updateDocument',
-        UPDATE_TIMEOUT_MS,
-      );
-      return;
-    } catch (e) {
-      const code = e?.code ?? e?.status ?? 0;
-      const isRetryable = e.isTimeout || code === 500 || code === 429;
-
-      if (attempt < MAX_UPDATE_ATTEMPTS && isRetryable) {
-        // Jitter 100–600ms — verteilt simultane Schreiber über die Zeit
-        const jitter = 100 + Math.random() * 500;
-        logFn(`updateDocument attempt ${attempt} failed (${e.isTimeout ? 'timeout' : `code=${code}`}), retry in ${Math.round(jitter)}ms`);
-        await new Promise(r => setTimeout(r, jitter));
-        continue;
-      }
-      throw e;
-    }
-  }
 }
 
 module.exports = async ({ req, res, log, error }) => {
@@ -76,27 +47,31 @@ module.exports = async ({ req, res, log, error }) => {
   }
 
   const client = new Client()
-    .setEndpoint(process.env.APPWRITE_ENDPOINT)
+    .setEndpoint((process.env.APPWRITE_ENDPOINT || '').replace(/^http:\/\//, 'https://'))
     .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)
     .setKey(process.env.APPWRITE_API_KEY);
 
   const db = new Databases(client);
 
+  // Berechtigungscheck: nur Teilnehmer, Guardians und Approver dürfen markieren.
   let conv;
   try {
-    conv = await withTimeout(db.getDocument(DB_ID, COL_CONVS, convId), 'getDocument', GET_TIMEOUT_MS);
+    conv = await withTimeout(
+      db.getDocument(DB_ID, COL_CONVS, convId),
+      'getDocument(conv)',
+      GET_TIMEOUT_MS,
+    );
   } catch (e) {
     if (e.isTimeout) {
-      error(`getDocument timed out for convId=${convId}`);
+      error(`getDocument(conv) timed out for convId=${convId}`);
       return res.json({ error: 'Service temporarily unavailable' }, 503);
     }
     const code = e?.code ?? e?.status ?? 0;
-    error(`getDocument failed: code=${code} msg=${e?.message}`);
+    error(`getDocument(conv) failed: code=${code} msg=${e?.message}`);
     if (code === 404) return res.json({ error: 'Conversation not found' }, 404);
     return res.json({ error: 'Internal server error' }, 500);
   }
 
-  // Nur Teilnehmer, Guardians und berechtigte Approver dürfen als gelesen markieren.
   const allowed = [
     ...(conv.participantUids ?? []),
     ...(conv.guardianUids ?? []),
@@ -106,24 +81,81 @@ module.exports = async ({ req, res, log, error }) => {
     return res.json({ error: 'Not a participant' }, 403);
   }
 
-  // Nur den eigenen Eintrag aktualisieren — kein anderer UID wird berührt.
-  let existing = {};
+  // Vorhandenes read_receipts-Dokument für diesen Nutzer + Konversation suchen.
+  let existingDocId = null;
   try {
-    existing = conv.lastReadAtJson ? JSON.parse(conv.lastReadAtJson) : {};
-  } catch (_) { /* korrupter Wert → leere Map als Fallback */ }
-
-  existing[uid] = effectiveReadAt;
-
-  try {
-    await updateWithRetry(db, convId, { lastReadAtJson: JSON.stringify(existing) }, log, error);
+    const result = await withTimeout(
+      db.listDocuments(DB_ID, COL_RECEIPTS, [
+        Query.equal('convId', convId),
+        Query.equal('uid', uid),
+        Query.limit(1),
+      ]),
+      'listDocuments(receipts)',
+      GET_TIMEOUT_MS,
+    );
+    if (result.documents.length > 0) {
+      existingDocId = result.documents[0].$id;
+    }
   } catch (e) {
     if (e.isTimeout) {
-      error(`updateDocument timed out (all attempts exhausted) for convId=${convId}`);
+      error(`listDocuments(receipts) timed out for convId=${convId} uid=${uid}`);
       return res.json({ error: 'Service temporarily unavailable' }, 503);
     }
     const code = e?.code ?? e?.status ?? 0;
-    error(`updateDocument failed: code=${code} msg=${e?.message}`);
+    error(`listDocuments(receipts) failed: code=${code} msg=${e?.message}`);
     return res.json({ error: 'Internal server error' }, 500);
+  }
+
+  // Upsert: Update wenn vorhanden, sonst Create.
+  // Jeder Nutzer schreibt nur in sein eigenes Dokument → keine Write-Konflikte.
+  try {
+    if (existingDocId) {
+      await withTimeout(
+        db.updateDocument(DB_ID, COL_RECEIPTS, existingDocId, { readAt: effectiveReadAt }),
+        'updateDocument(receipt)',
+        UPDATE_TIMEOUT_MS,
+      );
+    } else {
+      await withTimeout(
+        db.createDocument(DB_ID, COL_RECEIPTS, ID.unique(), {
+          convId,
+          uid,
+          readAt: effectiveReadAt,
+        }, [
+          Permission.read(Role.user(uid)),
+          Permission.update(Role.user(uid)),
+          Permission.delete(Role.user(uid)),
+        ]),
+        'createDocument(receipt)',
+        UPDATE_TIMEOUT_MS,
+      );
+    }
+  } catch (e) {
+    if (e.isTimeout) {
+      error(`upsert(receipt) timed out for convId=${convId} uid=${uid}`);
+      return res.json({ error: 'Service temporarily unavailable' }, 503);
+    }
+    const code = e?.code ?? e?.status ?? 0;
+    error(`upsert(receipt) failed: code=${code} msg=${e?.message}`);
+    return res.json({ error: 'Internal server error' }, 500);
+  }
+
+  // ÜBERGANGS-COMPAT: Alte App-Versionen lesen lastReadAtJson vom Conversation-Dokument.
+  // Dieser Block kann nach vollständigem Play-Store-Rollout der neuen Version entfernt werden.
+  try {
+    let existing = {};
+    try { existing = conv.lastReadAtJson ? JSON.parse(conv.lastReadAtJson) : {}; } catch (_) {}
+    existing[uid] = effectiveReadAt;
+    await withTimeout(
+      db.updateDocument(DB_ID, COL_CONVS, convId, { lastReadAtJson: JSON.stringify(existing) }),
+      'updateDocument(lastReadAtJson-compat)',
+      UPDATE_TIMEOUT_MS,
+    );
+  } catch (e) {
+    // Fehler hier sind nicht fatal — read_receipts ist bereits geschrieben.
+    // Alte App sieht Badge ggf. falsch, neue App funktioniert korrekt.
+    const code = e?.code ?? e?.status ?? 0;
+    error(`compat lastReadAtJson update failed (non-fatal): code=${code} msg=${e?.message}`);
   }
 
   log(`mark-as-read: uid=${uid} convId=${convId} readAt=${effectiveReadAt}`);

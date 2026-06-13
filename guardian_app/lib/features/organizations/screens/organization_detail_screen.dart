@@ -1269,13 +1269,15 @@ class _ChatTabLabel extends ConsumerWidget {
         ? (ref.watch(pendingRequestsProvider(orgId)).value?.length ?? 0)
         : 0;
 
+    final receipts = ref.watch(myReadReceiptsProvider).value ?? {};
     final allConvs = [
       ...ref.watch(orgConversationsProvider(orgId)).value ?? [],
       ...ref.watch(adminConversationsProvider(orgId)).value ?? [],
     ];
     final unreadCount = allConvs
         .where((c) =>
-            c.status == ConversationStatus.approved && c.hasUnread(currentUid))
+            c.status == ConversationStatus.approved &&
+            c.hasUnreadWith(currentUid, receipts))
         .map((c) => c.id)
         .toSet()
         .length;
@@ -2691,7 +2693,8 @@ class _ConversationTile extends StatelessWidget {
       );
     }
 
-    final hasUnread = !isArchived && conv.hasUnread(currentUid);
+    final receipts = ref.watch(myReadReceiptsProvider).value ?? {};
+    final hasUnread = !isArchived && conv.hasUnreadWith(currentUid, receipts);
 
     return ListTile(
       leading: leading,

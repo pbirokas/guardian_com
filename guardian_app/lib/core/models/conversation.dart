@@ -60,6 +60,15 @@ class Conversation {
     return lastMessageAt!.isAfter(lastRead);
   }
 
+  /// Wie [hasUnread], aber nutzt die separate read_receipts-Collection statt lastReadAt.
+  /// [allReceipts] ist eine Map<convId, readAt> des angemeldeten Nutzers.
+  bool hasUnreadWith(String uid, Map<String, DateTime> allReceipts) {
+    if (lastMessageAt == null) return false;
+    final lastRead = allReceipts[id];
+    if (lastRead == null) return true;
+    return lastMessageAt!.isAfter(lastRead);
+  }
+
   factory Conversation.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     final rawLastRead = data['lastReadAt'];
@@ -137,11 +146,6 @@ class Conversation {
       participantUids.firstWhere((uid) => uid != myUid);
 
   factory Conversation.fromAppwrite(Map<String, dynamic> data) {
-    final lastReadJson = data['lastReadAtJson'] as String?;
-    final lastReadAt = (lastReadJson != null && lastReadJson.isNotEmpty)
-        ? (jsonDecode(lastReadJson) as Map<String, dynamic>)
-            .map((k, v) => MapEntry(k, DateTime.parse(v as String).toLocal()))
-        : <String, DateTime>{};
     final namesJson = data['personalNamesJson'] as String?;
     final personalNames = (namesJson != null && namesJson.isNotEmpty)
         ? Map<String, String>.from(jsonDecode(namesJson) as Map)
@@ -170,7 +174,7 @@ class Conversation {
       requestorGuardianUid: data['requestorGuardianUid'] as String?,
       canApproveUids: List<String>.from(data['canApproveUids'] as List? ?? []),
       guardianUids: List<String>.from(data['guardianUids'] as List? ?? []),
-      lastReadAt: lastReadAt,
+      lastReadAt: const {},
       typingUsers: const {},
       pinnedMessageId: data['pinnedMessageId'] as String?,
       pinnedMessageText: data['pinnedMessageText'] as String?,
@@ -188,9 +192,6 @@ class Conversation {
         'isGroup': isGroup,
         'canApproveUids': canApproveUids,
         'guardianUids': guardianUids,
-        'lastReadAtJson': jsonEncode(
-          lastReadAt.map((k, v) => MapEntry(k, v.toUtc().toIso8601String())),
-        ),
         'personalNamesJson': jsonEncode(personalNames),
         if (requestorGuardianUid != null)
           'requestorGuardianUid': requestorGuardianUid,

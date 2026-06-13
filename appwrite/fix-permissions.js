@@ -41,6 +41,7 @@ const collections = [
   { id: 'org_invite_consents', name: 'OrgInviteConsents' },
   { id: 'reports',            name: 'Reports' },
   { id: 'audit_log',          name: 'AuditLog' },
+  { id: 'read_receipts',      name: 'ReadReceipts' },
 ];
 
 // Collection-Level Permissions:
@@ -48,13 +49,18 @@ const collections = [
 // - create/update/delete: auf Collection-Ebene nötig da Appwrite kein per-Doc create kennt
 // Die eigentliche Zugriffsfilterung (wer darf was) passiert per Query und App-Logik.
 const R   = [Permission.read(Role.users())];
+const RC  = [Permission.read(Role.users()), Permission.create(Role.users())];
 const RCD = [Permission.read(Role.users()), Permission.create(Role.users()), Permission.delete(Role.users())];
 const RCUD = [Permission.read(Role.users()), Permission.create(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())];
 
 const collectionPermissionOverrides = {
   users:               [Permission.read(Role.users()), Permission.create(Role.users())], // create: Neues User-Doc beim ersten Login; update/delete nur per Document-Permission
-  organizations:       RCUD,   // Client erstellt/updated Orgs (memberUids-Array, approveChild)
-  members:             RCUD,   // Mitgliedschaft wird vom Client aktualisiert (z.B. guardianUids)
+  organizations:       RCUD,   // Client erstellt/updated Orgs (memberUids-Array, Status)
+  // members: kein update/delete auf Collection-Ebene — alle Änderungen an fremden Docs
+  // laufen über die admin-member-action Cloud Function (API-Key). Eigene Docs werden
+  // über per-Doc Permissions (update/delete user:uid) geschrieben.
+  // create bleibt: createOrganization legt den eigenen Admin-Member-Doc direkt an.
+  members:             RC,
   conversations:       RCUD,   // neue Chats anlegen, Status aktualisieren
   chat_messages:       RCUD,   // Nachrichten senden, bearbeiten (Reaktionen, Archivieren) und löschen
   polls:               RCUD,   // Polls anlegen und abstimmen
@@ -65,6 +71,10 @@ const collectionPermissionOverrides = {
   claim_requests:      RCUD,   // Eltern-Kind-Verknüpfung
   reports:             RCUD,   // Meldungen erstellen + als geprüft markieren
   audit_log:           RCD,    // Client schreibt Einträge, liest sie (kein update/delete)
+  // read_receipts: Nutzer lesen nur ihre eigenen Dokumente (per Document-Permission);
+  // schreiben ausschließlich via mark-as-read Cloud Function (API-Key).
+  // Collection-Level read ist nötig damit Realtime den Channel öffnen kann.
+  read_receipts:       R,
 };
 
 // audit_log braucht kein documentSecurity — alle Einträge sind für alle Admins/Mods lesbar.

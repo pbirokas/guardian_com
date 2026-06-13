@@ -105,7 +105,9 @@ module.exports = async ({ req, res, log, error }) => {
       orgId,
       uid,
       displayName,
-      email,
+      // Email wird nur für Nicht-Kinder gespeichert — Minderjährigendaten
+      // dürfen nicht in für alle Org-Mitglieder lesbaren Docs stehen (DSGVO).
+      email: isChild ? '' : email,
       role,
       joinedAt: new Date().toISOString(),
       guardianUids: isChild ? guardianUids : [],
@@ -116,8 +118,9 @@ module.exports = async ({ req, res, log, error }) => {
     if (userData?.photoUrl) memberData.photoUrl = userData.photoUrl;
 
     await db.createDocument(DB_ID, COL_MEMBERS, memberId, memberData, [
-      Permission.read(Role.user(uid)),
+      Permission.read(Role.users()),
       Permission.update(Role.user(uid)),
+      Permission.delete(Role.user(uid)),
     ]);
 
     if (!isChild) {

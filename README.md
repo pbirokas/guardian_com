@@ -430,8 +430,12 @@ conversations/{$id}
   pinnedMessageId, pinnedMessageText
   lastMessage, lastMessageAt
   name, imageUrl
-  lastReadAtJson                ← Map<uid, timestamp> als JSON
   personalNamesJson             ← Map<uid, name> als JSON (persönliche Chat-Namen)
+
+read_receipts/{$id}
+  convId, uid
+  readAt                        ← ISO-8601-Timestamp (ersetzt lastReadAtJson)
+  (Document-Permission: read+update+delete per User-UID)
 
 chat_messages/{$id}
   convId, orgId

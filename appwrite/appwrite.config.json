@@ -1481,6 +1481,58 @@
                     "orders": []
                 }
             ]
+        },
+        {
+            "$id": "read_receipts",
+            "$permissions": [],
+            "databaseId": "guardian",
+            "name": "ReadReceipts",
+            "enabled": true,
+            "rowSecurity": true,
+            "columns": [
+                {
+                    "key": "convId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "uid",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "readAt",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "convId_uid_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": ["convId", "uid"],
+                    "orders": []
+                },
+                {
+                    "key": "uid_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": ["uid"],
+                    "orders": []
+                }
+            ]
         }
     ],
     "functions": [
@@ -1831,6 +1883,23 @@
             "entrypoint": "src/main.js",
             "commands": "npm install",
             "path": "functions/mark-as-read",
+            "vars": {}
+        },
+        {
+            "$id": "admin-member-action",
+            "name": "admin-member-action",
+            "runtime": "node-16.0",
+            "execute": [
+                "users"
+            ],
+            "events": [],
+            "schedule": "",
+            "timeout": 30,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/admin-member-action",
             "vars": {}
         }
     ],

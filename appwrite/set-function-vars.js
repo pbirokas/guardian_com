@@ -56,6 +56,7 @@ const FUNCTION_IDS = [
   'process-my-invitations',
   'revoke-connection',
   'mark-as-read',
+  'admin-member-action',
 ];
 
 const VARS_TO_SET = [

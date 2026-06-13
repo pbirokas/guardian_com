@@ -73,3 +73,7 @@ node_modules/
 
 # Claude Code
 .claude/settings.local.json
+
+# Local Scripts
+release-*.sh
+build-apk.*

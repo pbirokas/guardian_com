@@ -62,7 +62,13 @@ class _OrganizationDetailScreenState
     return orgAsync.when(
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (e, _) => Scaffold(body: Center(child: Text(l.errorMessage(e.toString())))),
+      error: (e, _) {
+        // Org wurde gelöscht oder ist nicht mehr zugänglich → zurück zur Liste.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) context.pop();
+        });
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      },
       data: (org) {
         final isAdmin = org.adminUid == currentUid;
         final currentMember = membersAsync.value

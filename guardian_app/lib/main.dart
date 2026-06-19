@@ -187,6 +187,12 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
       if (user != null) {
         NotificationService().initialize(Databases(client), user.uid);
         if (_isDesktop) DesktopNotificationService().startListening(client, ref.read(appwriteRealtimeBroadcasterProvider), user.uid);
+        // Cold-Start via Share: wenn die App über "Teilen" gestartet wurde,
+        // war Auth beim ersten _checkForSharedData()-Aufruf noch nicht geladen.
+        // Sobald Auth erstmals verfügbar wird, erneut prüfen.
+        if (prev?.value == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => _checkForSharedData());
+        }
       } else if (!next.isLoading && prev?.value != null) {
         // Nur bei echtem Logout invalidieren (prev war eingeloggt, next ist null).
         // Nicht bei AsyncLoading (Login-Start) oder initialem Laden (prev == null).

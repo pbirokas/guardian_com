@@ -48,14 +48,20 @@ module.exports = async ({ req, res, log, error }) => {
   try {
     callerMember = await db.getDocument(DB_ID, COL_MEMBERS, callerMemberId);
   } catch (_) {
-    if (action !== 'leaveOrg') {
+    if (action === 'leaveOrg') {
+      // Mitglied existiert vielleicht nicht mehr — kein Fehler
+      return res.json({ ok: true, alreadyGone: true });
+    }
+    if (action === 'deleteOrg') {
+      // Member-Doc des Admins könnte fehlen (Datenkonsistenz-Problem).
+      // Fallback: Org laden und adminUid direkt prüfen.
+      callerMember = null;
+    } else {
       return res.json({ error: 'Not a member of this organization' }, 403);
     }
-    // leaveOrg: Mitglied existiert vielleicht nicht mehr — kein Fehler
-    return res.json({ ok: true, alreadyGone: true });
   }
 
-  const callerRole  = callerMember.role;
+  const callerRole  = callerMember?.role ?? null;
   const isAdmin     = callerRole === 'admin';
   const isAdminOrMod = isAdmin || callerRole === 'moderator';
 
@@ -268,6 +274,50 @@ module.exports = async ({ req, res, log, error }) => {
       await removeMembership(db, callerId, orgId, callerRole, log);
 
       log(`leaveOrg: ${callerId} left ${orgId} (role=${callerRole})`);
+      return res.json({ ok: true });
+    }
+
+    // ── deleteOrg ────────────────────────────────────────────────────────────
+    case 'deleteOrg': {
+      // callerMember kann null sein wenn der Admin-Member-Doc fehlt.
+      // Dann direkt gegen org.adminUid prüfen.
+      let isOrgAdmin = callerMember ? callerMember.role === 'admin' : false;
+      if (!isOrgAdmin) {
+        try {
+          const orgDoc = await db.getDocument(DB_ID, COL_ORGS, orgId);
+          isOrgAdmin = orgDoc.adminUid === callerId;
+        } catch (e) {
+          return res.json({ error: 'Organization not found' }, 404);
+        }
+      }
+      if (!isOrgAdmin) return res.json({ error: 'Only admin can delete the organization' }, 403);
+
+      try {
+        // Alle Member seitenweise laden und entfernen.
+        // Kein Query.offset nötig: nach dem Löschen liefert die nächste
+        // Abfrage automatisch die verbleibenden Dokumente.
+        while (true) {
+          const membersResult = await db.listDocuments(DB_ID, COL_MEMBERS, [
+            Query.equal('orgId', orgId),
+            Query.limit(100),
+          ]);
+          if (membersResult.documents.length === 0) break;
+
+          await Promise.all(membersResult.documents.map(async (doc) => {
+            await db.deleteDocument(DB_ID, COL_MEMBERS, doc.$id);
+            await removeMembership(db, doc.uid, orgId, doc.role, log);
+          }));
+
+          if (membersResult.documents.length < 100) break;
+        }
+
+        await db.deleteDocument(DB_ID, COL_ORGS, orgId);
+      } catch (e) {
+        error(`deleteOrg failed: ${e?.message}`);
+        return res.json({ error: 'Internal server error' }, 500);
+      }
+
+      log(`deleteOrg: ${orgId} deleted by ${callerId}`);
       return res.json({ ok: true });
     }
 

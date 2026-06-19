@@ -692,7 +692,8 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                               );
                               if (confirmed == true) {
                                 await svc.deleteOrganization(org.id);
-                                ref.invalidate(myOrganizationsProvider);
+                                // Kein invalidate nötig — Realtime-Listener
+                                // entfernt die Org sobald das Dokument gelöscht ist.
                               }
                             } else if (value == 'open') {
                               if (context.mounted) {

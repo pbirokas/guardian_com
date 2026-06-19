@@ -4,8 +4,8 @@ const DB_ID       = 'guardian';
 const COL_CONVS   = 'conversations';
 const COL_RECEIPTS = 'read_receipts';
 
-const GET_TIMEOUT_MS    = 5_000;
-const UPDATE_TIMEOUT_MS = 3_000;
+const GET_TIMEOUT_MS    = 10_000;
+const UPDATE_TIMEOUT_MS = 8_000;
 
 function withTimeout(promise, label, ms) {
   return Promise.race([
@@ -17,6 +17,20 @@ function withTimeout(promise, label, ms) {
       )
     ),
   ]);
+}
+
+async function withRetry(fn, label, attempts = 2) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try { return await fn(); }
+    catch (e) {
+      lastErr = e;
+      const code = e?.code ?? e?.status ?? 0;
+      if (e.isTimeout || (code !== 500 && code !== 503)) throw e;
+      if (i < attempts - 1) await new Promise(r => setTimeout(r, 400));
+    }
+  }
+  throw lastErr;
 }
 
 module.exports = async ({ req, res, log, error }) => {
@@ -53,15 +67,27 @@ module.exports = async ({ req, res, log, error }) => {
 
   const db = new Databases(client);
 
-  // Berechtigungscheck: nur Teilnehmer, Guardians und Approver dürfen markieren.
-  let conv;
-  try {
-    conv = await withTimeout(
+  // Beide Lesevorgänge parallel starten — spart eine halbe Round-Trip-Latenz.
+  const [convResult, receiptsResult] = await Promise.allSettled([
+    withTimeout(
       db.getDocument(DB_ID, COL_CONVS, convId),
       'getDocument(conv)',
       GET_TIMEOUT_MS,
-    );
-  } catch (e) {
+    ),
+    withTimeout(
+      db.listDocuments(DB_ID, COL_RECEIPTS, [
+        Query.equal('convId', convId),
+        Query.equal('uid', uid),
+        Query.limit(1),
+      ]),
+      'listDocuments(receipts)',
+      GET_TIMEOUT_MS,
+    ),
+  ]);
+
+  // Berechtigungscheck: nur Teilnehmer, Guardians und Approver dürfen markieren.
+  if (convResult.status === 'rejected') {
+    const e = convResult.reason;
     if (e.isTimeout) {
       error(`getDocument(conv) timed out for convId=${convId}`);
       return res.json({ error: 'Service temporarily unavailable' }, 503);
@@ -71,6 +97,7 @@ module.exports = async ({ req, res, log, error }) => {
     if (code === 404) return res.json({ error: 'Conversation not found' }, 404);
     return res.json({ error: 'Internal server error' }, 500);
   }
+  const conv = convResult.value;
 
   const allowed = [
     ...(conv.participantUids ?? []),
@@ -81,22 +108,9 @@ module.exports = async ({ req, res, log, error }) => {
     return res.json({ error: 'Not a participant' }, 403);
   }
 
-  // Vorhandenes read_receipts-Dokument für diesen Nutzer + Konversation suchen.
-  let existingDocId = null;
-  try {
-    const result = await withTimeout(
-      db.listDocuments(DB_ID, COL_RECEIPTS, [
-        Query.equal('convId', convId),
-        Query.equal('uid', uid),
-        Query.limit(1),
-      ]),
-      'listDocuments(receipts)',
-      GET_TIMEOUT_MS,
-    );
-    if (result.documents.length > 0) {
-      existingDocId = result.documents[0].$id;
-    }
-  } catch (e) {
+  // Vorhandenes read_receipts-Dokument für diesen Nutzer + Konversation.
+  if (receiptsResult.status === 'rejected') {
+    const e = receiptsResult.reason;
     if (e.isTimeout) {
       error(`listDocuments(receipts) timed out for convId=${convId} uid=${uid}`);
       return res.json({ error: 'Service temporarily unavailable' }, 503);
@@ -105,31 +119,35 @@ module.exports = async ({ req, res, log, error }) => {
     error(`listDocuments(receipts) failed: code=${code} msg=${e?.message}`);
     return res.json({ error: 'Internal server error' }, 500);
   }
+  const existingDocId = receiptsResult.value.documents[0]?.$id ?? null;
 
   // Upsert: Update wenn vorhanden, sonst Create.
   // Jeder Nutzer schreibt nur in sein eigenes Dokument → keine Write-Konflikte.
+  // withRetry fängt transiente 500/503-Fehler ab (max. 2 Versuche).
   try {
-    if (existingDocId) {
-      await withTimeout(
-        db.updateDocument(DB_ID, COL_RECEIPTS, existingDocId, { readAt: effectiveReadAt }),
-        'updateDocument(receipt)',
-        UPDATE_TIMEOUT_MS,
-      );
-    } else {
-      await withTimeout(
-        db.createDocument(DB_ID, COL_RECEIPTS, ID.unique(), {
-          convId,
-          uid,
-          readAt: effectiveReadAt,
-        }, [
-          Permission.read(Role.user(uid)),
-          Permission.update(Role.user(uid)),
-          Permission.delete(Role.user(uid)),
-        ]),
-        'createDocument(receipt)',
-        UPDATE_TIMEOUT_MS,
-      );
-    }
+    await withRetry(() => {
+      if (existingDocId) {
+        return withTimeout(
+          db.updateDocument(DB_ID, COL_RECEIPTS, existingDocId, { readAt: effectiveReadAt }),
+          'updateDocument(receipt)',
+          UPDATE_TIMEOUT_MS,
+        );
+      } else {
+        return withTimeout(
+          db.createDocument(DB_ID, COL_RECEIPTS, ID.unique(), {
+            convId,
+            uid,
+            readAt: effectiveReadAt,
+          }, [
+            Permission.read(Role.user(uid)),
+            Permission.update(Role.user(uid)),
+            Permission.delete(Role.user(uid)),
+          ]),
+          'createDocument(receipt)',
+          UPDATE_TIMEOUT_MS,
+        );
+      }
+    }, 'upsert(receipt)');
   } catch (e) {
     if (e.isTimeout) {
       error(`upsert(receipt) timed out for convId=${convId} uid=${uid}`);

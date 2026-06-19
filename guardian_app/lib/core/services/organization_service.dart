@@ -174,35 +174,60 @@ class OrganizationService {
           data: {'isArchived': false});
 
   Future<void> deleteOrganization(String orgId) async {
-    // Alle Member laden und Memberships entfernen
-    final membersResult = await _db.listDocuments(
-      databaseId: _dbId,
-      collectionId: _colMembers,
-      queries: [Query.equal('orgId', orgId), Query.limit(500)],
+    // xasync: true — Funktion läuft im Hintergrund, kein 30s-Client-Timeout.
+    // Die Org verschwindet aus der UI über den Realtime-Listener sobald
+    // das Dokument tatsächlich gelöscht wurde.
+    await _functions.createExecution(
+      functionId: _adminMemberActionId,
+      body: jsonEncode({'action': 'deleteOrg', 'orgId': orgId}),
+      method: ExecutionMethod.pOST,
+      xasync: true,
     );
-    await Future.wait(membersResult.documents.map((doc) async {
-      final memberUid = doc.data['uid'] as String;
-      final role = OrgRole.values.byName(doc.data['role'] as String);
-      await Future.wait([
-        _updateMembershipsJson(
-            memberUid, OrgMembership(orgId: orgId, role: role),
-            add: false),
-        _db.deleteDocument(
-            databaseId: _dbId,
-            collectionId: _colMembers,
-            documentId: doc.$id),
-      ]);
-    }));
-    await _db.deleteDocument(
-        databaseId: _dbId, collectionId: _colOrgs, documentId: orgId);
   }
 
   Stream<List<Organization>> watchMyOrganizations() {
-    return _watchCollection(
-      _colOrgs,
-      Organization.fromAppwrite,
-      [Query.contains('memberUids', [_uid])],
-    );
+    late StreamController<List<Organization>> ctrl;
+    final subs = <StreamSubscription>[];
+
+    Future<void> reload() async {
+      if (ctrl.isClosed) return;
+      try {
+        final result = await _db.listDocuments(
+          databaseId: _dbId,
+          collectionId: _colOrgs,
+          queries: [Query.contains('memberUids', [_uid]), Query.limit(500)],
+        );
+        if (!ctrl.isClosed) {
+          ctrl.add(result.documents
+              .map((d) => Organization.fromAppwrite({r'$id': d.$id, ...d.data}))
+              .toList());
+        }
+      } catch (e) {
+        if (!ctrl.isClosed) ctrl.addError(e);
+      }
+    }
+
+    void dispose() {
+      for (final s in subs) s.cancel();
+      ctrl.close();
+    }
+
+    ctrl = StreamController(onCancel: dispose);
+
+    // Auf beide Collections lauschen: wenn ein Org-Doc ODER ein Member-Doc
+    // geändert/gelöscht wird (z.B. beim Org-Delete), wird die Liste neu geladen.
+    // Zwei unabhängige Trigger erhöhen die Zuverlässigkeit gegenüber Realtime-
+    // Eventausfall bei API-Key-Operationen.
+    for (final col in [_colOrgs, _colMembers]) {
+      subs.add(
+        _broadcaster
+            .stream('databases.$_dbId.collections.$col.documents')
+            .listen((_) => reload(), onDone: dispose, onError: (_) {}),
+      );
+    }
+
+    reload();
+    return ctrl.stream;
   }
 
   Stream<Organization> watchOrganization(String orgId) {

@@ -4,6 +4,18 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-06-19
+
+- **Organisation löschen funktioniert wieder:** Admins konnten ihre Organisation nicht löschen (401-Fehler). Das Löschen läuft jetzt vollständig auf dem Server ab und bereinigt alle Mitglieder, Mitgliedschaften und die Organisation selbst — ohne Timeout-Fehler auch bei großen Orgs.
+- **Gelöschte Organisation verschwindet sofort auf allen Geräten:** Nach dem Löschen einer Organisation wurde diese auf anderen Geräten weiterhin angezeigt bis zur App-Neustart. Die Echtzeit-Aktualisierung greift jetzt auch für Org-Deletes.
+- **Mitgliederliste aktualisiert sich automatisch:** Neu beigetretene Mitglieder wurden in der Mitgliederliste und in Chats als „Unbekannt" angezeigt bis zur App-Neustart. Die Liste wird jetzt regelmäßig aktualisiert.
+- **Teilen-Dialog erscheint sofort beim Kaltstart:** Wurde die App über die Android-Teilen-Funktion gestartet, erschien der Auswahl-Dialog erst nach Minimieren und Wiederherstellen der App. Der Dialog erscheint jetzt unmittelbar nach dem App-Start.
+- **Mark-as-read zuverlässiger:** Die Cloud-Funktion zum Setzen des Gelesen-Status warf täglich bis zu 137 Fehlermeldungen (Timeouts und 500-Fehler). Lesevorgänge laufen jetzt parallel, und bei vorübergehenden Serverfehlern wird automatisch ein erneuter Versuch gestartet.
+- **Datenschutz: Org-Daten werden bei Löschung vollständig entfernt:** Nachrichten, Umfragen, Ankündigungen, Einladungen und alle weiteren Inhalte einer Organisation waren nach deren Löschung noch für alle angemeldeten Nutzer lesbar. Beim Löschen einer Organisation werden jetzt alle zugehörigen Daten (Conversations, Nachrichten, Umfragen, Read-Receipts, Ankündigungen, Einladungen, Audit-Log, Berichte) und alle hochgeladenen Dateien (Bilder, Audio, Anhänge) serverseitig vollständig gelöscht.
+- **Datenschutz: Einmalig-Bereinigung alter Daten möglich:** Ein neues Wartungs-Script (`appwrite/cleanup-orphaned-data.js`) findet und löscht Dokumente in der Datenbank, deren Organisation bereits gelöscht wurde — für alle Orgs die vor diesem Fix gelöscht wurden.
+
+---
+
 ## 2026-06-13
 
 - **Sicherheit: Rollenänderungen nur noch über Server möglich:** Alle privilegierten Mitglieder-Operationen (Rolle ändern, Mitglied entfernen, Kind bestätigen, Admin übertragen) laufen jetzt über eine gesicherte Cloud-Funktion. Dadurch können Nutzer ihre eigene Rolle nicht mehr direkt in der Datenbank manipulieren.

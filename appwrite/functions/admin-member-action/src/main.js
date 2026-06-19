@@ -16,12 +16,23 @@
  *  - DB-Operationen laufen mit API-Key (umgeht collection-level Permissions)
  */
 
-const { Client, Databases, Query, Permission, Role } = require('node-appwrite');
+const { Client, Databases, Storage, Query, Permission, Role } = require('node-appwrite');
 
-const DB_ID   = 'guardian';
-const COL_ORGS    = 'organizations';
-const COL_MEMBERS = 'members';
-const COL_USERS   = 'users';
+const DB_ID          = 'guardian';
+const BUCKET_MEDIA   = '6a02e524000954c9f1de';
+const COL_ORGS          = 'organizations';
+const COL_MEMBERS       = 'members';
+const COL_USERS         = 'users';
+const COL_CONVS         = 'conversations';
+const COL_MESSAGES      = 'chat_messages';
+const COL_POLLS         = 'polls';
+const COL_SCHEDULED     = 'scheduled_messages';
+const COL_RECEIPTS      = 'read_receipts';
+const COL_ANNOUNCEMENTS = 'announcements';
+const COL_INVITATIONS   = 'invitations';
+const COL_CONSENTS      = 'org_invite_consents';
+const COL_AUDIT         = 'audit_log';
+const COL_REPORTS       = 'reports';
 
 module.exports = async ({ req, res, log, error }) => {
   const callerId = req.headers['x-appwrite-user-id'];
@@ -40,7 +51,8 @@ module.exports = async ({ req, res, log, error }) => {
     .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)
     .setKey(process.env.APPWRITE_API_KEY);
 
-  const db = new Databases(client);
+  const db      = new Databases(client);
+  const storage = new Storage(client);
 
   // Caller-Mitglied laden
   const callerMemberId = `${orgId}_${callerId}`;
@@ -293,23 +305,54 @@ module.exports = async ({ req, res, log, error }) => {
       if (!isOrgAdmin) return res.json({ error: 'Only admin can delete the organization' }, 403);
 
       try {
-        // Alle Member seitenweise laden und entfernen.
-        // Kein Query.offset nötig: nach dem Löschen liefert die nächste
-        // Abfrage automatisch die verbleibenden Dokumente.
+        // Status markieren, damit das Cleanup-Script halbgelöschte Orgs
+        // erkennt und bei erneutem Lauf abräumt (Idempotenz bei Absturz).
+        await db.updateDocument(DB_ID, COL_ORGS, orgId, { deletionStatus: 'deleting' });
+
+        // 1. Mitglieder entfernen + Memberships bereinigen
         while (true) {
-          const membersResult = await db.listDocuments(DB_ID, COL_MEMBERS, [
-            Query.equal('orgId', orgId),
-            Query.limit(100),
+          const { documents } = await db.listDocuments(DB_ID, COL_MEMBERS, [
+            Query.equal('orgId', orgId), Query.limit(100),
           ]);
-          if (membersResult.documents.length === 0) break;
-
-          await Promise.all(membersResult.documents.map(async (doc) => {
-            await db.deleteDocument(DB_ID, COL_MEMBERS, doc.$id);
-            await removeMembership(db, doc.uid, orgId, doc.role, log);
-          }));
-
-          if (membersResult.documents.length < 100) break;
+          if (documents.length === 0) break;
+          await Promise.all(documents.map((doc) =>
+            Promise.all([
+              db.deleteDocument(DB_ID, COL_MEMBERS, doc.$id),
+              removeMembership(db, doc.uid, orgId, doc.role, log),
+            ])
+          ));
+          if (documents.length < 100) break;
         }
+
+        // 2. Conversations und ihre Sub-Collections löschen (Datenschutz: Nachrichten
+        //    haben Permission.read(Role.users()) — ohne Löschung wären sie für alle
+        //    angemeldeten Nutzer weiter lesbar auch nach Org-Löschung).
+        while (true) {
+          const { documents: convs } = await db.listDocuments(DB_ID, COL_CONVS, [
+            Query.equal('orgId', orgId), Query.limit(20),
+          ]);
+          if (convs.length === 0) break;
+          for (const conv of convs) {
+            // Sub-Collections parallel löschen, dann erst den Conv-Doc
+            await Promise.all([
+              deleteMessageBatch(db, storage, [Query.equal('convId', conv.$id)]),
+              deleteBatch(db, COL_POLLS,     [Query.equal('convId', conv.$id)]),
+              deleteBatch(db, COL_SCHEDULED, [Query.equal('convId', conv.$id)]),
+              deleteBatch(db, COL_RECEIPTS,  [Query.equal('convId', conv.$id)]),
+            ]);
+            await db.deleteDocument(DB_ID, COL_CONVS, conv.$id);
+          }
+          if (convs.length < 20) break;
+        }
+
+        // 3. Org-weite Collections parallel löschen
+        await Promise.all([
+          deleteBatch(db, COL_ANNOUNCEMENTS, [Query.equal('orgId', orgId)]),
+          deleteBatch(db, COL_INVITATIONS,   [Query.equal('orgId', orgId)]),
+          deleteBatch(db, COL_CONSENTS,      [Query.equal('orgId', orgId)]),
+          deleteBatch(db, COL_AUDIT,         [Query.equal('orgId', orgId)]),
+          deleteBatch(db, COL_REPORTS,       [Query.equal('orgId', orgId)]),
+        ]);
 
         await db.deleteDocument(DB_ID, COL_ORGS, orgId);
       } catch (e) {
@@ -364,4 +407,40 @@ function parseMembershipsJson(raw) {
   } catch (_) {
     return [];
   }
+}
+
+async function deleteBatch(db, col, queries) {
+  while (true) {
+    const { documents } = await db.listDocuments(DB_ID, col, [...queries, Query.limit(100)]);
+    if (documents.length === 0) break;
+    await Promise.all(documents.map(d => db.deleteDocument(DB_ID, col, d.$id)));
+    if (documents.length < 100) break;
+  }
+}
+
+// Wie deleteBatch, löscht zusätzlich alle Storage-Dateien (Bilder, Audio,
+// Dateianhänge) die in den Message-Dokumenten referenziert sind.
+async function deleteMessageBatch(db, storage, queries) {
+  while (true) {
+    const { documents } = await db.listDocuments(DB_ID, COL_MESSAGES, [...queries, Query.limit(100)]);
+    if (documents.length === 0) break;
+    await Promise.all(documents.map(async (msg) => {
+      // Storage-Dateien parallel löschen (Fehler ignorieren — Datei kann
+      // bereits weg sein oder nie existiert haben)
+      const fileIds = [msg.imageUrl, msg.audioUrl, msg.fileUrl]
+        .filter(Boolean)
+        .map(extractStorageFileId)
+        .filter(Boolean);
+      await Promise.allSettled(fileIds.map(id => storage.deleteFile(BUCKET_MEDIA, id)));
+      await db.deleteDocument(DB_ID, COL_MESSAGES, msg.$id);
+    }));
+    if (documents.length < 100) break;
+  }
+}
+
+// Extrahiert die Appwrite-File-ID aus einer Storage-View-URL.
+// Format: .../storage/buckets/<bucketId>/files/<fileId>/view?...
+function extractStorageFileId(url) {
+  const m = url && url.match(/\/files\/([^/?]+)\/view/);
+  return m ? m[1] : null;
 }

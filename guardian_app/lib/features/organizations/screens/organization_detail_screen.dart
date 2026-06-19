@@ -49,7 +49,26 @@ class _OrganizationDetailScreenState
   final _tourPinnwandKey = GlobalKey();
   final _tourReportsKey  = GlobalKey();
 
+  // Periodisch Members neu laden: Realtime-Events von API-Key-Operationen
+  // (z.B. process-my-invitations) kommen auf manchen Geräten nicht zuverlässig
+  // an. Ohne diesen Timer bleibt die Mitgliederliste veraltet bis zum Neustart.
+  Timer? _membersRefreshTimer;
+
   String get orgId => widget.orgId;
+
+  @override
+  void initState() {
+    super.initState();
+    _membersRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted) ref.invalidate(orgMembersProvider(orgId));
+    });
+  }
+
+  @override
+  void dispose() {
+    _membersRefreshTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

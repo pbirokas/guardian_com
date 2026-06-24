@@ -432,7 +432,7 @@ conversations/{$id}
   name, imageUrl
   personalNamesJson             ← Map<uid, name> als JSON (persönliche Chat-Namen)
 
-read_receipts/{$id}
+read_receipts/{$id}             ← $id = sha256(convId:uid)[:36], deterministisch (genau 1 Doc pro Paar)
   convId, uid
   readAt                        ← ISO-8601-Timestamp (ersetzt lastReadAtJson)
   (Document-Permission: read+update+delete per User-UID)

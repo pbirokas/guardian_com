@@ -1744,31 +1744,34 @@ class _MessageBubble extends ConsumerWidget {
                 children: [
                   if (onReact != null) ...[
                     Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: ['👍', '❤️', '😂', '😮', '😢', '😡', '👎']
-                            .map((e) => GestureDetector(
-                                  onTap: () {
-                                    Navigator.pop(context);
-                                    onReact!(myReaction == e ? null : e);
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: myReaction == e
-                                          ? Theme.of(context)
-                                              .colorScheme
-                                              .primaryContainer
-                                          : null,
-                                      shape: BoxShape.circle,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: ['👍', '❤️', '😂', '😮', '😢', '😡', '👎']
+                              .map((e) => GestureDetector(
+                                    onTap: () {
+                                      Navigator.pop(context);
+                                      onReact!(myReaction == e ? null : e);
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: myReaction == e
+                                            ? Theme.of(context)
+                                                .colorScheme
+                                                .primaryContainer
+                                            : null,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Text(e,
+                                          style: const TextStyle(fontSize: 26)),
                                     ),
-                                    child: Text(e,
-                                        style: const TextStyle(fontSize: 26)),
-                                  ),
-                                ))
-                            .toList(),
+                                  ))
+                              .toList(),
+                        ),
                       ),
                     ),
                     const Divider(height: 1),

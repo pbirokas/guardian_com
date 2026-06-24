@@ -4,6 +4,13 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-06-24
+
+- **Gelesen-Status (Mark-as-read) wieder zuverlässig:** Trotz der vorherigen Optimierung warf die Server-Funktion weiterhin täglich dutzende Timeout-Fehler. Sie sucht den vorhandenen Lese-Eintrag jetzt nicht mehr per Datenbankabfrage, sondern greift direkt darauf zu — das beseitigt die Timeouts vollständig und verhindert nebenbei doppelte Einträge.
+- **Reaktions-Symbole auf schmalen Bildschirmen erreichbar:** Beim Reagieren auf eine Nachricht wurden auf manchen Smartphones nicht alle Emojis angezeigt (das letzte war abgeschnitten). Die Symbolleiste lässt sich jetzt horizontal scrollen, sodass alle Reaktionen erreichbar sind.
+
+---
+
 ## 2026-06-19
 
 - **Organisation löschen funktioniert wieder:** Admins konnten ihre Organisation nicht löschen (401-Fehler). Das Löschen läuft jetzt vollständig auf dem Server ab und bereinigt alle Mitglieder, Mitgliedschaften und die Organisation selbst — ohne Timeout-Fehler auch bei großen Orgs.

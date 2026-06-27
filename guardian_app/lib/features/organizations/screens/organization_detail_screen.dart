@@ -17,6 +17,7 @@ import '../../../core/models/org_audit_entry.dart';
 import '../../../core/models/app_user.dart';
 import '../../../core/dialogs/edit_group_dialog.dart';
 import '../../../core/widgets/group_avatar.dart';
+import '../../../core/widgets/user_avatar.dart';
 import '../../../core/widgets/help_sheet.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/models/member_suggestion.dart';
@@ -1226,14 +1227,10 @@ Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref,
                       title: Text(m.displayName),
                       subtitle: Text(m.email,
                           style: const TextStyle(fontSize: 12)),
-                      secondary: CircleAvatar(
+                      secondary: UserAvatar(
                         radius: 16,
-                        backgroundImage: m.photoUrl != null
-                            ? NetworkImage(m.photoUrl!)
-                            : null,
-                        child: m.photoUrl == null
-                            ? Text((m.displayName.isNotEmpty ? m.displayName[0] : '?').toUpperCase())
-                            : null,
+                        photoUrl: m.photoUrl,
+                        fallbackText: (m.displayName.isNotEmpty ? m.displayName[0] : '?').toUpperCase(),
                       ),
                       dense: true,
                       contentPadding: EdgeInsets.zero,
@@ -1982,10 +1979,10 @@ class _MembersTab extends ConsumerWidget {
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       child: Row(
                         children: [
-                          CircleAvatar(
+                          UserAvatar(
                             radius: 16,
-                            backgroundImage: m.photoUrl != null ? NetworkImage(m.photoUrl!) : null,
-                            child: m.photoUrl == null ? Text((m.displayName.isNotEmpty ? m.displayName[0] : '?').toUpperCase()) : null,
+                            photoUrl: m.photoUrl,
+                            fallbackText: (m.displayName.isNotEmpty ? m.displayName[0] : '?').toUpperCase(),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -2494,10 +2491,11 @@ class _ConversationTile extends StatelessWidget {
       };
       return ListTile(
         dense: true,
-        leading: CircleAvatar(
+        leading: UserAvatar(
           radius: 18,
-          backgroundImage: photo != null ? NetworkImage(photo) : null,
-          child: photo == null ? Text(initial, style: const TextStyle(fontSize: 13)) : null,
+          photoUrl: photo,
+          fallbackText: initial,
+          textStyle: const TextStyle(fontSize: 13),
         ),
         title: Text(m.displayName, style: const TextStyle(fontSize: 14)),
         trailing: Container(
@@ -2667,9 +2665,9 @@ class _ConversationTile extends StatelessWidget {
           ? personalName
           : (other?.displayName ?? 'Unbekannt');
       final photoUrl = other?.photoUrl;
-      avatar = CircleAvatar(
-        backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
-        child: photoUrl == null ? Text((title.isNotEmpty ? title[0] : '?').toUpperCase()) : null,
+      avatar = UserAvatar(
+        photoUrl: photoUrl,
+        fallbackText: (title.isNotEmpty ? title[0] : '?').toUpperCase(),
       );
     }
 
@@ -3311,13 +3309,9 @@ class _MemberTile extends StatelessWidget {
         : <OrgMember>[];
     return ListTile(
       isThreeLine: guardians.isNotEmpty,
-      leading: CircleAvatar(
-        backgroundImage: member.photoUrl != null
-            ? NetworkImage(member.photoUrl!)
-            : null,
-        child: member.photoUrl == null
-            ? Text((member.displayName.isNotEmpty ? member.displayName[0] : '?').toUpperCase())
-            : null,
+      leading: UserAvatar(
+        photoUrl: member.photoUrl,
+        fallbackText: (member.displayName.isNotEmpty ? member.displayName[0] : '?').toUpperCase(),
       ),
       title: Text(member.displayName),
       subtitle: Column(

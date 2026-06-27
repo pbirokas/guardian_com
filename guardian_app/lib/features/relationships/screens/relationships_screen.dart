@@ -9,6 +9,7 @@ import '../../../core/services/parent_claim_service.dart';
 import '../providers/relationships_provider.dart';
 import '../../organizations/providers/organizations_provider.dart';
 import '../../../core/widgets/help_sheet.dart';
+import '../../../core/widgets/user_avatar.dart';
 
 class RelationshipsScreen extends ConsumerStatefulWidget {
   const RelationshipsScreen({super.key});
@@ -610,11 +611,7 @@ class _RelationTile extends StatelessWidget {
         (name.isNotEmpty ? name[0] : (email.isNotEmpty ? email[0] : '?'))
             .toUpperCase();
     return ListTile(
-      leading: CircleAvatar(
-        backgroundImage:
-            photoUrl != null ? NetworkImage(photoUrl!) : null,
-        child: photoUrl == null ? Text(initials) : null,
-      ),
+      leading: UserAvatar(photoUrl: photoUrl, fallbackText: initials),
       title: Text(name.isNotEmpty ? name : email),
       subtitle: Text(label, style: const TextStyle(fontSize: 12)),
       trailing: (onSummary == null && onRevoke == null)

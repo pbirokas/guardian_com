@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum ConversationStatus { pending, approved, rejected, archived }
 
@@ -69,78 +68,6 @@ class Conversation {
     return lastMessageAt!.isAfter(lastRead);
   }
 
-  factory Conversation.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    final rawLastRead = data['lastReadAt'];
-    final lastReadAt = rawLastRead == null
-        ? <String, DateTime>{}
-        : Map<String, dynamic>.from(rawLastRead as Map).map(
-            (uid, ts) => MapEntry<String, DateTime>(
-                uid, (ts as Timestamp).toDate()),
-          );
-    final rawTyping = data['typingUsers'];
-    final typingUsers = rawTyping == null
-        ? <String, DateTime>{}
-        : Map<String, dynamic>.from(rawTyping as Map).map(
-            (uid, ts) => MapEntry<String, DateTime>(
-                uid, (ts as Timestamp).toDate()),
-          );
-    return Conversation(
-      id: doc.id,
-      orgId: data['orgId'] as String,
-      orgAdminUid: data['orgAdminUid'] as String? ?? '',
-      participantUids: List<String>.from(data['participantUids'] as List),
-      requestedBy: data['requestedBy'] as String,
-      status: ConversationStatus.values
-          .byName(data['status'] as String? ?? 'pending'),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      approvedBy: data['approvedBy'] as String?,
-      approvedAt: data['approvedAt'] != null
-          ? (data['approvedAt'] as Timestamp).toDate()
-          : null,
-      lastMessage: data['lastMessage'] as String?,
-      lastMessageAt: data['lastMessageAt'] != null
-          ? (data['lastMessageAt'] as Timestamp).toDate()
-          : null,
-      name: data['name'] as String?,
-      imageUrl: data['imageUrl'] as String?,
-      isGroup: data['isGroup'] as bool? ?? false,
-      requestorGuardianUid: data['requestorGuardianUid'] as String?,
-      canApproveUids: List<String>.from(data['canApproveUids'] as List? ?? []),
-      guardianUids: List<String>.from(data['guardianUids'] as List? ?? []),
-      lastReadAt: lastReadAt,
-      typingUsers: typingUsers,
-      pinnedMessageId: data['pinnedMessageId'] as String?,
-      pinnedMessageText: data['pinnedMessageText'] as String?,
-      personalNames: data['personalNames'] != null
-          ? Map<String, String>.from(data['personalNames'] as Map)
-          : {},
-    );
-  }
-
-  Map<String, dynamic> toFirestore() => {
-        'orgId': orgId,
-        'orgAdminUid': orgAdminUid,
-        'participantUids': participantUids,
-        'requestedBy': requestedBy,
-        'status': status.name,
-        'createdAt': Timestamp.fromDate(createdAt),
-        'isGroup': isGroup,
-        'canApproveUids': canApproveUids,
-        'guardianUids': guardianUids,
-        'lastReadAt': lastReadAt.map((uid, dt) => MapEntry(uid, Timestamp.fromDate(dt))),
-        if (requestorGuardianUid != null)
-          'requestorGuardianUid': requestorGuardianUid,
-        if (name != null) 'name': name,
-        if (imageUrl != null) 'imageUrl': imageUrl,
-        if (approvedBy != null) 'approvedBy': approvedBy,
-        if (approvedAt != null) 'approvedAt': Timestamp.fromDate(approvedAt!),
-        if (lastMessage != null) 'lastMessage': lastMessage,
-        if (lastMessageAt != null)
-          'lastMessageAt': Timestamp.fromDate(lastMessageAt!),
-        if (pinnedMessageId != null) 'pinnedMessageId': pinnedMessageId,
-        if (pinnedMessageText != null) 'pinnedMessageText': pinnedMessageText,
-      };
 
   String otherUid(String myUid) =>
       participantUids.firstWhere((uid) => uid != myUid);

@@ -9,6 +9,7 @@ import 'package:showcaseview/showcaseview.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/battery_optimization_service.dart';
 import '../../../core/widgets/help_sheet.dart';
+import '../../../core/widgets/user_avatar.dart';
 import '../../../core/models/app_user.dart';
 import '../../../core/models/organization.dart';
 import '../../../features/auth/providers/auth_provider.dart';
@@ -314,22 +315,16 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            CircleAvatar(
+            UserAvatar(
               radius: 32,
-              backgroundImage: user.photoUrl != null
-                  ? NetworkImage(user.photoUrl!)
-                  : null,
-              child: user.photoUrl == null
-                  ? Text(
-                      ((user.displayName.isNotEmpty
-                              ? user.displayName
-                              : user.email.isNotEmpty
-                                  ? user.email
-                                  : '?')[0])
-                          .toUpperCase(),
-                      style: const TextStyle(fontSize: 24),
-                    )
-                  : null,
+              photoUrl: user.photoUrl,
+              fallbackText: ((user.displayName.isNotEmpty
+                      ? user.displayName
+                      : user.email.isNotEmpty
+                          ? user.email
+                          : '?')[0])
+                  .toUpperCase(),
+              textStyle: const TextStyle(fontSize: 24),
             ),
             const SizedBox(height: 8),
             Text(user.displayName,
@@ -503,21 +498,15 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                 padding: const EdgeInsets.only(right: 8),
                 child: GestureDetector(
                   onTap: () => _showProfileMenu(context, user),
-                  child: CircleAvatar(
+                  child: UserAvatar(
                     radius: 18,
-                    backgroundImage: user.photoUrl != null
-                        ? NetworkImage(user.photoUrl!)
-                        : null,
-                    child: user.photoUrl == null
-                        ? Text(
-                            ((user.displayName.isNotEmpty
-                                    ? user.displayName
-                                    : user.email.isNotEmpty
-                                        ? user.email
-                                        : '?')[0])
-                                .toUpperCase(),
-                          )
-                        : null,
+                    photoUrl: user.photoUrl,
+                    fallbackText: ((user.displayName.isNotEmpty
+                            ? user.displayName
+                            : user.email.isNotEmpty
+                                ? user.email
+                                : '?')[0])
+                        .toUpperCase(),
                   ),
                 ),
               ),

@@ -12,6 +12,21 @@ const appwriteEndpoint = 'https://appwrite.guardian-com.de/v1';
 const appwriteProjectId = '6a02e4160023948ef257';
 const appwriteMediaBucketId = '6a02e524000954c9f1de';
 
+/// Öffentliche View-URL einer Datei im Media-Bucket (Profil-/Gruppen-/Chatbilder).
+String appwriteFileViewUrl(String fileId) =>
+    '$appwriteEndpoint/storage/buckets/$appwriteMediaBucketId/files/$fileId/view?project=$appwriteProjectId';
+
+final _appwriteStorageHost = Uri.parse(appwriteEndpoint).host;
+
+/// Einzige Quelle der Wahrheit für „darf ein Bild von diesem Host geladen werden".
+/// Aktueller Speicher ist Appwrite (Host aus [appwriteEndpoint] abgeleitet);
+/// firebasestorage bleibt vorerst erlaubt für Alt-URLs, bis das Reset-Skript sie
+/// entfernt (sie liefern ohnehin 402 → Avatar fällt crash-sicher auf Fallback zurück).
+bool isTrustedStorageHost(String url) {
+  final host = Uri.tryParse(url)?.host ?? '';
+  return host == _appwriteStorageHost || host == 'firebasestorage.googleapis.com';
+}
+
 // Cached session cookie value for Realtime WebSocket fallback auth.
 // RealtimeIO doesn't set getFallbackCookie (unlike RealtimeBrowser), so the
 // WebSocket upgrade may go out unauthenticated on reconnects. We cache the

@@ -62,7 +62,7 @@ A Flutter app for supervised, GDPR-compliant communication within organizations 
 | Framework | Flutter 3 / Dart |
 | State management | Riverpod (with code generation) |
 | Navigation | go_router |
-| Backend | Firebase (Auth, Firestore, Storage, Messaging, Crashlytics, App Check) |
+| Backend | Appwrite (Auth, Datenbank, Storage, Functions — EU self-hosted); Firebase nur noch für Messaging (FCM), Crashlytics, App Check |
 | Auth | Google Sign-In, passwordless email link |
 | Localization | Flutter ARB (`intl`, `flutter_localizations`) |
 | Network status | `connectivity_plus` |

@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 enum OrgInviteConsentStatus { pending, approved, vetoed, expired }
 
 /// Represents a pending parental-consent request created when a child
@@ -64,43 +62,6 @@ class OrgInviteConsent {
       status == OrgInviteConsentStatus.pending &&
       DateTime.now().isAfter(expiresAt);
 
-  factory OrgInviteConsent.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
-    return OrgInviteConsent(
-      id: doc.id,
-      childUid: d['childUid'] as String,
-      childName: d['childName'] as String? ?? '',
-      orgId: d['orgId'] as String,
-      orgName: d['orgName'] as String? ?? '',
-      invitedByUid: d['invitedByUid'] as String,
-      invitedByName: d['invitedByName'] as String? ?? '',
-      proposedGuardianUids:
-          List<String>.from(d['proposedGuardianUids'] as List? ?? []),
-      parentUids: List<String>.from(d['parentUids'] as List? ?? []),
-      approvedBy: d['approvedBy'] as String?,
-      vetoedBy: d['vetoedBy'] as String?,
-      status: OrgInviteConsentStatus.values
-          .byName(d['status'] as String? ?? 'pending'),
-      createdAt: (d['createdAt'] as Timestamp).toDate(),
-      expiresAt: (d['expiresAt'] as Timestamp).toDate(),
-    );
-  }
-
-  Map<String, dynamic> toFirestore() => {
-        'childUid': childUid,
-        'childName': childName,
-        'orgId': orgId,
-        'orgName': orgName,
-        'invitedByUid': invitedByUid,
-        'invitedByName': invitedByName,
-        'proposedGuardianUids': proposedGuardianUids,
-        'parentUids': parentUids,
-        if (approvedBy != null) 'approvedBy': approvedBy,
-        if (vetoedBy != null) 'vetoedBy': vetoedBy,
-        'status': status.name,
-        'createdAt': Timestamp.fromDate(createdAt),
-        'expiresAt': Timestamp.fromDate(expiresAt),
-      };
 
   factory OrgInviteConsent.fromAppwrite(Map<String, dynamic> data) =>
       OrgInviteConsent(

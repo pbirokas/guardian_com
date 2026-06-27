@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 
@@ -70,34 +69,6 @@ class Organization {
     this.messageRetentionDays = retentionDefault,
     this.pendingReportsCount = 0,
   });
-
-  factory Organization.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return Organization(
-      id: doc.id,
-      name: data['name'] as String,
-      adminUid: data['adminUid'] as String,
-      tag: OrgTag.values.byName(data['tag'] as String? ?? 'sonstiges'),
-      memberUids: List<String>.from(data['memberUids'] as List? ?? []),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      isArchived: data['isArchived'] as bool? ?? false,
-      keywords: List<String>.from(data['keywords'] as List? ?? []),
-      messageRetentionDays:
-          (data['messageRetentionDays'] as int? ?? retentionDefault)
-              .clamp(retentionMin, retentionMax),
-    );
-  }
-
-  Map<String, dynamic> toFirestore() => {
-        'name': name,
-        'adminUid': adminUid,
-        'tag': tag.name,
-        'memberUids': memberUids,
-        'createdAt': Timestamp.fromDate(createdAt),
-        'isArchived': isArchived,
-        'keywords': keywords,
-        'messageRetentionDays': messageRetentionDays,
-      };
 
   factory Organization.fromAppwrite(Map<String, dynamic> data) => Organization(
         id: data[r'$id'] as String,

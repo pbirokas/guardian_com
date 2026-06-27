@@ -9,6 +9,7 @@ import '../../../core/providers/scale_provider.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../core/widgets/help_sheet.dart';
+import '../../../core/widgets/user_avatar.dart';
 import '../../../core/providers/chat_font_size_provider.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -93,8 +94,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     setState(() => _saving = true);
     try {
       final uid = ref.read(authStateProvider).value!.uid;
-      // TODO Phase 3: Foto-Upload auf Appwrite Storage migrieren
-      await ref.read(authStateProvider.notifier).updateProfile(uid, name);
+      String? photoUrl;
+      if (_pickedImageBytes != null) {
+        photoUrl = await ref
+            .read(authServiceProvider)
+            .uploadProfileImage(uid, _pickedImageBytes!);
+      }
+      await ref
+          .read(authStateProvider.notifier)
+          .updateProfile(uid, name, photoUrl: photoUrl);
 
       if (mounted) {
         setState(() => _pickedImageBytes = null);
@@ -119,13 +127,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final appUser = ref.watch(authStateProvider).value;
-
-    ImageProvider? avatarImage;
-    if (_pickedImageBytes != null) {
-      avatarImage = MemoryImage(_pickedImageBytes!);
-    } else if (appUser?.photoUrl != null) {
-      avatarImage = NetworkImage(appUser!.photoUrl!);
-    }
 
     final initials = ((appUser?.displayName.isNotEmpty == true
                 ? appUser!.displayName
@@ -190,13 +191,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               onTap: _saving ? null : _pickImage,
               child: Stack(
                 children: [
-                  CircleAvatar(
+                  UserAvatar(
                     radius: 48,
-                    backgroundImage: avatarImage,
-                    child: avatarImage == null
-                        ? Text(initials,
-                            style: const TextStyle(fontSize: 36))
+                    photoUrl: appUser?.photoUrl,
+                    overrideImage: _pickedImageBytes != null
+                        ? MemoryImage(_pickedImageBytes!)
                         : null,
+                    fallbackText: initials,
+                    textStyle: const TextStyle(fontSize: 36),
                   ),
                   Positioned(
                     bottom: 0,

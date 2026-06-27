@@ -27,7 +27,9 @@ import '../../../core/models/org_member.dart';
 import '../../../core/models/scheduled_message.dart';
 import '../../../core/dialogs/edit_group_dialog.dart';
 import '../../../core/providers/share_provider.dart';
+import '../../../core/appwrite_client.dart';
 import '../../../core/widgets/group_avatar.dart';
+import '../../../core/widgets/user_avatar.dart';
 import '../../../features/organizations/providers/organizations_provider.dart';
 import '../../../core/services/chat_service.dart';
 import '../providers/chat_provider.dart';
@@ -819,17 +821,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           title: Text(m.displayName),
                           subtitle: Text(m.email,
                               style: const TextStyle(fontSize: 12)),
-                          secondary: CircleAvatar(
+                          secondary: UserAvatar(
                             radius: 16,
-                            backgroundImage: m.photoUrl != null
-                                ? NetworkImage(m.photoUrl!)
-                                : null,
-                            child: m.photoUrl == null
-                                ? Text((m.displayName.isNotEmpty
-                                        ? m.displayName[0]
-                                        : '?')
-                                    .toUpperCase())
-                                : null,
+                            photoUrl: m.photoUrl,
+                            fallbackText: (m.displayName.isNotEmpty
+                                    ? m.displayName[0]
+                                    : '?')
+                                .toUpperCase(),
                           ),
                           dense: true,
                           contentPadding: EdgeInsets.zero,
@@ -903,18 +901,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             m.uid == ref.read(authStateProvider).value?.uid;
                         return ListTile(
                           contentPadding: EdgeInsets.zero,
-                          leading: CircleAvatar(
+                          leading: UserAvatar(
                             radius: 18,
-                            backgroundImage: m.photoUrl != null
-                                ? NetworkImage(m.photoUrl!)
-                                : null,
-                            child: m.photoUrl == null
-                                ? Text((m.displayName.isNotEmpty
-                                        ? m.displayName[0]
-                                        : '?')
-                                    .toUpperCase(),
-                                    style: const TextStyle(fontSize: 14))
-                                : null,
+                            photoUrl: m.photoUrl,
+                            fallbackText: (m.displayName.isNotEmpty
+                                    ? m.displayName[0]
+                                    : '?')
+                                .toUpperCase(),
+                            textStyle: const TextStyle(fontSize: 14),
                           ),
                           title: Text(m.displayName),
                           subtitle: Text(m.email,
@@ -1611,12 +1605,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
 bool _isAllowedGifHost(String url) {
   try {
+    if (isTrustedStorageHost(url)) return true;
     final host = Uri.parse(url).host;
-    return host == 'firebasestorage.googleapis.com' ||
-        host.endsWith('.tenor.com') || host == 'tenor.com' ||
+    return host.endsWith('.tenor.com') || host == 'tenor.com' ||
         host.endsWith('.giphy.com') || host == 'giphy.com' ||
-        host.endsWith('.klipy.com') || host == 'klipy.com' ||
-        host == 'appwrite.guardian-com.de';
+        host.endsWith('.klipy.com') || host == 'klipy.com';
   } catch (_) {
     return false;
   }

@@ -1,7 +1,5 @@
 import 'dart:convert';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 enum OrgRole { admin, moderator, member, child }
 
 class OrgMembership {
@@ -65,26 +63,6 @@ class AppUser {
   bool get hasVerifiedParents => verifiedParentUids.isNotEmpty;
   bool get hasVerifiedChildren => verifiedChildUids.isNotEmpty;
 
-  factory AppUser.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return AppUser(
-      uid: doc.id,
-      email: data['email'] as String,
-      displayName: data['displayName'] as String,
-      photoUrl: data['photoUrl'] as String?,
-      memberships: (data['memberships'] as List<dynamic>? ?? [])
-          .map((m) => OrgMembership.fromMap(m as Map<String, dynamic>))
-          .toList(),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      isChild: data['isChild'] as bool? ?? false,
-      verifiedParentUids: List<String>.from(
-          data['verifiedParentUids'] as List? ?? []),
-      verifiedChildUids: List<String>.from(
-          data['verifiedChildUids'] as List? ?? []),
-      hideEmail: data['hideEmail'] as bool? ?? false,
-    );
-  }
-
   factory AppUser.fromAppwrite(Map<String, dynamic> data) {
     final membershipsRaw = data['membershipsJson'] as String? ?? '[]';
     final List<dynamic> decoded = jsonDecode(membershipsRaw);
@@ -112,18 +90,6 @@ class AppUser {
         'membershipsJson':
             jsonEncode(memberships.map((m) => m.toMap()).toList()),
         'createdAt': createdAt.toUtc().toIso8601String(),
-        'isChild': isChild,
-        'verifiedParentUids': verifiedParentUids,
-        'verifiedChildUids': verifiedChildUids,
-        'hideEmail': hideEmail,
-      };
-
-  Map<String, dynamic> toFirestore() => {
-        'email': email,
-        'displayName': displayName,
-        if (photoUrl != null) 'photoUrl': photoUrl,
-        'memberships': memberships.map((m) => m.toMap()).toList(),
-        'createdAt': Timestamp.fromDate(createdAt),
         'isChild': isChild,
         'verifiedParentUids': verifiedParentUids,
         'verifiedChildUids': verifiedChildUids,

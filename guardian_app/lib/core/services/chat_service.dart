@@ -46,8 +46,6 @@ class ChatService {
   static bool get _isDesktop =>
       !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
 
-  static String _storageViewUrl(String fileId) =>
-      '$appwriteEndpoint/storage/buckets/$appwriteMediaBucketId/files/$fileId/view?project=$appwriteProjectId';
 
   static final List<String> _msgPerms = [
     Permission.read(Role.users()),
@@ -631,7 +629,7 @@ class ChatService {
         Permission.delete(Role.user(_uid)),
       ],
     );
-    return _storageViewUrl(file.$id);
+    return appwriteFileViewUrl(file.$id);
   }
 
   Future<void> updateGroupInfo(
@@ -810,7 +808,7 @@ class ChatService {
         Permission.delete(Role.user(_uid)),
       ],
     );
-    final audioUrl = _storageViewUrl(file.$id);
+    final audioUrl = appwriteFileViewUrl(file.$id);
 
     final msg = Message(
       id: msgId,
@@ -878,7 +876,7 @@ class ChatService {
         Permission.delete(Role.user(_uid)),
       ],
     );
-    final imageUrl = _storageViewUrl(file.$id);
+    final imageUrl = appwriteFileViewUrl(file.$id);
 
     final msg = Message(
       id: msgId,
@@ -918,7 +916,7 @@ class ChatService {
         Permission.delete(Role.user(_uid)),
       ],
     );
-    final fileUrl = _storageViewUrl(awFile.$id);
+    final fileUrl = appwriteFileViewUrl(awFile.$id);
 
     final msg = Message(
       id: msgId,

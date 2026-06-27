@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/widgets/user_avatar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../organizations/providers/organizations_provider.dart';
@@ -204,10 +205,7 @@ class _PersonTile extends StatelessWidget {
         (name.isNotEmpty ? name[0] : (email.isNotEmpty ? email[0] : '?'))
             .toUpperCase();
     return ListTile(
-      leading: CircleAvatar(
-        backgroundImage: photoUrl != null ? NetworkImage(photoUrl!) : null,
-        child: photoUrl == null ? Text(initials) : null,
-      ),
+      leading: UserAvatar(photoUrl: photoUrl, fallbackText: initials),
       title: Text(name.isNotEmpty ? name : email),
       subtitle: Row(
         children: [
@@ -252,10 +250,7 @@ class _ChildWithCoParentsTile extends StatelessWidget {
             .toUpperCase();
 
     return ListTile(
-      leading: CircleAvatar(
-        backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
-        child: photoUrl == null ? Text(initials) : null,
-      ),
+      leading: UserAvatar(photoUrl: photoUrl, fallbackText: initials),
       title: Text(name.isNotEmpty ? name : email),
       subtitle: coParentUids.isEmpty
           ? Row(

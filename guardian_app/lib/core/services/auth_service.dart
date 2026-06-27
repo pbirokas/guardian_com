@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:appwrite/appwrite.dart';
 import 'package:appwrite/enums.dart';
 import 'package:appwrite/models.dart' as aw;
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../appwrite_client.dart';
 import '../models/app_user.dart';
 import '../models/notification_settings.dart';
@@ -16,12 +17,14 @@ class AuthService {
         _account = Account(client),
         _db = Databases(client),
         _functions = Functions(client),
+        _storage = Storage(client),
         _broadcaster = broadcaster;
 
   final Client _client;
   final Account _account;
   final Databases _db;
   final Functions _functions;
+  final Storage _storage;
   final RealtimeBroadcaster _broadcaster;
 
   static const _dbId = 'guardian';
@@ -35,6 +38,32 @@ class AuthService {
     } on AppwriteException {
       return null;
     }
+  }
+
+  /// Lädt ein Profilbild in den Appwrite-Media-Bucket hoch und gibt dessen
+  /// öffentliche View-URL zurück. Das Bild wird auf 400×400 JPEG komprimiert
+  /// (analog zu Gruppenbildern).
+  Future<String> uploadProfileImage(String uid, Uint8List bytes) async {
+    final compressed = await FlutterImageCompress.compressWithList(
+      bytes,
+      minWidth: 400,
+      minHeight: 400,
+      quality: 80,
+      format: CompressFormat.jpeg,
+    );
+    final file = await _storage.createFile(
+      bucketId: appwriteMediaBucketId,
+      fileId: ID.unique(),
+      file: InputFile.fromBytes(
+          bytes: compressed,
+          filename: 'profile.jpg',
+          contentType: 'image/jpeg'),
+      permissions: [
+        Permission.read(Role.any()),
+        Permission.delete(Role.user(uid)),
+      ],
+    );
+    return appwriteFileViewUrl(file.$id);
   }
 
   Future<AppUser> updateProfile(String uid, String displayName,

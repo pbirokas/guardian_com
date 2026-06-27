@@ -850,7 +850,7 @@ class OrganizationService {
     if (status == null) {
       rsvp.remove(uid);
     } else {
-      rsvp[uid] = status.toFirestore();
+      rsvp[uid] = status.toJson();
     }
     await _db.updateDocument(
         databaseId: _dbId,

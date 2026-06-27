@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'app_user.dart';
 import 'notification_settings.dart';
 
@@ -49,52 +48,6 @@ class OrgMember {
     this.messageAlertInterval = MessageAlertInterval.always,
     this.hideEmail = false,
   });
-
-  factory OrgMember.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return OrgMember(
-      uid: doc.id,
-      displayName: (data['displayName'] as String? ?? '').isNotEmpty
-          ? data['displayName'] as String
-          : (data['email'] as String? ?? '?'),
-      email: data['email'] as String? ?? '',
-      photoUrl: data['photoUrl'] as String?,
-      role: OrgRole.values.byName(data['role'] as String),
-      joinedAt: (data['joinedAt'] as Timestamp).toDate(),
-      guardianUids: <String>{
-        // Migrate: support old single guardianUid field
-        if (data['guardianUid'] != null) data['guardianUid'] as String,
-        for (final g in (data['guardianUids'] as List? ?? [])) g as String,
-      }.toList(),
-      status: MemberStatus.values.byName(data['status'] as String? ?? 'active'),
-      childAlertInterval: ChildAlertInterval.values
-          .where((e) => e.name == (data['childAlertInterval'] as String?))
-          .firstOrNull ?? ChildAlertInterval.hourly,
-      lastChildAlertAt: data['lastChildAlertAt'] == null
-          ? {}
-          : Map<String, dynamic>.from(data['lastChildAlertAt'] as Map)
-              .map((k, v) => MapEntry(k, (v as Timestamp).toDate())),
-      notificationsEnabled: data['notificationsEnabled'] as bool? ?? true,
-      messageAlertInterval: MessageAlertInterval.values
-          .where((e) => e.name == (data['messageAlertInterval'] as String?))
-          .firstOrNull ?? MessageAlertInterval.always,
-      hideEmail: data['hideEmail'] as bool? ?? false,
-    );
-  }
-
-  Map<String, dynamic> toFirestore() => {
-        'displayName': displayName,
-        'email': email,
-        if (photoUrl != null) 'photoUrl': photoUrl,
-        'role': role.name,
-        'joinedAt': Timestamp.fromDate(joinedAt),
-        'guardianUids': guardianUids,
-        'status': status.name,
-        'childAlertInterval': childAlertInterval.name,
-        'notificationsEnabled': notificationsEnabled,
-        'messageAlertInterval': messageAlertInterval.name,
-        'hideEmail': hideEmail,
-      };
 
   factory OrgMember.fromAppwrite(Map<String, dynamic> data) {
     final rawJson = data['lastChildAlertAtJson'] as String?;

@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class PollOption {
   final String id;
@@ -59,47 +58,6 @@ class Poll {
     }
     return all.length;
   }
-
-  factory Poll.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    final rawVotes = Map<String, dynamic>.from(data['votes'] as Map? ?? {});
-    return Poll(
-      id: doc.id,
-      convId: data['convId'] as String,
-      question: data['question'] as String,
-      options: (data['options'] as List)
-          .map((o) => PollOption.fromMap(Map<String, dynamic>.from(o as Map)))
-          .toList(),
-      createdBy: data['createdBy'] as String,
-      createdByName: data['createdByName'] as String? ?? '',
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      multipleChoice: data['multipleChoice'] as bool? ?? false,
-      isClosed: data['isClosed'] as bool? ?? false,
-      isAnonymous: data['isAnonymous'] as bool? ?? false,
-      expiresAt: data['expiresAt'] != null
-          ? (data['expiresAt'] as Timestamp).toDate()
-          : null,
-      votes: rawVotes.map(
-        (optionId, voterList) =>
-            MapEntry(optionId, List<String>.from(voterList as List? ?? [])),
-      ),
-    );
-  }
-
-  Map<String, dynamic> toFirestore() => {
-        'convId': convId,
-        'question': question,
-        'options': options.map((o) => o.toMap()).toList(),
-        'createdBy': createdBy,
-        'createdByName': createdByName,
-        'createdAt': Timestamp.fromDate(createdAt),
-        'multipleChoice': multipleChoice,
-        'isClosed': isClosed,
-        'isAnonymous': isAnonymous,
-        if (expiresAt != null) 'expiresAt': Timestamp.fromDate(expiresAt!),
-        // Initialise every option with an empty voter list
-        'votes': {for (final o in options) o.id: <String>[]},
-      };
 
   factory Poll.fromAppwrite(Map<String, dynamic> data) {
     final options = (jsonDecode(data['optionsJson'] as String) as List)

@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-06-27
+
+- **App stürzt nicht mehr ab, wenn ein Profil- oder Gruppenbild nicht geladen werden kann:** Bisher konnte ein nicht erreichbares Bild (z. B. nach Ablauf des kostenlosen Firebase-Speicherzeitraums) die App zum Absturz bringen. Jetzt erscheinen in dem Fall überall einfach die Initialen bzw. das Gruppen-Symbol.
+- **Profilbild-Upload migriert:** Profilbilder werden jetzt auf dem eigenen (EU-gehosteten) Speicher abgelegt statt bei Firebase. Bestehende alte Bilder werden zurückgesetzt — Nutzer können ihr Profilbild einfach neu hochladen.
+- **Schlankere App:** Nicht mehr benötigte Firebase-Komponenten (Datenbank, Auth, Functions) wurden entfernt; die App ist dadurch kleiner und startet mit weniger Hintergrund-Diensten.
+
+---
+
 ## 2026-06-24
 
 - **Gelesen-Status (Mark-as-read) wieder zuverlässig:** Trotz der vorherigen Optimierung warf die Server-Funktion weiterhin täglich dutzende Timeout-Fehler. Sie sucht den vorhandenen Lese-Eintrag jetzt nicht mehr per Datenbankabfrage, sondern greift direkt darauf zu — das beseitigt die Timeouts vollständig und verhindert nebenbei doppelte Einträge.

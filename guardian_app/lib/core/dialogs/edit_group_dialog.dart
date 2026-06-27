@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -52,26 +51,11 @@ Future<void> showEditGroupDialog({
                   child: Stack(
                     alignment: Alignment.bottomRight,
                     children: [
-                      CircleAvatar(
+                      GroupAvatar(
                         radius: 40,
-                        backgroundImage: pickedImageBytes != null
-                            ? MemoryImage(pickedImageBytes!) as ImageProvider
-                            : (conv.imageUrl != null &&
-                                    !removeImage &&
-                                    isStorageTrustedUrl(conv.imageUrl!)
-                                ? CachedNetworkImageProvider(conv.imageUrl!)
-                                : null),
-                        backgroundColor:
-                            Theme.of(ctx).colorScheme.secondaryContainer,
-                        child: (pickedImageBytes == null &&
-                                (conv.imageUrl == null ||
-                                    removeImage ||
-                                    !isStorageTrustedUrl(conv.imageUrl!)))
-                            ? Icon(Icons.group,
-                                size: 40,
-                                color: Theme.of(ctx)
-                                    .colorScheme
-                                    .onSecondaryContainer)
+                        imageUrl: removeImage ? null : conv.imageUrl,
+                        overrideImage: pickedImageBytes != null
+                            ? MemoryImage(pickedImageBytes!)
                             : null,
                       ),
                       CircleAvatar(

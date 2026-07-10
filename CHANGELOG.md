@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-07-10
+
+- **Ungelesen-Status in Chats wieder zuverlässig:** In sehr aktiven Chats konnte der „Gelesen"-Status hängen bleiben (das Ungelesen-Zeichen verschwand nicht). Ursache war eine Rückkopplung zwischen App und Server, die sich bei einzelnen Chats aufschaukelte. Der Serverablauf wurde verschlankt und die App wiederholt fehlgeschlagene Versuche jetzt mit wachsendem Abstand statt im Dauerfeuer.
+
+---
+
 ## 2026-06-27
 
 - **App stürzt nicht mehr ab, wenn ein Profil- oder Gruppenbild nicht geladen werden kann:** Bisher konnte ein nicht erreichbares Bild (z. B. nach Ablauf des kostenlosen Firebase-Speicherzeitraums) die App zum Absturz bringen. Jetzt erscheinen in dem Fall überall einfach die Initialen bzw. das Gruppen-Symbol.

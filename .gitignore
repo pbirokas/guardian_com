@@ -77,3 +77,6 @@ node_modules/
 # Local Scripts
 release-*.sh
 build-apk.*
+
+# Google Store entries
+google_store*.md

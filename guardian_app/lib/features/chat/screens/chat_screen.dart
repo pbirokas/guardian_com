@@ -66,6 +66,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Timer? _markReadTimer;
   Timer? _refreshTimer;
 
+  // Schutz gegen mark-as-read-Stürme: nicht parallel aufrufen, und nach
+  // wiederholtem Fehlschlag mit wachsendem Backoff pausieren (statt bei jedem
+  // Realtime-Event neu nachzufeuern).
+  bool _markReadInFlight = false;
+  int _markReadFailures = 0;
+  DateTime? _markReadRetryAfter;
+
   // ── Tipp-Indikator ────────────────────────────────────────────────────────
   Timer? _typingTimer;
   bool _isTyping = false;
@@ -202,19 +209,42 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _markRead() {
     _markReadTimer?.cancel();
-    _markReadTimer = Timer(const Duration(milliseconds: 500), () {
-      final conv = ref.read(conversationProvider(widget.chatId)).value;
-      if (!mounted || conv == null) return;
-      // Falls lastMessageAt von einem Gerät mit vorgestellter Uhr stammt,
-      // setzen wir readAt auf max(now, lastMessageAt) damit hasUnread() false wird.
-      final now = DateTime.now().toUtc();
-      final readAt = conv.lastMessageAt != null && conv.lastMessageAt!.isAfter(now)
-          ? conv.lastMessageAt!
-          : now;
-      _chatService
-          .markAsRead(widget.chatId, readAt: readAt)
-          .catchError((_) {});
-    });
+    _markReadTimer = Timer(const Duration(milliseconds: 500), _doMarkRead);
+  }
+
+  Future<void> _doMarkRead() async {
+    // In-Flight-Guard: keinen zweiten Aufruf starten während einer läuft.
+    if (!mounted || _markReadInFlight) return;
+    // Backoff: nach wiederholtem Fehlschlag pausieren, statt bei jedem
+    // Realtime-Event neu nachzufeuern (verhindert mark-as-read-Stürme).
+    if (_markReadRetryAfter != null &&
+        DateTime.now().isBefore(_markReadRetryAfter!)) {
+      return;
+    }
+
+    final conv = ref.read(conversationProvider(widget.chatId)).value;
+    if (conv == null) return;
+    // Falls lastMessageAt von einem Gerät mit vorgestellter Uhr stammt,
+    // setzen wir readAt auf max(now, lastMessageAt) damit hasUnread() false wird.
+    final now = DateTime.now().toUtc();
+    final readAt = conv.lastMessageAt != null && conv.lastMessageAt!.isAfter(now)
+        ? conv.lastMessageAt!
+        : now;
+
+    _markReadInFlight = true;
+    try {
+      await _chatService.markAsRead(widget.chatId, readAt: readAt);
+      _markReadFailures = 0;
+      _markReadRetryAfter = null;
+    } catch (_) {
+      // 5s → 10s → 20s → 40s → max 60s
+      _markReadFailures++;
+      final shift = (_markReadFailures - 1).clamp(0, 4); // Exponent deckeln
+      final backoffSec = (5 << shift).clamp(5, 60).toInt();
+      _markReadRetryAfter = DateTime.now().add(Duration(seconds: backoffSec));
+    } finally {
+      _markReadInFlight = false;
+    }
   }
 
   Future<void> _showEditGroupDialog(Conversation conv) =>

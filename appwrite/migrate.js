@@ -340,11 +340,6 @@ async function migrateConversations() {
     if (!SKIP_STORAGE && isFirebaseUrl(imageUrl)) {
       imageUrl = await migrateFile(imageUrl, d.adminUid ?? null);
     }
-    const lastReadAt = d.lastReadAt
-      ? Object.fromEntries(
-          Object.entries(d.lastReadAt).map(([uid, t]) => [uid, ts(t)]),
-        )
-      : {};
     const data = {
       orgId:               d.orgId,
       orgAdminUid:         d.orgAdminUid ?? '',
@@ -355,7 +350,6 @@ async function migrateConversations() {
       isGroup:             d.isGroup ?? false,
       canApproveUids:      d.canApproveUids ?? [],
       guardianUids:        d.guardianUids ?? [],
-      lastReadAtJson:      JSON.stringify(lastReadAt),
       personalNamesJson:   JSON.stringify(d.personalNames ?? {}),
       approvedBy:          d.approvedBy ?? null,
       approvedAt:          ts(d.approvedAt),

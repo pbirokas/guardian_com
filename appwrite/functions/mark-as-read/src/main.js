@@ -144,7 +144,7 @@ module.exports = async ({ req, res, log, error }) => {
     if (code === 404) return res.json({ error: 'Conversation not found' }, 404);
     return res.json({ error: 'Internal server error' }, 500);
   }
-  log(`[conv-ok] elapsed=${Date.now() - fetchStart}ms participants=${(conv.participantUids ?? []).length} guardians=${(conv.guardianUids ?? []).length} approvers=${(conv.canApproveUids ?? []).length} lastReadAtJsonLen=${(conv.lastReadAtJson ?? '').length}`);
+  log(`[conv-ok] elapsed=${Date.now() - fetchStart}ms participants=${(conv.participantUids ?? []).length} guardians=${(conv.guardianUids ?? []).length} approvers=${(conv.canApproveUids ?? []).length}`);
 
   // Berechtigungscheck: nur Teilnehmer, Guardians und Approver dürfen markieren.
   const allowed = [
@@ -175,27 +175,11 @@ module.exports = async ({ req, res, log, error }) => {
     return res.json({ error: 'Internal server error' }, 500);
   }
 
-  // ÜBERGANGS-COMPAT: Alte App-Versionen lesen lastReadAtJson vom Conversation-Dokument.
-  // Dieser Block kann nach vollständigem Play-Store-Rollout der neuen Version entfernt werden.
-  const compatStart = Date.now();
-  try {
-    let existing = {};
-    try { existing = conv.lastReadAtJson ? JSON.parse(conv.lastReadAtJson) : {}; } catch (_) {}
-    existing[uid] = effectiveReadAt;
-    const newJson = JSON.stringify(existing);
-    log(`[compat-start] lastReadAtJsonLen=${newJson.length} keys=${Object.keys(existing).length}`);
-    await withTimeout(
-      db.updateDocument(DB_ID, COL_CONVS, convId, { lastReadAtJson: newJson }),
-      'updateDocument(lastReadAtJson-compat)',
-      UPDATE_TIMEOUT_MS,
-    );
-    log(`[compat-ok] elapsed=${Date.now() - compatStart}ms`);
-  } catch (e) {
-    // Fehler hier sind nicht fatal — read_receipts ist bereits geschrieben.
-    // Alte App sieht Badge ggf. falsch, neue App funktioniert korrekt.
-    const code = e?.code ?? e?.status ?? 0;
-    error(`compat lastReadAtJson update failed (non-fatal): code=${code} msg=${e?.message} elapsed=${Date.now() - compatStart}ms`);
-  }
+  // Hinweis: Früher wurde hier zusätzlich lastReadAtJson ins Conversation-Dokument
+  // geschrieben (Kompat für alte App-Versionen). Das ist entfernt, weil es das
+  // Conv-Dokument aufblähte (nie bereinigte UIDs → langsames getDocument) und über
+  // die Realtime-Events einen Selbstverstärkungs-Kreislauf mit dem Client auslöste.
+  // Der Lesestatus läuft ausschließlich über die contention-freie read_receipts-Collection.
 
   log(`[done] uid=${uid} convId=${convId} readAt=${effectiveReadAt} total=${Date.now() - startMs}ms`);
   return res.json({ ok: true });

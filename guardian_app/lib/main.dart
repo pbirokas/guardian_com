@@ -406,19 +406,30 @@ class _UpdateListenerState extends ConsumerState<_UpdateListener> {
   static const _kLastShown = 'update_prompt_last_shown';
   static const _kDismissedVersion = 'update_prompt_dismissed_version';
 
+  bool _handled = false;
+
   Future<void> _maybeShowRecommended(AppUpdateStatus status) async {
     if (status.level != UpdateLevel.recommended) return;
 
+    // Kurz warten, bis der Start-Redirect (login → organizations) abgeschlossen
+    // ist — sonst räumt die Navigation den frisch geöffneten Dialog sofort weg.
+    await Future.delayed(const Duration(milliseconds: 400));
+    if (!mounted) return;
+
     final prefs = await SharedPreferences.getInstance();
     final versionKey = status.latestVersionName ?? '';
-    // Für diese Version bereits weggeklickt?
-    if (versionKey.isNotEmpty &&
-        prefs.getString(_kDismissedVersion) == versionKey) {
-      return;
-    }
-    // Heute schon gezeigt?
     final today = DateTime.now().toIso8601String().substring(0, 10);
-    if (prefs.getString(_kLastShown) == today) return;
+
+    // Throttle nur im Release-Build: pro Version wegklickbar + höchstens 1×/Tag.
+    // Im Debug-Modus übersprungen, damit sich der Hinweis bei jedem Start testen
+    // lässt (kein Storage-Leeren / Neu-Login nötig).
+    if (!kDebugMode) {
+      if (versionKey.isNotEmpty &&
+          prefs.getString(_kDismissedVersion) == versionKey) {
+        return;
+      }
+      if (prefs.getString(_kLastShown) == today) return;
+    }
 
     await prefs.setString(_kLastShown, today);
 
@@ -464,13 +475,18 @@ class _UpdateListenerState extends ConsumerState<_UpdateListener> {
 
   @override
   Widget build(BuildContext context) {
-    // listen feuert genau beim Übergang loading→data (nach der Build-Phase),
-    // sodass showDialog gefahrlos aus dem Callback laufen kann. Mehrfach-Aufrufe
-    // sind unkritisch: _maybeShowRecommended ist über die Prefs-Throttle idempotent.
-    ref.listen<AsyncValue<AppUpdateStatus>>(appUpdateStatusProvider, (_, next) {
-      final status = next.value;
-      if (status != null) _maybeShowRecommended(status);
-    });
+    // Erst zeigen, wenn Update-Status geladen UND Auth geklärt ist (damit der
+    // Start-Redirect durch ist und den Dialog nicht wieder wegräumt). _handled
+    // stellt sicher, dass es genau einmal pro Sitzung passiert.
+    final status = ref.watch(appUpdateStatusProvider).value;
+    final authSettled = !ref.watch(authStateProvider).isLoading;
+    if (!_handled &&
+        authSettled &&
+        status != null &&
+        status.level == UpdateLevel.recommended) {
+      _handled = true;
+      _maybeShowRecommended(status);
+    }
     return widget.child;
   }
 }

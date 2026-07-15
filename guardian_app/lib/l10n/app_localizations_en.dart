@@ -108,6 +108,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get googleNotLinked => 'Not linked yet';
 
   @override
+  String get updateAvailableTitle => 'Update available';
+
+  @override
+  String get updateRecommendedBody =>
+      'A newer version of Guardian Com is available. Please update to get the latest improvements.';
+
+  @override
+  String get updateRequiredTitle => 'Update required';
+
+  @override
+  String get updateRequiredBody =>
+      'This version is no longer supported. Please update Guardian Com to keep using the app.';
+
+  @override
+  String get updateNowButton => 'Update now';
+
+  @override
+  String get updateLaterButton => 'Later';
+
+  @override
   String get or => 'or';
 
   @override

@@ -4,6 +4,13 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-07-15
+
+- **Update-Hinweis beim App-Start:** Die App prüft jetzt beim Start, ob eine neuere Version verfügbar ist. Ist eine neuere Version da, erscheint ein Hinweis („Update verfügbar"); liegt die installierte Version unter der Mindestversion, wird zum Update aufgefordert, bevor es weitergeht. Der Button führt Play-Store-Nutzer zum Store und Nutzer der direkt geladenen APK zur GitHub-Releases-Seite. Schlägt die Prüfung fehl (z. B. offline), läuft die App normal weiter.
+- **Wartung: Löschen alter Nachrichten repariert:** Die tägliche Aufräum-Funktion brach mit einem internen Fehler ab; sie läuft jetzt wieder zuverlässig durch.
+
+---
+
 ## 2026-07-10
 
 - **Ungelesen-Status in Chats wieder zuverlässig:** In sehr aktiven Chats konnte der „Gelesen"-Status hängen bleiben (das Ungelesen-Zeichen verschwand nicht). Ursache war eine Rückkopplung zwischen App und Server, die sich bei einzelnen Chats aufschaukelte. Der Serverablauf wurde verschlankt und die App wiederholt fehlgeschlagene Versuche jetzt mit wachsendem Abstand statt im Dauerfeuer.

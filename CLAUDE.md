@@ -133,3 +133,4 @@ Windows uses Firestore listeners for notifications instead of FCM. `TrayService`
 - **Cloud Functions and client code must stay in sync:** if a Cloud Function writes a new field, add it to the corresponding Dart model's `fromFirestore`.
 - **`firebase_options.dart` is gitignored** (contains API keys). The example file `firebase_options.example.dart` shows the required structure.
 - **Changelog & README:** update both files when adding features or fixing notable bugs.
+- **App-Release → Update-Manifest pflegen:** Bei jedem neuen Android-Release das Appwrite-Dokument `app_config/android` aktualisieren (`latestVersionCode`/`latestVersionName`, ggf. `minVersionCode`). Die In-App-Update-Prüfung vergleicht die Build-Nummer (`versionCode`) dagegen; `minVersionCode` erzwingt ein Update. Erst setzen, wenn der neue Build tatsächlich verfügbar ist, sonst sperrt man Nutzer ohne verfügbares Update aus.

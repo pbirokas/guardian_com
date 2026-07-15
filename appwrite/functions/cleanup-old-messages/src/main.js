@@ -34,22 +34,24 @@ module.exports = async ({ req, res, log, error }) => {
       );
       const cutoff = new Date(now - retention * 24 * 60 * 60 * 1000).toISOString();
 
-      // Alte Nachrichten dieser Org löschen (paginiert)
-      let msgCursor = null;
-      do {
-        const msgQueries = [
+      // Alte Nachrichten dieser Org löschen. KEIN cursorAfter: beim Löschen aller
+      // Treffer würde der Cursor auf ein gerade gelöschtes Dokument zeigen
+      // ("Document for the 'cursor' value not found"). Stattdessen wiederholt die
+      // erste Seite holen, bis nichts mehr übrig ist.
+      while (true) {
+        const msgs = await db.listDocuments(DB_ID, COL_MESSAGES, [
           Query.equal('orgId', org.$id),
           Query.lessThan('sentAt', cutoff),
           Query.limit(100),
-        ];
-        if (msgCursor) msgQueries.push(Query.cursorAfter(msgCursor));
+        ]);
+        if (msgs.documents.length === 0) break;
 
-        const msgs = await db.listDocuments(DB_ID, COL_MESSAGES, msgQueries);
-
+        let deletedInPage = 0;
         for (const msg of msgs.documents) {
           try {
             await db.deleteDocument(DB_ID, COL_MESSAGES, msg.$id);
             totalMessages++;
+            deletedInPage++;
           } catch (err) {
             error(`Failed to delete message ${msg.$id}: ${err.message}`);
           }
@@ -58,36 +60,38 @@ module.exports = async ({ req, res, log, error }) => {
         // TODO (Phase 3): Storage-Anhänge löschen wenn Flutter-Migration abgeschlossen
         // msg.imageUrl / msg.audioUrl / msg.fileUrl werden dann Appwrite File-IDs sein
 
-        msgCursor = msgs.documents.length === 100
-          ? msgs.documents[msgs.documents.length - 1].$id
-          : null;
-      } while (msgCursor);
+        // Guard: schlagen alle Löschungen einer Seite fehl, sonst Endlosschleife.
+        if (deletedInPage === 0) {
+          error(`cleanup: keine Nachricht in org ${org.$id} löschbar — Schleife abgebrochen`);
+          break;
+        }
+      }
 
-      // Alte Polls dieser Org löschen
-      let pollCursor = null;
-      do {
-        const pollQueries = [
+      // Alte Polls dieser Org löschen (gleiches Muster ohne Cursor wie oben).
+      while (true) {
+        const polls = await db.listDocuments(DB_ID, COL_POLLS, [
           Query.equal('orgId', org.$id),
           Query.lessThan('createdAt', cutoff),
           Query.limit(100),
-        ];
-        if (pollCursor) pollQueries.push(Query.cursorAfter(pollCursor));
+        ]);
+        if (polls.documents.length === 0) break;
 
-        const polls = await db.listDocuments(DB_ID, COL_POLLS, pollQueries);
-
+        let deletedInPage = 0;
         for (const poll of polls.documents) {
           try {
             await db.deleteDocument(DB_ID, COL_POLLS, poll.$id);
             totalPolls++;
+            deletedInPage++;
           } catch (err) {
             error(`Failed to delete poll ${poll.$id}: ${err.message}`);
           }
         }
 
-        pollCursor = polls.documents.length === 100
-          ? polls.documents[polls.documents.length - 1].$id
-          : null;
-      } while (pollCursor);
+        if (deletedInPage === 0) {
+          error(`cleanup: keine Poll in org ${org.$id} löschbar — Schleife abgebrochen`);
+          break;
+        }
+      }
     }
 
     orgCursor = orgs.documents.length === 100

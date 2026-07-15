@@ -489,6 +489,9 @@ org_invite_consents/{$id}       ← Einwilligung der Eltern für Org-Einladungen
   parentUids[]                  ← Alle verifizierten Eltern
   status                        ← pending | approved | vetoed
 reports/{$id}                   ← Gemeldete Nachrichten
+app_config/android              ← Versions-Manifest für In-App-Update-Prüfung (öffentlich lesbar)
+  latestVersionCode, minVersionCode, latestVersionName
+  playStoreUrl, githubReleasesUrl
 ```
 
 Storage-Bucket `media` (Appwrite): Bilder, Sprachnachrichten, Dateianhänge (max. 30 MB).

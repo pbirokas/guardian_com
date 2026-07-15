@@ -11,10 +11,18 @@ import '../../features/profile/screens/notifications_screen.dart';
 import '../../features/profile/screens/privacy_screen.dart';
 import '../../features/relationships/screens/relationships_screen.dart';
 import '../../features/relationships/screens/child_summary_screen.dart';
+import '../../features/update/update_required_screen.dart';
+import '../providers/app_update_provider.dart';
+import '../services/app_update_service.dart';
 
 class _AuthNotifier extends ChangeNotifier {
   _AuthNotifier(this._ref) {
     _ref.listen<AsyncValue<dynamic>>(authStateProvider, (prev, next) {
+      notifyListeners();
+    });
+    // Löst eine Router-Neubewertung aus, sobald der Update-Status geladen ist
+    // (für die Force-Update-Sperre unten).
+    _ref.listen<AsyncValue<dynamic>>(appUpdateStatusProvider, (prev, next) {
       notifyListeners();
     });
   }
@@ -33,6 +41,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       router.go(isLoggedIn ? '/organizations' : '/login');
     },
     redirect: (context, state) {
+      final isOnUpdate = state.uri.path == '/update-required';
+      final needsUpdate = ref.read(appUpdateStatusProvider).value?.level ==
+          UpdateLevel.required;
+
+      // Force-Update hat Vorrang vor allem anderen.
+      if (needsUpdate) return isOnUpdate ? null : '/update-required';
+      // Kein (erzwungenes) Update mehr nötig → von der Sperr-Seite weiterleiten.
+      if (isOnUpdate) {
+        final isLoggedIn = ref.read(authStateProvider).value != null;
+        return isLoggedIn ? '/organizations' : '/login';
+      }
+
       final authState = ref.read(authStateProvider);
       if (authState.isLoading) return null;
       final isLoggedIn = authState.value != null;
@@ -42,6 +62,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/update-required',
+        builder: (context, state) => const UpdateRequiredScreen(),
+      ),
       GoRoute(
         path: '/login',
         builder: (context, state) => const LoginScreen(),

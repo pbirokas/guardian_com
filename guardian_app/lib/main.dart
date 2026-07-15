@@ -7,7 +7,11 @@ import 'package:flutter/material.dart';
 
 import 'package:appwrite/appwrite.dart' show Databases;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'core/appwrite_client.dart';
+import 'core/providers/app_update_provider.dart';
+import 'core/services/app_update_service.dart';
 import 'core/models/app_user.dart';
 import 'core/providers/connectivity_provider.dart';
 import 'core/providers/share_provider.dart';
@@ -270,7 +274,7 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
           ],
         );
 
-        content = _ShareListener(child: content);
+        content = _UpdateListener(child: _ShareListener(child: content));
 
         if (scale == 1.0) return content;
 
@@ -382,5 +386,91 @@ class _ShareListener extends ConsumerWidget {
       );
     });
     return child;
+  }
+}
+
+/// Zeigt beim Start einen wegklickbaren „Update empfohlen"-Hinweis, wenn eine
+/// neuere (aber nicht erzwungene) Version verfügbar ist. Höchstens 1×/Tag und
+/// pro Version wegklickbar (gemerkt in SharedPreferences). Die erzwungene Sperre
+/// läuft dagegen über das Router-Gate.
+class _UpdateListener extends ConsumerStatefulWidget {
+  final Widget child;
+
+  const _UpdateListener({required this.child});
+
+  @override
+  ConsumerState<_UpdateListener> createState() => _UpdateListenerState();
+}
+
+class _UpdateListenerState extends ConsumerState<_UpdateListener> {
+  static const _kLastShown = 'update_prompt_last_shown';
+  static const _kDismissedVersion = 'update_prompt_dismissed_version';
+
+  Future<void> _maybeShowRecommended(AppUpdateStatus status) async {
+    if (status.level != UpdateLevel.recommended) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final versionKey = status.latestVersionName ?? '';
+    // Für diese Version bereits weggeklickt?
+    if (versionKey.isNotEmpty &&
+        prefs.getString(_kDismissedVersion) == versionKey) {
+      return;
+    }
+    // Heute schon gezeigt?
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    if (prefs.getString(_kLastShown) == today) return;
+
+    await prefs.setString(_kLastShown, today);
+
+    if (!mounted) return;
+    final router = ref.read(routerProvider);
+    final navContext = router.routerDelegate.navigatorKey.currentContext;
+    if (navContext == null || !navContext.mounted) return;
+
+    final l = AppLocalizations.of(navContext);
+    final action = await showDialog<String>(
+      context: navContext,
+      builder: (ctx) => AlertDialog(
+        title: Text(l.updateAvailableTitle),
+        content: Text(l.updateRecommendedBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop('later'),
+            child: Text(l.updateLaterButton),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop('update'),
+            child: Text(l.updateNowButton),
+          ),
+        ],
+      ),
+    );
+
+    // „Später" und „Jetzt aktualisieren" merken die Version → kein erneutes Zeigen
+    // für diese Version. Tippt der Nutzer daneben (action == null), greift nur der
+    // Tages-Throttle und der Hinweis erscheint am nächsten Tag wieder.
+    if (action == 'later' || action == 'update') {
+      if (versionKey.isNotEmpty) {
+        await prefs.setString(_kDismissedVersion, versionKey);
+      }
+    }
+    if (action == 'update') {
+      final uri = Uri.tryParse(status.targetUrl);
+      if (uri != null) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // listen feuert genau beim Übergang loading→data (nach der Build-Phase),
+    // sodass showDialog gefahrlos aus dem Callback laufen kann. Mehrfach-Aufrufe
+    // sind unkritisch: _maybeShowRecommended ist über die Prefs-Throttle idempotent.
+    ref.listen<AsyncValue<AppUpdateStatus>>(appUpdateStatusProvider, (_, next) {
+      final status = next.value;
+      if (status != null) _maybeShowRecommended(status);
+    });
+    return widget.child;
   }
 }

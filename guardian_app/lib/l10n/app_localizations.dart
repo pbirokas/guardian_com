@@ -290,6 +290,42 @@ abstract class AppLocalizations {
   /// **'Noch nicht verknüpft'**
   String get googleNotLinked;
 
+  /// No description provided for @updateAvailableTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Update verfügbar'**
+  String get updateAvailableTitle;
+
+  /// No description provided for @updateRecommendedBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Eine neuere Version von Guardian Com ist verfügbar. Bitte aktualisiere, um von den neuesten Verbesserungen zu profitieren.'**
+  String get updateRecommendedBody;
+
+  /// No description provided for @updateRequiredTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Update erforderlich'**
+  String get updateRequiredTitle;
+
+  /// No description provided for @updateRequiredBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Diese Version wird nicht mehr unterstützt. Bitte aktualisiere Guardian Com, um die App weiter zu nutzen.'**
+  String get updateRequiredBody;
+
+  /// No description provided for @updateNowButton.
+  ///
+  /// In de, this message translates to:
+  /// **'Jetzt aktualisieren'**
+  String get updateNowButton;
+
+  /// No description provided for @updateLaterButton.
+  ///
+  /// In de, this message translates to:
+  /// **'Später'**
+  String get updateLaterButton;
+
   /// No description provided for @or.
   ///
   /// In de, this message translates to:

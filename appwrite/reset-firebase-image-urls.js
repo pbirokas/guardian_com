@@ -9,7 +9,7 @@
  * UserAvatar/GroupAvatar), Nutzer laden ihr Bild bei Gelegenheit neu hoch.
  *
  * Betroffen:
- *   users.photoUrl, conversations.imageUrl
+ *   users.photoUrl, members.photoUrl, conversations.imageUrl
  *
  * Idempotent: bereits geleerte oder bereits auf Appwrite zeigende URLs bleiben unberührt.
  *
@@ -97,10 +97,12 @@ async function main() {
   if (DRY_RUN) console.log('=== DRY RUN — keine Änderungen ===');
 
   const users = await resetCollection('users', 'photoUrl');
+  const members = await resetCollection('members', 'photoUrl');
   const convs = await resetCollection('conversations', 'imageUrl');
 
   console.log(`\n✅ ${DRY_RUN ? 'Dry-run' : 'Reset'} abgeschlossen.`);
   console.log(`   users.photoUrl zurückgesetzt:        ${users}`);
+  console.log(`   members.photoUrl zurückgesetzt:      ${members}`);
   console.log(`   conversations.imageUrl zurückgesetzt: ${convs}`);
   if (DRY_RUN) {
     console.log(`\nZum Ausführen: node reset-firebase-image-urls.js --delete --confirm=${process.env.APPWRITE_PROJECT_ID}`);

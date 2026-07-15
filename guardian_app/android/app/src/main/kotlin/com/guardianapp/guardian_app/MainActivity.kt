@@ -22,6 +22,7 @@ class MainActivity : FlutterActivity() {
 
     private val batteryChannel = "com.guardianapp.guardian_app/battery"
     private val shareChannelName = "com.guardianapp.guardian_app/share"
+    private val appInfoChannel = "com.guardianapp.guardian_app/app_info"
     private var pendingShareIntent: Intent? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -59,6 +60,28 @@ class MainActivity : FlutterActivity() {
                         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
                         nm.cancelAll()
                         result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        // Liefert den Installer-Paketnamen (z.B. "com.android.vending" = Play Store,
+        // null = Sideload/APK). Dient der Update-Prüfung zur Wahl des Ziel-Links.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, appInfoChannel)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "getInstallSource" -> {
+                        val installer: String? = try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                packageManager.getInstallSourceInfo(packageName).installingPackageName
+                            } else {
+                                @Suppress("DEPRECATION")
+                                packageManager.getInstallerPackageName(packageName)
+                            }
+                        } catch (e: Exception) {
+                            null
+                        }
+                        result.success(installer)
                     }
                     else -> result.notImplemented()
                 }

@@ -410,6 +410,35 @@ async function setupReports() {
   await idx('reports', 'createdAt_idx', 'key', ['createdAt'], ['DESC']);
 }
 
+async function setupAppConfig() {
+  // Versions-Manifest für die In-App-Update-Prüfung. Öffentlich lesbar (Role.any),
+  // damit die Prüfung schon vor dem Login/am Login-Screen greift. Enthält nur
+  // Versionsnummern + Download-Links — kein sensibler Inhalt.
+  await createCollection('app_config', 'AppConfig', [Permission.read(Role.any())]);
+  await int('app_config',  'latestVersionCode',  true, null, 0);   // versionCode der neuesten Version
+  await str('app_config',  'latestVersionName',  32);              // z.B. "1.6.0"
+  await int('app_config',  'minVersionCode',     true, null, 0);   // < dieser Wert → Update erzwungen
+  await str('app_config',  'playStoreUrl',       512);
+  await str('app_config',  'githubReleasesUrl',  512);
+
+  // Seed-Dokument 'android' (nur beim ersten Mal; vorhandene Werte NICHT überschreiben).
+  if (!DRY_RUN) {
+    try {
+      await db.createDocument(DB_ID, 'app_config', 'android', {
+        latestVersionCode: 118,
+        latestVersionName: '1.6.0',
+        minVersionCode: 118,
+        playStoreUrl: 'https://play.google.com/store/apps/details?id=com.guardianapp.guardian_app',
+        githubReleasesUrl: 'https://github.com/pbirokas/guardian_com/releases',
+      }, [Permission.read(Role.any())]);
+      console.log('✓ Doc: app_config/android (Seed — bei jedem Release aktualisieren!)');
+    } catch (e) {
+      if (e.code === 409) console.log('~ Doc app_config/android existiert bereits (nicht überschrieben)');
+      else throw e;
+    }
+  }
+}
+
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
 export const BUCKET_MEDIA = 'media';
@@ -467,6 +496,7 @@ async function main() {
   await setupReports();
   await setupAuditLog();
   await setupReadReceipts();
+  await setupAppConfig();
   await setupMediaBucket();
 
   console.log('\n✅ Setup abgeschlossen.');

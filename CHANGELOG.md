@@ -6,6 +6,7 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ## 2026-07-20
 
+- **Sehen, wer wie reagiert hat:** Ein Tipp auf eine Reaktion unter einer Nachricht öffnet jetzt eine Übersicht, die zeigt, welche Person mit welchem Emoji reagiert hat — mit Filter nach einzelnen Reaktionen. Zum Reagieren selbst weiterhin lange auf die Nachricht drücken (das kurze Antippen einer Reaktion setzt sie nicht mehr direkt).
 - **Abgelaufene Ankündigungen und Termine werden wieder zuverlässig entfernt:** Die nächtliche Aufräum-Funktion brach bei einem internen Datenbankfehler komplett ab — abgelaufene Einträge blieben dadurch stehen. Sie räumt jetzt auch dann auf, wenn ein Teilschritt scheitert, und wiederholt kurzzeitige Serverfehler automatisch.
 - **Wartungsläufe im Hintergrund laufen stabiler:** Mehrere fehlende Datenbank-Indexe ergänzt. Das nächtliche Aufräumen alter Nachrichten sowie das Löschen von Organisationen sind dadurch deutlich schneller und laufen nicht mehr in Zeitüberschreitungen.
 

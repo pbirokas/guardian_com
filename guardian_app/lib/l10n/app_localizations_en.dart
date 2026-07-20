@@ -948,6 +948,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scheduleMessage => 'Schedule message';
 
   @override
+  String reactionsAllCount(int count) {
+    return 'All · $count';
+  }
+
+  @override
+  String get unknownUser => 'Unknown';
+
+  @override
   String scheduledMessages(int count) {
     return 'Scheduled messages ($count)';
   }

@@ -384,6 +384,11 @@
   "eventRsvpPublic": "Rückmeldungen für alle sichtbar",
 
   "scheduleMessage": "Nachricht planen",
+  "reactionsAllCount": "Alle · {count}",
+  "@reactionsAllCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "unknownUser": "Unbekannt",
   "scheduledMessages": "Geplante Nachrichten ({count})",
   "@scheduledMessages": {
     "placeholders": { "count": { "type": "int" } }

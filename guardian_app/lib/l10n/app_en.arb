@@ -384,6 +384,11 @@
   "eventRsvpPublic": "Show responses to all members",
 
   "scheduleMessage": "Schedule message",
+  "reactionsAllCount": "All · {count}",
+  "@reactionsAllCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "unknownUser": "Unknown",
   "scheduledMessages": "Scheduled messages ({count})",
   "@scheduledMessages": {
     "placeholders": { "count": { "type": "int" } }

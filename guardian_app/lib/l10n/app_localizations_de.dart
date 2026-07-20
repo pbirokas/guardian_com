@@ -954,6 +954,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String get scheduleMessage => 'Nachricht planen';
 
   @override
+  String reactionsAllCount(int count) {
+    return 'Alle · $count';
+  }
+
+  @override
+  String get unknownUser => 'Unbekannt';
+
+  @override
   String scheduledMessages(int count) {
     return 'Geplante Nachrichten ($count)';
   }

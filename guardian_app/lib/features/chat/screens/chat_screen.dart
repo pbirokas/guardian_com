@@ -30,6 +30,7 @@ import '../../../core/providers/share_provider.dart';
 import '../../../core/appwrite_client.dart';
 import '../../../core/widgets/group_avatar.dart';
 import '../../../core/widgets/user_avatar.dart';
+import '../widgets/reaction_details_sheet.dart';
 import '../../../features/organizations/providers/organizations_provider.dart';
 import '../../../core/services/chat_service.dart';
 import '../providers/chat_provider.dart';
@@ -2143,7 +2144,7 @@ class _MessageBubble extends ConsumerWidget {
             reactions: message.reactions,
             currentUid: currentUid,
             isMe: isMe,
-            onTap: onReact,
+            members: members,
           ),
           ],
         ),
@@ -2505,14 +2506,30 @@ class _ReactionChips extends StatelessWidget {
   final Map<String, String> reactions;
   final String currentUid;
   final bool isMe;
-  final void Function(String? emoji)? onTap;
+
+  /// Für die Namens-/Avatar-Auflösung im Detail-Sheet.
+  final List<OrgMember>? members;
 
   const _ReactionChips({
     required this.reactions,
     required this.currentUid,
     required this.isMe,
-    this.onTap,
+    this.members,
   });
+
+  /// Tippen auf eine Reaktion zeigt, WER reagiert hat. Das Setzen/Entfernen
+  /// einer eigenen Reaktion läuft bewusst weiterhin nur über das Long-Press-Menü.
+  void _showDetails(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => ReactionDetailsSheet(
+        reactions: reactions,
+        members: members ?? const [],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2531,7 +2548,7 @@ class _ReactionChips extends StatelessWidget {
         children: counts.entries.map((e) {
           final isMyReaction = myEmoji == e.key;
           return GestureDetector(
-            onTap: () => onTap?.call(isMyReaction ? null : e.key),
+            onTap: () => _showDetails(context),
             child: Container(
               padding:
                   const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

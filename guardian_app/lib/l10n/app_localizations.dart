@@ -1808,6 +1808,18 @@ abstract class AppLocalizations {
   /// **'Nachricht planen'**
   String get scheduleMessage;
 
+  /// No description provided for @reactionsAllCount.
+  ///
+  /// In de, this message translates to:
+  /// **'Alle · {count}'**
+  String reactionsAllCount(int count);
+
+  /// No description provided for @unknownUser.
+  ///
+  /// In de, this message translates to:
+  /// **'Unbekannt'**
+  String get unknownUser;
+
   /// No description provided for @scheduledMessages.
   ///
   /// In de, this message translates to:

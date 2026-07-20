@@ -4,6 +4,13 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-07-20
+
+- **Abgelaufene Ankündigungen und Termine werden wieder zuverlässig entfernt:** Die nächtliche Aufräum-Funktion brach bei einem internen Datenbankfehler komplett ab — abgelaufene Einträge blieben dadurch stehen. Sie räumt jetzt auch dann auf, wenn ein Teilschritt scheitert, und wiederholt kurzzeitige Serverfehler automatisch.
+- **Wartungsläufe im Hintergrund laufen stabiler:** Mehrere fehlende Datenbank-Indexe ergänzt. Das nächtliche Aufräumen alter Nachrichten sowie das Löschen von Organisationen sind dadurch deutlich schneller und laufen nicht mehr in Zeitüberschreitungen.
+
+---
+
 ## 2026-07-15
 
 - **Update-Hinweis beim App-Start:** Die App prüft jetzt beim Start, ob eine neuere Version verfügbar ist. Ist eine neuere Version da, erscheint ein Hinweis („Update verfügbar"); liegt die installierte Version unter der Mindestversion, wird zum Update aufgefordert, bevor es weitergeht. Der Button führt Play-Store-Nutzer zum Store und Nutzer der direkt geladenen APK zur GitHub-Releases-Seite. Schlägt die Prüfung fehl (z. B. offline), läuft die App normal weiter.

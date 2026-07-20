@@ -128,7 +128,7 @@ Windows uses Firestore listeners for notifications instead of FCM. `TrayService`
 
 - **After editing `.arb` files:** always run `flutter gen-l10n` and commit the generated files.
 - **After adding `@riverpod` annotations:** run `dart run build_runner build --delete-conflicting-outputs`.
-- **Firestore indexes:** when adding a new composite query, add the index to `firestore.indexes.json` and deploy. Missing indexes cause runtime errors in production.
+- **Appwrite-Indexe:** Jedes Attribut, auf das eine Query filtert oder sortiert, braucht einen Index in `appwrite/setup.js` (`idx(...)`) — auch Array-Felder (`Query.contains`). Ein Composite-Index deckt nur **führende** Felder ab: `(convId, sentAt)` bedient `sentAt` allein **nicht**. Fehlende Indexe fallen oft spät auf (der Collection-Scan funktioniert, bis die Collection wächst) und äußern sich dann als sporadische 500er/Timeouts in geplanten Functions. Nach dem Ergänzen `node setup.js` ausführen und den Index-Status auf „available" prüfen — Appwrite legt Indexe asynchron an.
 - **Firestore rules:** when adding new fields that require write restrictions, update `firestore.rules` accordingly. The existing broad `canAccessConv()` update rule covers most conversation fields.
 - **Cloud Functions and client code must stay in sync:** if a Cloud Function writes a new field, add it to the corresponding Dart model's `fromFirestore`.
 - **`firebase_options.dart` is gitignored** (contains API keys). The example file `firebase_options.example.dart` shows the required structure.

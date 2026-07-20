@@ -179,6 +179,8 @@ async function setupMembers() {
   await idx(COL.MEMBERS, 'uid_idx',          'key',      ['uid']);
   await idx(COL.MEMBERS, 'orgId_uid_idx',    'unique',   ['orgId', 'uid']);
   await idx(COL.MEMBERS, 'orgId_role_idx',   'key',      ['orgId', 'role']);
+  // Nötig für on-new-announcement: listDocuments(orgId, notificationsEnabled)
+  await idx(COL.MEMBERS, 'orgId_notif_idx',  'key',      ['orgId', 'notificationsEnabled']);
   // guardianUids: Array-Attribut — kein Index möglich
 }
 
@@ -213,6 +215,9 @@ async function setupConversations() {
   await idx(COL.CONVERSATIONS, 'status_idx',          'key', ['status']);
   await idx(COL.CONVERSATIONS, 'lastMessageAt_idx',   'key', ['lastMessageAt'], ['DESC']);
   await idx(COL.CONVERSATIONS, 'orgId_status_idx',    'key', ['orgId', 'status']);
+  // Nötig für get-child-summary (filtert NUR auf participantUids) und
+  // on-member-guardians-changed. Array-Attribut → key-Index auf dem Array.
+  await idx(COL.CONVERSATIONS, 'participantUids_idx', 'key', ['participantUids']);
 }
 
 async function setupMessages() {
@@ -251,6 +256,9 @@ async function setupMessages() {
   await idx(COL.MESSAGES, 'convId_idx',        'key',  ['convId']);
   await idx(COL.MESSAGES, 'convId_sentAt_idx', 'key',  ['convId', 'sentAt'], ['ASC']);
   await idx(COL.MESSAGES, 'senderUid_idx',     'key',  ['senderUid']);
+  // Nötig für cleanup-old-messages: listDocuments(orgId, sentAt < cutoff).
+  // convId_sentAt_idx deckt das NICHT ab (sentAt ist dort nur zweites Feld).
+  await idx(COL.MESSAGES, 'orgId_sentAt_idx',  'key',  ['orgId', 'sentAt'], ['ASC', 'ASC']);
 }
 
 async function setupPolls() {
@@ -275,6 +283,8 @@ async function setupPolls() {
   await idx(COL.POLLS, 'convId_idx',   'key', ['convId']);
   await idx(COL.POLLS, 'isClosed_idx', 'key', ['isClosed']);
   await idx(COL.POLLS, 'expiresAt_idx', 'key', ['expiresAt']);
+  // Nötig für cleanup-old-messages: listDocuments(orgId, createdAt < cutoff)
+  await idx(COL.POLLS, 'orgId_createdAt_idx', 'key', ['orgId', 'createdAt'], ['ASC', 'ASC']);
 }
 
 async function setupClaimRequests() {
@@ -334,6 +344,9 @@ async function setupAnnouncements() {
   await idx(COL.ANNOUNCEMENTS, 'createdAt_idx',   'key', ['createdAt'], ['DESC']);
   await idx(COL.ANNOUNCEMENTS, 'expiresAt_idx',   'key', ['expiresAt']);
   await idx(COL.ANNOUNCEMENTS, 'eventDate_idx',   'key', ['eventDate']);
+  // Nötig für cleanup-expired-announcements: filtert auf eventEndDate
+  // (lessThan + isNull). Ohne Index schlägt der Durchlauf fehl.
+  await idx(COL.ANNOUNCEMENTS, 'eventEndDate_idx', 'key', ['eventEndDate']);
 }
 
 async function setupInvitations() {
@@ -368,6 +381,8 @@ async function setupOrgInviteConsents() {
   await idx('org_invite_consents', 'childUid_idx',   'key', ['childUid']);
   await idx('org_invite_consents', 'status_idx',     'key', ['status']);
   await idx('org_invite_consents', 'parentUids_idx', 'key', ['parentUids']);
+  // Nötig für admin-member-action (Org-Löschung räumt Consents per orgId ab)
+  await idx('org_invite_consents', 'orgId_idx',      'key', ['orgId']);
 }
 
 async function setupAuditLog() {

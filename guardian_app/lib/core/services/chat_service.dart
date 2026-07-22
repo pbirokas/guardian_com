@@ -47,11 +47,28 @@ class ChatService {
       !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
 
 
-  static final List<String> _msgPerms = [
-    Permission.read(Role.users()),
-    Permission.update(Role.users()),
-    Permission.delete(Role.users()),
-  ];
+  /// Lese-/Schreibrechte einer Nachricht im Team-Modell (siehe
+  /// `sync-conversation-permissions` / `sync-supervisor-team`):
+  /// - Lesen: Conversation-Team (Teilnehmer + Guardians) + Org-Supervisor-Team
+  ///   (Admin/Moderatoren, org-weite Aufsicht).
+  /// - Der Autor darf zusätzlich direkt lesen — so sieht er seine eigene
+  ///   Nachricht sofort, auch bevor die Server-Function die Team-Mitgliedschaft
+  ///   eines frisch erstellten Chats gesetzt hat.
+  /// - Ändern/Löschen: Autor (Bearbeiten) + Supervisor-Team (Moderation).
+  List<String> _msgPerms(String convId, String orgId) {
+    final conv = Role.team(convId);
+    final sup = Role.team('sup_$orgId');
+    final me = Role.user(_uid);
+    return [
+      Permission.read(conv),
+      Permission.read(sup),
+      Permission.read(me),
+      Permission.update(me),
+      Permission.update(sup),
+      Permission.delete(me),
+      Permission.delete(sup),
+    ];
+  }
 
   static int _byLastMessageDesc(Conversation a, Conversation b) {
     if (a.lastMessageAt == null) return 1;
@@ -353,9 +370,12 @@ class ChatService {
       collectionId: _colConvs,
       documentId: convId,
       data: conv.toAppwrite(),
+      // Nur der Ersteller — sofort sichtbar. Die Server-Function
+      // `sync-conversation-permissions` legt danach das Team-Modell (Teilnehmer +
+      // Guardians + Org-Supervisor-Team) als ACL fest.
       permissions: [
-        Permission.read(Role.users()),
-        Permission.update(Role.users()),
+        Permission.read(Role.user(_uid)),
+        Permission.update(Role.user(_uid)),
       ],
     );
     return conv;
@@ -404,9 +424,12 @@ class ChatService {
       collectionId: _colConvs,
       documentId: convId,
       data: conv.toAppwrite(),
+      // Nur der Ersteller — sofort sichtbar. Die Server-Function
+      // `sync-conversation-permissions` legt danach das Team-Modell (Teilnehmer +
+      // Guardians + Org-Supervisor-Team) als ACL fest.
       permissions: [
-        Permission.read(Role.users()),
-        Permission.update(Role.users()),
+        Permission.read(Role.user(_uid)),
+        Permission.update(Role.user(_uid)),
       ],
     );
     return conv;
@@ -440,9 +463,12 @@ class ChatService {
       collectionId: _colConvs,
       documentId: convId,
       data: conv.toAppwrite(),
+      // Nur der Ersteller — sofort sichtbar. Die Server-Function
+      // `sync-conversation-permissions` legt danach das Team-Modell (Teilnehmer +
+      // Guardians + Org-Supervisor-Team) als ACL fest.
       permissions: [
-        Permission.read(Role.users()),
-        Permission.update(Role.users()),
+        Permission.read(Role.user(_uid)),
+        Permission.update(Role.user(_uid)),
       ],
     );
     return conv;
@@ -696,7 +722,7 @@ class ChatService {
       collectionId: _colMessages,
       documentId: msgId,
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
-      permissions: _msgPerms,
+      permissions: _msgPerms(convId, orgId),
     );
     await _updateLastMessage(
         convId, text.length > 200 ? '${text.substring(0, 200)}…' : text);
@@ -824,7 +850,7 @@ class ChatService {
       collectionId: _colMessages,
       documentId: msgId,
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
-      permissions: _msgPerms,
+      permissions: _msgPerms(convId, orgId),
     );
     await _updateLastMessage(convId, '🎤 Sprachnachricht');
   }
@@ -892,7 +918,7 @@ class ChatService {
       collectionId: _colMessages,
       documentId: msgId,
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
-      permissions: _msgPerms,
+      permissions: _msgPerms(convId, orgId),
     );
     await _updateLastMessage(convId, '[Bild]');
   }
@@ -933,7 +959,7 @@ class ChatService {
       collectionId: _colMessages,
       documentId: msgId,
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
-      permissions: _msgPerms,
+      permissions: _msgPerms(convId, orgId),
     );
     await _updateLastMessage(convId, '📎 $fileName');
   }
@@ -994,7 +1020,7 @@ class ChatService {
       collectionId: _colMessages,
       documentId: msgId,
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
-      permissions: _msgPerms,
+      permissions: _msgPerms(convId, orgId),
     );
     await _updateLastMessage(convId, preview);
   }
@@ -1079,6 +1105,13 @@ class ChatService {
       collectionId: _colScheduled,
       documentId: smId,
       data: sm.toAppwrite(),
+      // Privater Entwurf des Autors bis zum Versand; beim Senden wird daraus
+      // eine reguläre Nachricht mit Team-ACL (siehe `sendScheduledMessage`).
+      permissions: [
+        Permission.read(Role.user(_uid)),
+        Permission.update(Role.user(_uid)),
+        Permission.delete(Role.user(_uid)),
+      ],
     );
   }
 
@@ -1189,7 +1222,7 @@ class ChatService {
       collectionId: _colMessages,
       documentId: msgId,
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
-      permissions: _msgPerms,
+      permissions: _msgPerms(convId, orgId),
     );
   }
 

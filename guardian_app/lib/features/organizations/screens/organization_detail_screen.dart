@@ -247,7 +247,6 @@ class _OrganizationDetailScreenState
                           child: _ChatTabLabel(
                             orgId: orgId,
                             isAdminOrMod: isAdmin || isModerator,
-                            currentUid: currentUid,
                           ),
                         ),
                       ),
@@ -1277,12 +1276,8 @@ Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref,
 class _ChatTabLabel extends ConsumerWidget {
   final String orgId;
   final bool isAdminOrMod;
-  final String currentUid;
 
-  const _ChatTabLabel(
-      {required this.orgId,
-      required this.isAdminOrMod,
-      required this.currentUid});
+  const _ChatTabLabel({required this.orgId, required this.isAdminOrMod});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1291,20 +1286,9 @@ class _ChatTabLabel extends ConsumerWidget {
         ? (ref.watch(pendingRequestsProvider(orgId)).value?.length ?? 0)
         : 0;
 
-    final receipts = ref.watch(myReadReceiptsProvider).value ?? {};
-    final allConvs = [
-      ...ref.watch(orgConversationsProvider(orgId)).value ?? [],
-      ...ref.watch(adminConversationsProvider(orgId)).value ?? [],
-    ];
-    final unreadCount = allConvs
-        .where((c) =>
-            c.status == ConversationStatus.approved &&
-            c.hasUnreadWith(currentUid, receipts))
-        .map((c) => c.id)
-        .toSet()
-        .length;
-
-    final totalCount = pendingCount + unreadCount;
+    // Ungelesene eigene Chats — dieselbe Zählung wie das Org-Badge auf dem
+    // Startbildschirm; nicht doppelt implementieren.
+    final unreadCount = ref.watch(unreadOrgCountProvider(orgId));
 
     return Stack(
       clipBehavior: Clip.none,
@@ -1316,24 +1300,33 @@ class _ChatTabLabel extends ConsumerWidget {
             Text(l.tabChats, style: const TextStyle(fontSize: 10)),
           ],
         ),
-        if (totalCount > 0)
-          Positioned(
-            top: -4,
-            right: -10,
-            child: Container(
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: pendingCount > 0 ? Colors.red : Theme.of(context).colorScheme.primary,
-                shape: BoxShape.circle,
-              ),
-              child: Text('$totalCount',
-                  style: const TextStyle(
-                      fontSize: 10,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold)),
-            ),
-          ),
+        // Ungelesene eigene Chats — Zahl in Primärfarbe (rechts).
+        if (unreadCount > 0)
+          _countBadge(unreadCount, Theme.of(context).colorScheme.primary,
+              left: false),
+        // Offene Anfragen (nur Admin/Mod) — eigenes rotes Badge (links),
+        // getrennt vom Ungelesen-Zähler, damit die Zahl eindeutig bleibt.
+        if (pendingCount > 0) _countBadge(pendingCount, Colors.red, left: true),
       ],
+    );
+  }
+
+  /// Kleines Zähler-Badge in der Ecke des Tab-Icons (links = Anfragen,
+  /// rechts = Ungelesene).
+  static Widget _countBadge(int count, Color color, {required bool left}) {
+    return Positioned(
+      top: -4,
+      left: left ? -10 : null,
+      right: left ? null : -10,
+      child: Container(
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        child: Text('$count',
+            style: const TextStyle(
+                fontSize: 10,
+                color: Colors.white,
+                fontWeight: FontWeight.bold)),
+      ),
     );
   }
 }

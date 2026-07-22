@@ -1588,6 +1588,44 @@
             "vars": {}
         },
         {
+            "$id": "sync-conversation-permissions",
+            "name": "sync-conversation-permissions",
+            "runtime": "node-16.0",
+            "execute": [],
+            "events": [
+                "databases.guardian.collections.conversations.documents.*.create",
+                "databases.guardian.collections.conversations.documents.*.update",
+                "databases.guardian.collections.conversations.documents.*.delete"
+            ],
+            "schedule": "",
+            "timeout": 60,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/sync-conversation-permissions",
+            "vars": {}
+        },
+        {
+            "$id": "sync-supervisor-team",
+            "name": "sync-supervisor-team",
+            "runtime": "node-16.0",
+            "execute": [],
+            "events": [
+                "databases.guardian.collections.members.documents.*.create",
+                "databases.guardian.collections.members.documents.*.update",
+                "databases.guardian.collections.members.documents.*.delete"
+            ],
+            "schedule": "",
+            "timeout": 60,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/sync-supervisor-team",
+            "vars": {}
+        },
+        {
             "$id": "cleanup-old-messages",
             "name": "cleanup-old-messages",
             "runtime": "node-16.0",

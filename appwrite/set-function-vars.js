@@ -51,6 +51,8 @@ const FUNCTION_IDS = [
   'on-new-message',
   'on-new-report',
   'on-org-admin-transferred',
+  'sync-conversation-permissions',
+  'sync-supervisor-team',
   'on-parent-consent',
   'on-poll-vote',
   'process-my-invitations',

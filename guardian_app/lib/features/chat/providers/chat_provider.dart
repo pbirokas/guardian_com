@@ -71,9 +71,13 @@ final unreadOrgCountProvider = Provider.family<int, String>((ref, orgId) {
       ref.watch(adminConversationsProvider(orgId)).value ?? [];
   final seen = <String>{};
   final all = [...ownConvs, ...adminConvs].where((c) => seen.add(c.id)).toList();
+  // Nur eigene Chats (Teilnehmer) zählen. adminConversationsProvider liefert
+  // zusätzlich Oversight-/Guardian-Chats, die man nie selbst öffnet → sie hätten
+  // nie ein Read-Receipt und würden dauerhaft als „ungelesen" mitzählen.
   return all
       .where((c) =>
           c.status == ConversationStatus.approved &&
+          c.participantUids.contains(currentUid) &&
           c.hasUnreadWith(currentUid, receipts))
       .length;
 });

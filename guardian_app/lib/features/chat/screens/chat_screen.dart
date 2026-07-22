@@ -1550,15 +1550,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (newText.isEmpty || newText == msg.text) return;
     final l = AppLocalizations.of(context);
     try {
-      final currentUser = ref.read(authStateProvider).value;
-      await ref.read(chatServiceProvider).editMessage(
-            widget.chatId,
-            msg.id,
-            newText,
-            archive: archive,
-            archivedByUid: archive ? currentUser?.uid : null,
-            archivedByName: archive ? currentUser?.displayName : null,
-          );
+      final chat = ref.read(chatServiceProvider);
+      if (archive) {
+        // Moderation einer FREMDEN Nachricht → serverseitig (Admin/Mod-Rechte),
+        // da die Nachrichten-ACL nur dem Autor Schreibrechte gibt.
+        final currentUser = ref.read(authStateProvider).value;
+        await chat.moderateMessage(
+          widget.chatId,
+          msg.id,
+          newText,
+          archivedByName: currentUser?.displayName ?? '',
+        );
+      } else {
+        // Eigene Nachricht bearbeiten (Autor darf direkt).
+        await chat.editMessage(widget.chatId, msg.id, newText);
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)

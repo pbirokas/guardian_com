@@ -55,18 +55,20 @@ class ChatService {
   ///   Nachricht sofort, auch bevor die Server-Function die Team-Mitgliedschaft
   ///   eines frisch erstellten Chats gesetzt hat.
   /// - Ändern/Löschen: Autor (Bearbeiten) + Supervisor-Team (Moderation).
-  List<String> _msgPerms(String convId, String orgId) {
+  List<String> _msgPerms(String convId) {
     final conv = Role.team(convId);
-    final sup = Role.team('sup_$orgId');
     final me = Role.user(_uid);
     return [
+      // Lesen: das Conversation-Team (Teilnehmer + Guardians + Aufsicht) — vom
+      // Server (sync-conversation-permissions) gepflegt.
       Permission.read(conv),
-      Permission.read(sup),
+      // Der Autor darf zusätzlich direkt lesen (sieht die eigene Nachricht
+      // sofort, auch bevor die Function ihn dem Team hinzugefügt hat) sowie
+      // seine eigene Nachricht bearbeiten/löschen. Fremd-Moderation läuft über
+      // die Function `moderate-message`.
       Permission.read(me),
       Permission.update(me),
-      Permission.update(sup),
       Permission.delete(me),
-      Permission.delete(sup),
     ];
   }
 
@@ -722,20 +724,16 @@ class ChatService {
       collectionId: _colMessages,
       documentId: msgId,
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
-      permissions: _msgPerms(convId, orgId),
+      permissions: _msgPerms(convId),
     );
     await _updateLastMessage(
         convId, text.length > 200 ? '${text.substring(0, 200)}…' : text);
   }
 
+  /// Bearbeitet die EIGENE Nachricht (Autor). Fremd-Moderation läuft über
+  /// [moderateMessage] (serverseitig).
   Future<void> editMessage(
-    String convId,
-    String messageId,
-    String newText, {
-    bool archive = false,
-    String? archivedByUid,
-    String? archivedByName,
-  }) async {
+      String convId, String messageId, String newText) async {
     await _db.updateDocument(
         databaseId: _dbId,
         collectionId: _colMessages,
@@ -743,11 +741,29 @@ class ChatService {
         data: {
           'text': newText,
           'editedAt': DateTime.now().toUtc().toIso8601String(),
-          if (archive) 'isArchived': true,
-          if (archive && archivedByUid != null) 'archivedByUid': archivedByUid,
-          if (archive && archivedByName != null)
-            'archivedByName': archivedByName,
         });
+  }
+
+  /// Moderation einer FREMDEN Nachricht (nur Admin/Mod): Text ersetzen +
+  /// archivieren. Läuft serverseitig über `moderate-message`, weil die
+  /// Nachrichten-ACL nur dem Autor Schreibrechte gibt. Eigene Nachrichten
+  /// bearbeitet der Autor direkt via [editMessage].
+  Future<void> moderateMessage(
+    String convId,
+    String messageId,
+    String newText, {
+    required String archivedByName,
+  }) async {
+    await _functions.createExecution(
+      functionId: 'moderate-message',
+      body: jsonEncode({
+        'convId': convId,
+        'msgId': messageId,
+        'newText': newText,
+        'archivedByName': archivedByName,
+      }),
+      method: ExecutionMethod.pOST,
+    );
   }
 
   Future<void> softDeleteMessage(String convId, String messageId) async {
@@ -850,7 +866,7 @@ class ChatService {
       collectionId: _colMessages,
       documentId: msgId,
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
-      permissions: _msgPerms(convId, orgId),
+      permissions: _msgPerms(convId),
     );
     await _updateLastMessage(convId, '🎤 Sprachnachricht');
   }
@@ -918,7 +934,7 @@ class ChatService {
       collectionId: _colMessages,
       documentId: msgId,
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
-      permissions: _msgPerms(convId, orgId),
+      permissions: _msgPerms(convId),
     );
     await _updateLastMessage(convId, '[Bild]');
   }
@@ -959,7 +975,7 @@ class ChatService {
       collectionId: _colMessages,
       documentId: msgId,
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
-      permissions: _msgPerms(convId, orgId),
+      permissions: _msgPerms(convId),
     );
     await _updateLastMessage(convId, '📎 $fileName');
   }
@@ -1020,7 +1036,7 @@ class ChatService {
       collectionId: _colMessages,
       documentId: msgId,
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
-      permissions: _msgPerms(convId, orgId),
+      permissions: _msgPerms(convId),
     );
     await _updateLastMessage(convId, preview);
   }
@@ -1222,7 +1238,7 @@ class ChatService {
       collectionId: _colMessages,
       documentId: msgId,
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
-      permissions: _msgPerms(convId, orgId),
+      permissions: _msgPerms(convId),
     );
   }
 

@@ -53,6 +53,7 @@ const FUNCTION_IDS = [
   'on-org-admin-transferred',
   'sync-conversation-permissions',
   'sync-supervisor-team',
+  'moderate-message',
   'on-parent-consent',
   'on-poll-vote',
   'process-my-invitations',

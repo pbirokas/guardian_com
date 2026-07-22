@@ -1924,6 +1924,23 @@
             "vars": {}
         },
         {
+            "$id": "moderate-message",
+            "name": "moderate-message",
+            "runtime": "node-16.0",
+            "execute": [
+                "users"
+            ],
+            "events": [],
+            "schedule": "",
+            "timeout": 15,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/moderate-message",
+            "vars": {}
+        },
+        {
             "$id": "admin-member-action",
             "name": "admin-member-action",
             "runtime": "node-16.0",

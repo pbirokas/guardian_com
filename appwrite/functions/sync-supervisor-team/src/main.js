@@ -2,22 +2,24 @@ const { Client, Databases, Teams, Query } = require('node-appwrite');
 
 const DB_ID = 'guardian';
 const COL_MEMBERS = 'members';
+const COL_CONVERSATIONS = 'conversations';
 
-// Org-weites Aufsichts-Team: Admin + alle Moderatoren einer Org.
-// Wird in der ACL jeder Conversation/Nachricht referenziert → Beförderung
-// eines Mods wirkt in O(1) rückwirkend auf alle Bestandschats + Historie.
+// `sup_<orgId>` ist KEIN ACL-Team mehr, sondern ein günstiger Cache/Detektor:
+// er hält den zuletzt bekannten Supervisor-Satz. Ändert er sich nicht, sparen
+// wir die teure Iteration über alle Org-Conversations.
 function supTeamId(orgId) {
   return `sup_${orgId}`;
 }
 
 /**
- * Hält das Org-Supervisor-Team synchron mit den Mitgliedern der Rolle
- * admin/moderator.
+ * Propagiert Aufsichts-Rollen (Admin/Moderator) in die Conv-Teams der Org.
  *
  * Trigger: databases.guardian.collections.members.documents.*.(create|update|delete)
  *
- * Die members-Collection ist die einzige Quelle: Org-Erstellung (Admin-Member),
- * Beförderung/Degradierung, Admin-Übergabe und Entfernen laufen alle darüber.
+ * Aufsicht muss in JEDEM Conv-Team der Org sein, weil Nachrichten-ACLs nur
+ * `team(convId)` kennen. Ändert sich der Supervisor-Satz (Beförderung/
+ * Degradierung/Admin-Wechsel/Entfernen), werden alle Conv-Teams der Org
+ * nachgezogen — sonst früher Ausstieg.
  */
 module.exports = async ({ req, res, log, error }) => {
   const client = new Client()
@@ -35,34 +37,73 @@ module.exports = async ({ req, res, log, error }) => {
     return res.empty();
   }
 
-  // Früh-Ausstieg: ein NEU erstelltes Mitglied ohne Aufsichtsrolle kann nicht
-  // im Supervisor-Team sein → spart bei jedem Beitritt (häufigster Fall) die
-  // Team-API-Aufrufe. Bei update/delete ist ohne alten Doc-Stand kein sicherer
-  // Skip möglich (Rolle könnte vorher admin/moderator gewesen sein).
+  // Früh-Ausstieg: ein NEU erstelltes Mitglied ohne Aufsichtsrolle ändert den
+  // Supervisor-Satz nie → häufigster Fall (Beitritte) ohne weitere Arbeit.
   const event = req.headers['x-appwrite-event'] || '';
   if (event.endsWith('.create') && !['admin', 'moderator'].includes(member.role)) {
-    log(`Create of non-supervisor member (${member.role}) — skipping`);
     return res.empty();
   }
 
-  const teamId = supTeamId(orgId);
+  // Aktuellen Supervisor-Satz bestimmen.
+  const supervisorUids = await orgSupervisors(db, orgId);
 
-  // Soll-Zustand: alle Admin-/Moderator-UIDs der Org.
+  // Mit dem Cache (`sup_<orgId>`) vergleichen. Unverändert → nichts zu tun.
+  const cacheTeam = supTeamId(orgId);
+  await ensureTeam(teams, cacheTeam, `Supervisors ${orgId}`, log);
+  const known = await membershipUids(teams, cacheTeam);
+  if (setsEqual(known, supervisorUids)) {
+    log(`Supervisors unchanged for org ${orgId} — skipping conv propagation`);
+    return res.empty();
+  }
+
+  // Cache aktualisieren …
+  await reconcileTeamMembers(teams, cacheTeam, supervisorUids, log, error);
+
+  // … und den neuen Supervisor-Satz in ALLE Conv-Teams der Org einpflegen.
+  let cursor = null;
+  let convCount = 0;
+  do {
+    const q = [Query.equal('orgId', orgId), Query.limit(100)];
+    if (cursor) q.push(Query.cursorAfter(cursor));
+    const convs = await db.listDocuments(DB_ID, COL_CONVERSATIONS, q);
+    for (const conv of convs.documents) {
+      convCount++;
+      const desired = [
+        ...new Set([
+          ...(conv.participantUids ?? []),
+          ...(conv.guardianUids ?? []),
+          ...supervisorUids,
+        ]),
+      ].filter(Boolean);
+      await ensureTeam(teams, conv.$id, `Conversation ${conv.$id}`, log);
+      await reconcileTeamMembers(teams, conv.$id, desired, log, error);
+    }
+    cursor = convs.documents.length === 100 ? convs.documents.at(-1).$id : null;
+  } while (cursor);
+
+  log(`Propagated supervisor change to ${convCount} conversation(s) in org ${orgId}`);
+  return res.empty();
+};
+
+async function orgSupervisors(db, orgId) {
   const result = await db.listDocuments(DB_ID, COL_MEMBERS, [
     Query.equal('orgId', orgId),
     Query.equal('role', ['admin', 'moderator']),
     Query.limit(200),
   ]);
-  const desiredUids = [
-    ...new Set(result.documents.map((d) => d.uid).filter(Boolean)),
-  ];
+  return result.documents.map((d) => d.uid).filter(Boolean);
+}
 
-  await ensureTeam(teams, teamId, `Supervisors ${orgId}`, log);
-  await reconcileTeamMembers(teams, teamId, desiredUids, log, error);
+async function membershipUids(teams, teamId) {
+  const current = await teams.listMemberships(teamId);
+  return (current.memberships ?? []).map((m) => m.userId).filter(Boolean);
+}
 
-  log(`Supervisor team ${teamId}: ${desiredUids.length} member(s)`);
-  return res.empty();
-};
+function setsEqual(a, b) {
+  if (a.length !== b.length) return false;
+  const sb = new Set(b);
+  return a.every((x) => sb.has(x));
+}
 
 async function ensureTeam(teams, teamId, name, log) {
   try {
@@ -92,6 +133,7 @@ async function reconcileTeamMembers(teams, teamId, desiredUids, log, error) {
       log(`Team ${teamId}: added ${uid}`);
     } catch (e) {
       if (e.code === 409) continue;
+      if (e.code === 404) continue; // verwaister UID
       error(`Team ${teamId}: failed to add ${uid}: ${e.message}`);
     }
   }

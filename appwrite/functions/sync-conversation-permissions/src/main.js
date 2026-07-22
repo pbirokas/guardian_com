@@ -4,26 +4,23 @@ const {
   Teams,
   Permission,
   Role,
+  Query,
 } = require('node-appwrite');
 
 const DB_ID = 'guardian';
 const COL_CONVERSATIONS = 'conversations';
-
-// Team-ID-Schema (deterministisch, muss mit dem Client übereinstimmen):
-//  - Conversation-Team:  = convId               → Teilnehmer + Guardians
-//  - Org-Supervisor-Team: = `sup_<orgId>`       → Admin + Moderatoren (org-weite Aufsicht)
-function supTeamId(orgId) {
-  return `sup_${orgId}`;
-}
+const COL_MEMBERS = 'members';
 
 /**
  * Hält Team-Mitgliedschaft und Lese-/Schreibrechte einer Conversation synchron.
  *
  * Trigger: databases.guardian.collections.conversations.documents.*.(create|update|delete)
  *
- * Read/Update/Delete auf Conversation + (über denselben Team-Bezug) alle Nachrichten
- * werden auf das Team-Modell festgelegt. Dadurch wirken Mitglieder-/Rollenänderungen
- * in O(1): eine Team-Mitgliedschaft ändern statt jede Nachricht umschreiben.
+ * Ein Chat = ein Team (id = convId). Mitglieder = Teilnehmer + Guardians +
+ * Aufsicht (Admin/Moderatoren der Org). Nachrichten referenzieren in ihrer ACL
+ * nur `team(convId)` — das kann der Client setzen (er ist selbst im Team), und
+ * ein späterer Beitritt/eine Beförderung wirkt in O(1) rückwirkend auf alle
+ * (auch historischen) Nachrichten.
  */
 module.exports = async ({ req, res, log, error }) => {
   const client = new Client()
@@ -59,28 +56,24 @@ module.exports = async ({ req, res, log, error }) => {
     return res.empty();
   }
 
-  // Gewünschte Mitglieder des Conversation-Teams: Teilnehmer + Guardians.
-  // Aufsicht (Admin/Mods) läuft NICHT über dieses Team, sondern über das
-  // Org-Supervisor-Team, das direkt in der ACL referenziert wird.
+  // Aufsicht der Org (Admin + Moderatoren) — gehören in JEDES Conv-Team, damit
+  // sie Nachrichten lesen können (Nachrichten-ACL kennt nur team(convId)).
+  const supervisorUids = await orgSupervisors(db, orgId);
+
   const desiredMembers = [
     ...new Set([
       ...(conv.participantUids ?? []),
       ...(conv.guardianUids ?? []),
+      ...supervisorUids,
     ]),
   ].filter(Boolean);
 
-  // 1) Conversation-Team sicherstellen.
   await ensureTeam(teams, convId, `Conversation ${convId}`, log);
-
-  // 2) Mitglieder abgleichen (fehlende hinzufügen, überzählige entfernen).
   await reconcileTeamMembers(teams, convId, desiredMembers, log, error);
 
-  // 3) ACL auf das Team-Modell festlegen — idempotent: nur schreiben, wenn
-  //    sie abweicht, sonst würde jeder Permission-Write ein weiteres
-  //    Update-Event auslösen (Endlosschleife).
-  const desiredPerms = buildConvPerms(convId, orgId);
-  const currentPerms = conv.$permissions ?? [];
-  if (!samePerms(currentPerms, desiredPerms)) {
+  // ACL idempotent setzen — nur schreiben, wenn abweichend (sonst Update-Loop).
+  const desiredPerms = buildConvPerms(convId);
+  if (!samePerms(conv.$permissions ?? [], desiredPerms)) {
     try {
       await db.updateDocument(DB_ID, COL_CONVERSATIONS, convId, {}, desiredPerms);
       log(`Conv ${convId}: permissions updated to team model`);
@@ -94,17 +87,18 @@ module.exports = async ({ req, res, log, error }) => {
   return res.empty();
 };
 
-function buildConvPerms(convId, orgId) {
-  const conv = Role.team(convId);
-  const sup = Role.team(supTeamId(orgId));
-  return [
-    Permission.read(conv),
-    Permission.read(sup),
-    Permission.update(conv),
-    Permission.update(sup),
-    Permission.delete(conv),
-    Permission.delete(sup),
-  ];
+async function orgSupervisors(db, orgId) {
+  const result = await db.listDocuments(DB_ID, COL_MEMBERS, [
+    Query.equal('orgId', orgId),
+    Query.equal('role', ['admin', 'moderator']),
+    Query.limit(200),
+  ]);
+  return result.documents.map((d) => d.uid).filter(Boolean);
+}
+
+function buildConvPerms(convId) {
+  const c = Role.team(convId);
+  return [Permission.read(c), Permission.update(c), Permission.delete(c)];
 }
 
 async function ensureTeam(teams, teamId, name, log) {
@@ -128,7 +122,6 @@ async function reconcileTeamMembers(teams, teamId, desiredUids, log, error) {
   }
   const desiredSet = new Set(desiredUids);
 
-  // Hinzufügen
   for (const uid of desiredSet) {
     if (currentByUid.has(uid)) continue;
     try {
@@ -137,11 +130,11 @@ async function reconcileTeamMembers(teams, teamId, desiredUids, log, error) {
       log(`Team ${teamId}: added ${uid}`);
     } catch (e) {
       if (e.code === 409) continue; // schon Mitglied (Race)
+      if (e.code === 404) continue; // Nutzer existiert nicht (verwaister UID)
       error(`Team ${teamId}: failed to add ${uid}: ${e.message}`);
     }
   }
 
-  // Entfernen
   for (const [uid, membershipId] of currentByUid) {
     if (desiredSet.has(uid)) continue;
     try {

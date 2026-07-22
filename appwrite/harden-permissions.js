@@ -57,24 +57,13 @@ const teams = new Teams(client);
 
 const supTeamId = (orgId) => `sup_${orgId}`;
 
-function convPerms(convId, orgId) {
+function convPerms(convId) {
   const c = Role.team(convId);
-  const s = Role.team(supTeamId(orgId));
-  return [
-    Permission.read(c), Permission.read(s),
-    Permission.update(c), Permission.update(s),
-    Permission.delete(c), Permission.delete(s),
-  ];
+  return [Permission.read(c), Permission.update(c), Permission.delete(c)];
 }
 
-function msgPerms(convId, orgId, senderUid) {
-  const s = Role.team(supTeamId(orgId));
-  const perms = [
-    Permission.read(Role.team(convId)),
-    Permission.read(s),
-    Permission.update(s),
-    Permission.delete(s),
-  ];
+function msgPerms(convId, senderUid) {
+  const perms = [Permission.read(Role.team(convId))];
   if (senderUid && senderUid !== 'system') {
     perms.push(Permission.read(Role.user(senderUid)));
     perms.push(Permission.update(Role.user(senderUid)));
@@ -149,8 +138,12 @@ async function main() {
   console.log(`Projekt: ${projectId}`);
   console.log(`Modus:   ${DRY ? 'DRY RUN (keine Änderungen)' : 'LIVE'}\n`);
 
-  // ── Phase 1: Supervisor-Teams je Org ─────────────────────────────────────
-  console.log('Phase 1: Org-Supervisor-Teams');
+  // ── Phase 1: Supervisor-Cache je Org ─────────────────────────────────────
+  // `sup_<orgId>` ist kein ACL-Team mehr, sondern der Änderungs-Detektor für
+  // sync-supervisor-team. Wir seeden ihn mit dem aktuellen Supervisor-Satz und
+  // merken ihn für Phase 2 (dort kommen die Supervisoren in jedes Conv-Team).
+  console.log('Phase 1: Org-Supervisor-Cache');
+  const supervisorsByOrg = new Map();
   let orgCount = 0;
   let supTeamsCreated = 0;
   let supMembersAdded = 0;
@@ -162,6 +155,7 @@ async function main() {
       Query.limit(200),
     ]);
     const uids = mods.documents.map((d) => d.uid).filter(Boolean);
+    supervisorsByOrg.set(org.$id, uids);
     if (await ensureTeam(supTeamId(org.$id), `Supervisors ${org.$id}`)) supTeamsCreated++;
     supMembersAdded += await addTeamMembers(supTeamId(org.$id), uids);
   });
@@ -175,20 +169,22 @@ async function main() {
   let convTeamsCreated = 0;
   let convMembersAdded = 0;
   let convAclUpdated = 0;
-  const orgIdByConv = new Map();
   await eachDocument(COL_CONVERSATIONS, [], async (conv) => {
     convCount++;
     const orgId = conv.orgId;
-    orgIdByConv.set(conv.$id, orgId);
     if (!orgId) {
       console.error(`  ✗ Conv ${conv.$id} ohne orgId — übersprungen`);
       return;
     }
-    const members = [...(conv.participantUids ?? []), ...(conv.guardianUids ?? [])];
+    const members = [
+      ...(conv.participantUids ?? []),
+      ...(conv.guardianUids ?? []),
+      ...(supervisorsByOrg.get(orgId) ?? []),
+    ];
     if (await ensureTeam(conv.$id, `Conversation ${conv.$id}`)) convTeamsCreated++;
     convMembersAdded += await addTeamMembers(conv.$id, members);
 
-    const desired = convPerms(conv.$id, orgId);
+    const desired = convPerms(conv.$id);
     if (!samePerms(conv.$permissions, desired)) {
       convAclUpdated++;
       if (!DRY) {
@@ -211,12 +207,11 @@ async function main() {
   await eachDocument(COL_MESSAGES, [], async (msg) => {
     msgCount++;
     const convId = msg.convId;
-    const orgId = msg.orgId ?? orgIdByConv.get(convId);
-    if (!convId || !orgId) {
-      console.error(`  ✗ Msg ${msg.$id} ohne convId/orgId — übersprungen`);
+    if (!convId) {
+      console.error(`  ✗ Msg ${msg.$id} ohne convId — übersprungen`);
       return;
     }
-    const desired = msgPerms(convId, orgId, msg.senderUid);
+    const desired = msgPerms(convId, msg.senderUid);
     if (samePerms(msg.$permissions, desired)) return;
     msgUpdated++;
     if (!DRY) {

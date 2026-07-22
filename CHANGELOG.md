@@ -7,6 +7,7 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 ## 2026-07-22
 
 - **Datenschutz: Chats und Nachrichten sind jetzt strikt abgeschottet.** Bisher waren Chat- und Nachrichten-Einträge technisch für jedes angemeldete Konto lesbar (die App zeigte zwar nur die eigenen Chats an, die Absicherung lag aber nur in der Anzeige). Jetzt kann jeden Chat und jede Nachricht ausschließlich lesen, wer wirklich beteiligt ist: die Chat-Teilnehmer, die Guardians der beteiligten Kinder sowie die Aufsicht (Admin/Moderatoren) der jeweiligen Organisation. Beim Beitritt zu einem Gruppenchat und bei einer späteren Beförderung zum Moderator wirkt der Zugriff auch rückwirkend auf die bestehende Historie.
+- **Nachbesserung zur Chat-Abschottung:** Im ersten Wurf war die Aufsicht technisch falsch eingebunden, wodurch normale Mitglieder keine Nachrichten mehr senden oder Bilder hochladen konnten. Behoben — die Absicherung greift jetzt korrekt für alle Rollen, und die Moderation fremder Nachrichten durch Admins/Moderatoren bleibt erhalten.
 - **Ungelesen-Zähler auf dem Chats-Tab korrigiert:** Der Zähler bezog fremde Chats mit ein, an denen man gar nicht beteiligt war, und zeigte dadurch zu hohe Werte (die sich nicht auf null zurücksetzen ließen). Er zählt jetzt nur noch die eigenen Chats mit ungelesenen Nachrichten. Offene Beitritts-/Chat-Anfragen (für Admins/Moderatoren) werden getrennt als eigenes rotes Zeichen dargestellt statt mit den Ungelesenen vermischt.
 
 ---

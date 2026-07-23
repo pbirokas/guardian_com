@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-07-23
+
+- **Weitere Abschottung: Meldungen und Abstimmungen.** Gemeldete Nachrichten sind jetzt ausschließlich für die Aufsicht (Admin/Moderatoren) der jeweiligen Organisation einsehbar (bisher technisch für jedes angemeldete Konto lesbar) — die Umstellung greift serverseitig sofort, ohne App-Update. Abstimmungen (Umfragen) sind nur noch für die Chat-Beteiligten zugänglich.
+
+---
+
 ## 2026-07-22
 
 - **Datenschutz: Chats und Nachrichten sind jetzt strikt abgeschottet.** Bisher waren Chat- und Nachrichten-Einträge technisch für jedes angemeldete Konto lesbar (die App zeigte zwar nur die eigenen Chats an, die Absicherung lag aber nur in der Anzeige). Jetzt kann jeden Chat und jede Nachricht ausschließlich lesen, wer wirklich beteiligt ist: die Chat-Teilnehmer, die Guardians der beteiligten Kinder sowie die Aufsicht (Admin/Moderatoren) der jeweiligen Organisation. Beim Beitritt zu einem Gruppenchat und bei einer späteren Beförderung zum Moderator wirkt der Zugriff auch rückwirkend auf die bestehende Historie.

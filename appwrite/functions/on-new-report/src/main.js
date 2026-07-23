@@ -1,9 +1,10 @@
-﻿const { Client, Databases, Query } = require('node-appwrite');
+﻿const { Client, Databases, Query, Permission, Role } = require('node-appwrite');
 const { sendToUsers } = require('./fcm');
 
 const DB_ID = 'guardian';
 const COL_MEMBERS = 'members';
 const COL_ORGANIZATIONS = 'organizations';
+const COL_REPORTS = 'reports';
 
 module.exports = async ({ req, res, log, error }) => {
   const client = new Client()
@@ -36,6 +37,25 @@ module.exports = async ({ req, res, log, error }) => {
   membersResult.documents.forEach((doc) => {
     if (!alertUids.includes(doc.uid)) alertUids.push(doc.uid);
   });
+
+  // Report-ACL auf die Aufsicht (Admin + Moderatoren) beschränken. Der Melder
+  // kann diese Rollen selbst nicht setzen (Appwrite: Client darf nur eigene
+  // Rollen granten), daher überschreiben wir die client-gesetzte ACL hier
+  // serverseitig. Zusätzlich darf der Melder seine eigene Meldung lesen.
+  const perms = [];
+  for (const uid of alertUids) {
+    perms.push(Permission.read(Role.user(uid)));
+    perms.push(Permission.update(Role.user(uid)));
+  }
+  if (report.reportedByUid) {
+    perms.push(Permission.read(Role.user(report.reportedByUid)));
+  }
+  try {
+    await db.updateDocument(DB_ID, COL_REPORTS, report.$id, {}, perms);
+    log(`Report ${report.$id}: ACL auf ${alertUids.length} Aufsicht(en) gesetzt`);
+  } catch (e) {
+    error(`Report ${report.$id}: ACL konnte nicht gesetzt werden: ${e.message}`);
+  }
 
   const body = messageText && messageText.length > 80
     ? messageText.substring(0, 80) + '…'

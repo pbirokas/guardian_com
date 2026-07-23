@@ -72,6 +72,18 @@ class ChatService {
     ];
   }
 
+  /// Rechte für ein Poll-Dokument: das Conversation-Team liest; Teilnehmer
+  /// stimmen ab und Mods schließen (beides = Update auf dem Poll-Doc), daher
+  /// Update fürs ganze Team. Löschen bleibt beim Ersteller.
+  List<String> _pollPerms(String convId) {
+    final conv = Role.team(convId);
+    return [
+      Permission.read(conv),
+      Permission.update(conv),
+      Permission.delete(Role.user(_uid)),
+    ];
+  }
+
   static int _byLastMessageDesc(Conversation a, Conversation b) {
     if (a.lastMessageAt == null) return 1;
     if (b.lastMessageAt == null) return -1;
@@ -1022,6 +1034,7 @@ class ChatService {
       collectionId: _colPolls,
       documentId: pollId,
       data: {...poll.toAppwrite(), 'orgId': orgId},
+      permissions: _pollPerms(convId),
     );
     final msg = Message(
       id: msgId,
@@ -1167,7 +1180,10 @@ class ChatService {
         'createdAt': DateTime.now().toUtc().toIso8601String(),
         'status': 'pending',
       },
-      permissions: [Permission.read(Role.users())],
+      // Nur der Melder — die Function `on-new-report` setzt danach die ACL auf
+      // die Aufsicht (Admin/Mods). Der Client kann fremde Aufsichts-Rollen nicht
+      // selbst granten.
+      permissions: [Permission.read(Role.user(_uid))],
     );
   }
 

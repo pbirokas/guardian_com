@@ -34,6 +34,8 @@ const COL_MEMBERS = 'members';
 const COL_CONVERSATIONS = 'conversations';
 const COL_MESSAGES = 'chat_messages';
 const COL_SCHEDULED = 'scheduled_messages';
+const COL_POLLS = 'polls';
+const COL_REPORTS = 'reports';
 
 const projectId = process.env.APPWRITE_PROJECT_ID;
 const confirmArg = process.argv.find((a) => a.startsWith('--confirm='));
@@ -76,6 +78,23 @@ function scheduledPerms(senderUid) {
   if (!senderUid) return [];
   const u = Role.user(senderUid);
   return [Permission.read(u), Permission.update(u), Permission.delete(u)];
+}
+
+function pollPerms(convId, createdBy) {
+  const c = Role.team(convId);
+  const perms = [Permission.read(c), Permission.update(c)];
+  if (createdBy) perms.push(Permission.delete(Role.user(createdBy)));
+  return perms;
+}
+
+function reportPerms(supervisorUids, reportedByUid) {
+  const perms = [];
+  for (const uid of supervisorUids) {
+    perms.push(Permission.read(Role.user(uid)));
+    perms.push(Permission.update(Role.user(uid)));
+  }
+  if (reportedByUid) perms.push(Permission.read(Role.user(reportedByUid)));
+  return perms;
 }
 
 function samePerms(a, b) {
@@ -243,6 +262,60 @@ async function main() {
     }
   });
   console.log(`  Geplant: ${schedCount}  ACL geändert: ${schedUpdated}\n`);
+
+  // ── Phase 5: Polls (Team-Modell wie Nachrichten) ─────────────────────────
+  console.log('Phase 5: Polls');
+  let pollCount = 0;
+  let pollUpdated = 0;
+  await eachDocument(COL_POLLS, [], async (poll) => {
+    pollCount++;
+    const convId = poll.convId;
+    if (!convId) {
+      console.error(`  ✗ Poll ${poll.$id} ohne convId — übersprungen`);
+      return;
+    }
+    const desired = pollPerms(convId, poll.createdBy);
+    if (samePerms(poll.$permissions, desired)) return;
+    pollUpdated++;
+    if (!DRY) {
+      try {
+        await db.updateDocument(DB_ID, COL_POLLS, poll.$id, {}, desired);
+      } catch (e) {
+        console.error(`  ✗ Poll-ACL ${poll.$id}: ${e.message}`);
+      }
+    }
+  });
+  console.log(`  Polls: ${pollCount}  ACL geändert: ${pollUpdated}\n`);
+
+  // ── Phase 6: Reports (nur Aufsicht + Melder) ─────────────────────────────
+  console.log('Phase 6: Reports');
+  let reportCount = 0;
+  let reportUpdated = 0;
+  await eachDocument(COL_REPORTS, [], async (report) => {
+    reportCount++;
+    const orgId = report.orgId;
+    if (!orgId) {
+      console.error(`  ✗ Report ${report.$id} ohne orgId — übersprungen`);
+      return;
+    }
+    const supervisors = [
+      ...new Set([
+        ...(report.orgAdminUid ? [report.orgAdminUid] : []),
+        ...(supervisorsByOrg.get(orgId) ?? []),
+      ]),
+    ].filter(Boolean);
+    const desired = reportPerms(supervisors, report.reportedByUid);
+    if (samePerms(report.$permissions, desired)) return;
+    reportUpdated++;
+    if (!DRY) {
+      try {
+        await db.updateDocument(DB_ID, COL_REPORTS, report.$id, {}, desired);
+      } catch (e) {
+        console.error(`  ✗ Report-ACL ${report.$id}: ${e.message}`);
+      }
+    }
+  });
+  console.log(`  Reports: ${reportCount}  ACL geändert: ${reportUpdated}\n`);
 
   console.log('=== Fertig ===');
   if (DRY) {

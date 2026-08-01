@@ -18,6 +18,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noConnection => 'No connection';
 
   @override
+  String get connectionErrorMessage =>
+      'The app can\'t reach the server. It will continue automatically as soon as a connection is available.';
+
+  @override
+  String get connectionRetry => 'Try again';
+
+  @override
   String get sharePickerTitle => 'Share to chat';
 
   @override

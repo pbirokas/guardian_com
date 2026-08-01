@@ -116,6 +116,18 @@ abstract class AppLocalizations {
   /// **'Keine Verbindung'**
   String get noConnection;
 
+  /// No description provided for @connectionErrorMessage.
+  ///
+  /// In de, this message translates to:
+  /// **'Die App kann den Server nicht erreichen. Sobald wieder eine Verbindung besteht, geht es automatisch weiter.'**
+  String get connectionErrorMessage;
+
+  /// No description provided for @connectionRetry.
+  ///
+  /// In de, this message translates to:
+  /// **'Erneut versuchen'**
+  String get connectionRetry;
+
   /// No description provided for @sharePickerTitle.
   ///
   /// In de, this message translates to:

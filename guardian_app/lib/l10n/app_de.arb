@@ -4,6 +4,8 @@
   "appTitle": "Guardian Com",
   "appSubtitle": "Sichere Kommunikation für Organisationen",
   "noConnection": "Keine Verbindung",
+  "connectionErrorMessage": "Die App kann den Server nicht erreichen. Sobald wieder eine Verbindung besteht, geht es automatisch weiter.",
+  "connectionRetry": "Erneut versuchen",
   "sharePickerTitle": "Teilen in Chat",
   "noConversations": "Keine Chats vorhanden",
 

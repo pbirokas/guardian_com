@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/screens/login_screen.dart';
+import '../../features/auth/screens/connection_error_screen.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import '../../features/organizations/screens/organizations_screen.dart';
 import '../../features/organizations/screens/organization_detail_screen.dart';
@@ -54,9 +55,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       final authState = ref.read(authStateProvider);
+      final isOnConnError = state.uri.path == '/connection-error';
       if (authState.isLoading) return null;
+
+      // Verbindungs-/Serverfehler (kein echter 401): Session-Status unbekannt →
+      // Verbindungs-Screen statt Login, damit die Anmeldung erhalten bleibt.
+      if (authState.hasError) return isOnConnError ? null : '/connection-error';
+
       final isLoggedIn = authState.value != null;
       final isOnLogin = state.uri.path == '/login';
+      // Verbindung wieder da → von der Fehlerseite normal weiterleiten.
+      if (isOnConnError) return isLoggedIn ? '/organizations' : '/login';
       if (!isLoggedIn && !isOnLogin) return '/login';
       if (isLoggedIn && isOnLogin) return '/organizations';
       return null;
@@ -69,6 +78,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/login',
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/connection-error',
+        builder: (context, state) => const ConnectionErrorScreen(),
       ),
       GoRoute(
         path: '/organizations',

@@ -759,17 +759,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final l = AppLocalizations.of(context);
     try {
       final picker = ImagePicker();
-      final picked = await picker.pickImage(
-        source: ImageSource.gallery,
+      final picked = await picker.pickMultiImage(
         maxWidth: 1024,
         maxHeight: 1024,
         imageQuality: 80,
       );
-      if (picked == null || !mounted) return;
-      final bytes = await picked.readAsBytes();
-      await ref
-          .read(chatServiceProvider)
-          .sendImage(widget.chatId, bytes);
+      if (picked.isEmpty || !mounted) return;
+      // Mehrere Bilder werden nacheinander als je eine Nachricht gesendet.
+      for (final image in picked) {
+        final bytes = await image.readAsBytes();
+        await ref.read(chatServiceProvider).sendImage(widget.chatId, bytes);
+        if (!mounted) return;
+      }
       _markRead();
       _scrollToBottom();
       _refreshMessages();

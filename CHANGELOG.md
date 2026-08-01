@@ -4,6 +4,16 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-08-02
+
+- **Moderatoren können jetzt Gruppen-Chats erstellen.** Die Schaltfläche „Gruppe erstellen" stand bisher nur Administratoren zur Verfügung.
+- **Beim Erstellen einer Gruppe kann man sich selbst hinzufügen.** Der eigene Account erscheint jetzt in der Personenauswahl und ist standardmäßig vorausgewählt — man muss sich nicht mehr nachträglich selbst zur Gruppe hinzufügen.
+- **Mehrere Bilder auf einmal senden.** Beim Teilen von Bildern im Chat lassen sich jetzt mehrere Bilder gleichzeitig auswählen; sie werden nacheinander als einzelne Nachrichten gesendet.
+- **Kein ungewolltes Abmelden mehr bei fehlender Verbindung.** Startet die App ohne Internet oder ist der Server nicht erreichbar, erscheint jetzt ein Hinweis „Keine Verbindung" statt der Anmeldemaske. Die Anmeldung bleibt erhalten und die App macht automatisch weiter, sobald wieder eine Verbindung besteht.
+- **Löschen von Organisationen repariert.** Das Löschen einer Organisation brach mit einem internen Fehler ab; es funktioniert jetzt wieder zuverlässig.
+
+---
+
 ## 2026-07-23
 
 - **Weitere Abschottung: Meldungen und Abstimmungen.** Gemeldete Nachrichten sind jetzt ausschließlich für die Aufsicht (Admin/Moderatoren) der jeweiligen Organisation einsehbar (bisher technisch für jedes angemeldete Konto lesbar) — die Umstellung greift serverseitig sofort, ohne App-Update. Abstimmungen (Umfragen) sind nur noch für die Chat-Beteiligten zugänglich.

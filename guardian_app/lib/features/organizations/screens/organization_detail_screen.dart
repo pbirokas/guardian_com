@@ -1165,8 +1165,8 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                 ],
               ],
             ),
-            // FAB für Admin: Gruppe erstellen
-            if (isAdmin)
+            // FAB für Admin/Moderator: Gruppe erstellen
+            if (isAdmin || isModerator)
               Positioned(
                 bottom: 16 + MediaQuery.of(context).padding.bottom,
                 right: 16,
@@ -1191,8 +1191,14 @@ Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref,
     Organization org, List<OrgMember> members) async {
   final l = AppLocalizations.of(context);
   final nameController = TextEditingController();
-  final nonAdmins = members.where((m) => m.uid != org.adminUid).toList();
-  final selected = <String>{};
+  final currentUid = ref.read(authStateProvider).value?.uid;
+  // Auswählbar sind alle außer dem Org-Admin — der Ersteller selbst ist aber
+  // immer dabei (damit er sich in die eigene Gruppe aufnehmen kann) und
+  // standardmäßig vorausgewählt.
+  final selectableMembers = members
+      .where((m) => m.uid != org.adminUid || m.uid == currentUid)
+      .toList();
+  final selected = <String>{?currentUid};
 
   final confirmed = await showDialog<bool>(
     context: context,
@@ -1219,7 +1225,7 @@ Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref,
                 Text(ld.addMembers,
                     style: const TextStyle(fontSize: 12, color: Colors.grey)),
                 const SizedBox(height: 8),
-                ...nonAdmins.map((m) => CheckboxListTile(
+                ...selectableMembers.map((m) => CheckboxListTile(
                       value: selected.contains(m.uid),
                       onChanged: (v) => setState(() =>
                           v == true ? selected.add(m.uid) : selected.remove(m.uid)),

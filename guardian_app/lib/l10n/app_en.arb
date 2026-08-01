@@ -4,6 +4,8 @@
   "appTitle": "Guardian Com",
   "appSubtitle": "Secure communication for organizations",
   "noConnection": "No connection",
+  "connectionErrorMessage": "The app can't reach the server. It will continue automatically as soon as a connection is available.",
+  "connectionRetry": "Try again",
   "sharePickerTitle": "Share to chat",
   "noConversations": "No chats available",
 

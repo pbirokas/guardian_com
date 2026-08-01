@@ -35,8 +35,13 @@ class AuthService {
       final account = await _account.get();
       await cacheRealtimeSessionCookie(_client);
       return _getOrCreateUserDoc(account);
-    } on AppwriteException {
-      return null;
+    } on AppwriteException catch (e) {
+      // Nur ein echter Auth-Fehler (401) bedeutet "nicht angemeldet".
+      if (e.code == 401) return null;
+      // Netzwerk-/Serverfehler (z. B. code 0 offline, 5xx) NICHT als Logout
+      // werten — Fehler weiterreichen, damit die Session erhalten bleibt und
+      // der Router den Verbindungs-Screen zeigt statt den Login.
+      rethrow;
     }
   }
 

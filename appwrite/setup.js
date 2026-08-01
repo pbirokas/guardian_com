@@ -147,9 +147,13 @@ async function setupOrganizations() {
   await int(COL.ORGANIZATIONS,  'messageRetentionDays', false, 90, 30, 365);
   await str(COL.ORGANIZATIONS,  'keywords',             100,  false, null, true);
   await int(COL.ORGANIZATIONS,  'pendingReportsCount',   false, 0, 0);
+  // 'deleting' während einer laufenden Org-Löschung (admin-member-action:deleteOrg);
+  // cleanup-orphaned-data.js räumt so abgebrochene Löschungen idempotent ab.
+  await str(COL.ORGANIZATIONS,  'deletionStatus',       20,   false);
   // Indexes
   await idx(COL.ORGANIZATIONS, 'adminUid_idx',    'key',      ['adminUid']);
   await idx(COL.ORGANIZATIONS, 'isArchived_idx',  'key',      ['isArchived']);
+  await idx(COL.ORGANIZATIONS, 'deletionStatus_idx', 'key',   ['deletionStatus']);
   // memberUids: Array-Attribut — Appwrite unterstützt keine Indexes darauf
 }
 

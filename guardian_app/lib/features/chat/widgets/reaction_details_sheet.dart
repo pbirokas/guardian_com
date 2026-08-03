@@ -3,6 +3,7 @@ import 'package:guardian_app/l10n/app_localizations.dart';
 
 import '../../../core/models/org_member.dart';
 import '../../../core/widgets/user_avatar.dart';
+import '../../../core/utils/initials.dart';
 
 /// Ein Reagierender mit aufgelöstem Namen/Avatar.
 class _Reactor {
@@ -117,7 +118,7 @@ class _ReactionDetailsSheetState extends State<ReactionDetailsSheet> {
                   leading: UserAvatar(
                     photoUrl: r.photoUrl,
                     fallbackText:
-                        (r.name.isNotEmpty ? r.name[0] : '?').toUpperCase(),
+                        initialsFor(r.name),
                   ),
                   title: Text(r.name),
                   trailing:

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/widgets/user_avatar.dart';
+import '../../../core/utils/initials.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../organizations/providers/organizations_provider.dart';
@@ -202,8 +203,7 @@ class _PersonTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final initials =
-        (name.isNotEmpty ? name[0] : (email.isNotEmpty ? email[0] : '?'))
-            .toUpperCase();
+        initialsFor(name, email);
     return ListTile(
       leading: UserAvatar(photoUrl: photoUrl, fallbackText: initials),
       title: Text(name.isNotEmpty ? name : email),
@@ -246,8 +246,7 @@ class _ChildWithCoParentsTile extends StatelessWidget {
         allParentUids.where((uid) => uid != currentUid).toList();
 
     final initials =
-        (name.isNotEmpty ? name[0] : (email.isNotEmpty ? email[0] : '?'))
-            .toUpperCase();
+        initialsFor(name, email);
 
     return ListTile(
       leading: UserAvatar(photoUrl: photoUrl, fallbackText: initials),

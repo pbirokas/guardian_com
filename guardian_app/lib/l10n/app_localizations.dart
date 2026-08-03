@@ -254,54 +254,6 @@ abstract class AppLocalizations {
   /// **'Fehler: {message}'**
   String errorMessage(String message);
 
-  /// No description provided for @signInWithGoogle.
-  ///
-  /// In de, this message translates to:
-  /// **'Mit Google anmelden'**
-  String get signInWithGoogle;
-
-  /// No description provided for @googleSignInHint.
-  ///
-  /// In de, this message translates to:
-  /// **'Bereits ein Konto? Melde dich per E-Mail an und verknüpfe Google danach im Profil.'**
-  String get googleSignInHint;
-
-  /// No description provided for @connectedAccounts.
-  ///
-  /// In de, this message translates to:
-  /// **'Verbundene Konten'**
-  String get connectedAccounts;
-
-  /// No description provided for @linkGoogle.
-  ///
-  /// In de, this message translates to:
-  /// **'Mit Google verknüpfen'**
-  String get linkGoogle;
-
-  /// No description provided for @googleLinked.
-  ///
-  /// In de, this message translates to:
-  /// **'Google-Konto erfolgreich verknüpft.'**
-  String get googleLinked;
-
-  /// No description provided for @googleLinkedStatus.
-  ///
-  /// In de, this message translates to:
-  /// **'Verknüpft'**
-  String get googleLinkedStatus;
-
-  /// No description provided for @unlinkGoogle.
-  ///
-  /// In de, this message translates to:
-  /// **'Google-Verknüpfung trennen'**
-  String get unlinkGoogle;
-
-  /// No description provided for @googleNotLinked.
-  ///
-  /// In de, this message translates to:
-  /// **'Noch nicht verknüpft'**
-  String get googleNotLinked;
-
   /// No description provided for @updateAvailableTitle.
   ///
   /// In de, this message translates to:
@@ -337,12 +289,6 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Später'**
   String get updateLaterButton;
-
-  /// No description provided for @or.
-  ///
-  /// In de, this message translates to:
-  /// **'oder'**
-  String get or;
 
   /// No description provided for @emailAddress.
   ///

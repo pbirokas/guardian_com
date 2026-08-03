@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:appwrite/appwrite.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:web_socket_channel/io.dart';
 
@@ -15,6 +16,35 @@ const appwriteMediaBucketId = '6a02e524000954c9f1de';
 /// Öffentliche View-URL einer Datei im Media-Bucket (Profil-/Gruppen-/Chatbilder).
 String appwriteFileViewUrl(String fileId) =>
     '$appwriteEndpoint/storage/buckets/$appwriteMediaBucketId/files/$fileId/view?project=$appwriteProjectId';
+
+/// Komprimiert [bytes] auf 400×400 JPEG (q80) und lädt sie in den Media-Bucket.
+/// Rückgabe: öffentliche View-URL. Gemeinsame Basis für Profil- und Gruppenbilder
+/// (ACL: `read any`, `delete` nur durch [ownerUid]).
+Future<String> uploadMediaImage(
+  Storage storage, {
+  required Uint8List bytes,
+  required String ownerUid,
+  String filename = 'image.jpg',
+}) async {
+  final compressed = await FlutterImageCompress.compressWithList(
+    bytes,
+    minWidth: 400,
+    minHeight: 400,
+    quality: 80,
+    format: CompressFormat.jpeg,
+  );
+  final file = await storage.createFile(
+    bucketId: appwriteMediaBucketId,
+    fileId: ID.unique(),
+    file: InputFile.fromBytes(
+        bytes: compressed, filename: filename, contentType: 'image/jpeg'),
+    permissions: [
+      Permission.read(Role.any()),
+      Permission.delete(Role.user(ownerUid)),
+    ],
+  );
+  return appwriteFileViewUrl(file.$id);
+}
 
 final _appwriteStorageHost = Uri.parse(appwriteEndpoint).host;
 

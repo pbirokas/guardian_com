@@ -18,6 +18,7 @@ import '../../../core/models/app_user.dart';
 import '../../../core/dialogs/edit_group_dialog.dart';
 import '../../../core/widgets/group_avatar.dart';
 import '../../../core/widgets/user_avatar.dart';
+import '../../../core/utils/initials.dart';
 import '../../../core/widgets/help_sheet.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/models/member_suggestion.dart';
@@ -1235,7 +1236,7 @@ Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref,
                       secondary: UserAvatar(
                         radius: 16,
                         photoUrl: m.photoUrl,
-                        fallbackText: (m.displayName.isNotEmpty ? m.displayName[0] : '?').toUpperCase(),
+                        fallbackText: initialsFor(m.displayName),
                       ),
                       dense: true,
                       contentPadding: EdgeInsets.zero,
@@ -1981,7 +1982,7 @@ class _MembersTab extends ConsumerWidget {
                           UserAvatar(
                             radius: 16,
                             photoUrl: m.photoUrl,
-                            fallbackText: (m.displayName.isNotEmpty ? m.displayName[0] : '?').toUpperCase(),
+                            fallbackText: initialsFor(m.displayName),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -2481,7 +2482,7 @@ class _ConversationTile extends StatelessWidget {
 
     Widget memberRow(OrgMember m) {
       final photo = m.photoUrl;
-      final initial = m.displayName.isNotEmpty ? m.displayName[0].toUpperCase() : '?';
+      final initial = initialsFor(m.displayName);
       final roleLabel = switch (m.role) {
         OrgRole.admin => l.roleAdmin,
         OrgRole.moderator => l.roleModerator,
@@ -2666,7 +2667,7 @@ class _ConversationTile extends StatelessWidget {
       final photoUrl = other?.photoUrl;
       avatar = UserAvatar(
         photoUrl: photoUrl,
-        fallbackText: (title.isNotEmpty ? title[0] : '?').toUpperCase(),
+        fallbackText: initialsFor(title),
       );
     }
 
@@ -3310,7 +3311,7 @@ class _MemberTile extends StatelessWidget {
       isThreeLine: guardians.isNotEmpty,
       leading: UserAvatar(
         photoUrl: member.photoUrl,
-        fallbackText: (member.displayName.isNotEmpty ? member.displayName[0] : '?').toUpperCase(),
+        fallbackText: initialsFor(member.displayName),
       ),
       title: Text(member.displayName),
       subtitle: Column(

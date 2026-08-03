@@ -1,4 +1,3 @@
-import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -8,8 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:appwrite/appwrite.dart' show Databases;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'core/appwrite_client.dart';
+import 'core/utils/launch_url.dart';
 import 'core/providers/app_update_provider.dart';
 import 'core/services/app_update_service.dart';
 import 'core/models/app_user.dart';
@@ -41,22 +40,6 @@ bool get _isDesktop =>
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  // App Check wird nur auf Android unterstützt (nicht auf Windows/Linux).
-  // try-catch + Timeout: Play Integrity schlägt auf manchen Geräten fehl
-  // (z. B. Huawei/EMUI, veraltete Google Play Services). Da App Check
-  // aktuell nicht erzwungen wird, ist ein stiller Fehlschlag unkritisch.
-  if (defaultTargetPlatform == TargetPlatform.android) {
-    try {
-      await FirebaseAppCheck.instance.activate(
-        providerAndroid: kDebugMode
-            ? const AndroidDebugProvider()
-            : const AndroidPlayIntegrityProvider(),
-      ).timeout(const Duration(seconds: 8));
-    } catch (_) {
-      // App startet ohne App Check – keine Auswirkung solange Enforcement aus.
-    }
-  }
 
   final isDesktop = _isDesktop;
 
@@ -466,10 +449,7 @@ class _UpdateListenerState extends ConsumerState<_UpdateListener> {
       }
     }
     if (action == 'update') {
-      final uri = Uri.tryParse(status.targetUrl);
-      if (uri != null) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
+      await openExternalUrl(status.targetUrl);
     }
   }
 

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:guardian_app/l10n/app_localizations.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../../../core/utils/launch_url.dart';
 import '../../organizations/providers/organizations_provider.dart';
 
 class PrivacyScreen extends ConsumerStatefulWidget {
@@ -72,10 +72,8 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
             title: Text(l.privacyPolicy),
             subtitle: Text(l.openInBrowser),
             trailing: const Icon(Icons.open_in_new, size: 16),
-            onTap: () => launchUrl(
-              Uri.parse('https://pbirokas.github.io/guardian_com/privacy_policy.html'),
-              mode: LaunchMode.externalApplication,
-            ),
+            onTap: () => openExternalUrl(
+                'https://pbirokas.github.io/guardian_com/privacy_policy.html'),
           ),
           const Divider(),
           _SectionHeader(l.data),

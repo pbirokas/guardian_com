@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-08-03
+
+- **Google-Anmeldung entfernt.** Die Anmeldung läuft jetzt ausschließlich über E-Mail (Einmal-Code). Der „Mit Google anmelden"-Knopf und die Google-Verknüpfung im Profil sind entfallen; bestehende Konten melden sich mit derselben E-Mail-Adresse per Code an.
+- **Weniger Google-Abhängigkeiten (Datenschutz).** Die App-Check-Komponente von Firebase wurde entfernt (wurde nicht erzwungen und ist mit dem Appwrite-Backend überflüssig).
+- **Interne Aufräumarbeiten.** Doppelter Bild-Upload-Code zusammengeführt sowie wiederkehrende Bausteine (Avatar-Initialen, „im Browser öffnen") in gemeinsame Helfer ausgelagert. Keine sichtbare Änderung.
+
+---
+
 ## 2026-08-02
 
 - **Moderatoren können jetzt Gruppen-Chats erstellen.** Die Schaltfläche „Gruppe erstellen" stand bisher nur Administratoren zur Verfügung.

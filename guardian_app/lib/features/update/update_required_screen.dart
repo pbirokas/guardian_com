@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:guardian_app/l10n/app_localizations.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/providers/app_update_provider.dart';
+import '../../core/utils/launch_url.dart';
 
 /// Blockierender Screen, wenn die installierte Version unter der Mindestversion
 /// liegt. Kein Zurück möglich — der Nutzer muss aktualisieren.
@@ -38,7 +38,7 @@ class UpdateRequiredScreen extends ConsumerWidget {
                   Text(l.updateRequiredBody, textAlign: TextAlign.center),
                   const SizedBox(height: 32),
                   FilledButton.icon(
-                    onPressed: url.isEmpty ? null : () => _open(url),
+                    onPressed: url.isEmpty ? null : () => openExternalUrl(url),
                     icon: const Icon(Icons.open_in_new),
                     label: Text(l.updateNowButton),
                   ),
@@ -49,12 +49,5 @@ class UpdateRequiredScreen extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  Future<void> _open(String url) async {
-    final uri = Uri.tryParse(url);
-    if (uri != null) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
   }
 }

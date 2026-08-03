@@ -30,6 +30,8 @@ import '../../../core/providers/share_provider.dart';
 import '../../../core/appwrite_client.dart';
 import '../../../core/widgets/group_avatar.dart';
 import '../../../core/widgets/user_avatar.dart';
+import '../../../core/utils/initials.dart';
+import '../../../core/utils/launch_url.dart';
 import '../widgets/reaction_details_sheet.dart';
 import '../../../features/organizations/providers/organizations_provider.dart';
 import '../../../core/services/chat_service.dart';
@@ -856,10 +858,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           secondary: UserAvatar(
                             radius: 16,
                             photoUrl: m.photoUrl,
-                            fallbackText: (m.displayName.isNotEmpty
-                                    ? m.displayName[0]
-                                    : '?')
-                                .toUpperCase(),
+                            fallbackText: initialsFor(m.displayName),
                           ),
                           dense: true,
                           contentPadding: EdgeInsets.zero,
@@ -936,10 +935,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           leading: UserAvatar(
                             radius: 18,
                             photoUrl: m.photoUrl,
-                            fallbackText: (m.displayName.isNotEmpty
-                                    ? m.displayName[0]
-                                    : '?')
-                                .toUpperCase(),
+                            fallbackText: initialsFor(m.displayName),
                             textStyle: const TextStyle(fontSize: 14),
                           ),
                           title: Text(m.displayName),
@@ -2931,10 +2927,7 @@ class _FileBubble extends StatelessWidget {
         : colorScheme.onSecondaryContainer.withAlpha(180);
 
     return GestureDetector(
-      onTap: () async {
-        final uri = Uri.tryParse(message.fileUrl!);
-        if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
-      },
+      onTap: () => openExternalUrl(message.fileUrl!),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

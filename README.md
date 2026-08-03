@@ -36,10 +36,10 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 |---|---|
 | **Frontend** | Flutter 3.x (Dart) |
 | **Authentifizierung & Dateiablage** | Appwrite (self-hosted) |
-| **Datenbank, Push & Fehlerberichte** | Firebase (Firestore, FCM, Crashlytics, App Check) |
+| **Datenbank, Push & Fehlerberichte** | Firebase (Firestore, FCM, Crashlytics) |
 | **State Management** | Riverpod 3.x |
 | **Navigation** | GoRouter |
-| **Anmeldemethoden** | Google Sign-In (Android), E-Mail-Code/OTP (Android, Windows) |
+| **Anmeldemethoden** | E-Mail-Code/OTP (Android, Windows) |
 | **Cloud Functions** | Node.js 22 (Benachrichtigungen, E-Mail-Einladungen) |
 
 ---
@@ -47,9 +47,7 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 ## Funktionsübersicht
 
 ### Authentifizierung
-- **Google Sign-In** (Android)
 - **E-Mail-Code (passwortlos):** Nutzer gibt E-Mail ein → erhält 6-stelligen Code per E-Mail → Code direkt in der App eingeben. Kein Passwort, kein Browser-Wechsel nötig. Funktioniert auf Android und Windows.
-- **Google-Konto verknüpfen:** Im Profil kann ein bestehendes Konto nachträglich mit Google verknüpft werden, um künftig per Google-Login einzusteigen
 - Automatische Benutzerprofil-Erstellung bei der ersten Anmeldung
 - Pre-Registrierung: Einladungen werden beim ersten Login automatisch verarbeitet, sodass Rollen sofort aktiv sind
 
@@ -303,7 +301,6 @@ Die Schritt-für-Schritt-Tour auf der Organisations-Übersicht hebt die wichtigs
 - Organisations-Liste auf Desktop auf max. 640 px Breite begrenzt (linksbündig)
 - Spenden-Popup (Ko-fi / PayPal) — erscheint max. 1× pro Woche, nicht für Kinder
 - Firebase Crashlytics (Android)
-- Firebase App Check (Android)
 - Versionsnummer automatisch aus Git-Commit-Anzahl generiert
 
 ---
@@ -312,7 +309,7 @@ Die Schritt-für-Schritt-Tour auf der Organisations-Übersicht hebt die wichtigs
 
 | Plattform | Status | Besonderheiten |
 |---|---|---|
-| **Android** | ✅ | Google Play, FCM, Google Sign-In + E-Mail-Code, App Check |
+| **Android** | ✅ | Google Play, FCM, E-Mail-Code |
 | **Windows** | ✅ | System Tray, Taskleisten-Badge, E-Mail-Code (OTP) |
 | **iOS / macOS** | ⏳ nicht konfiguriert | – |
 
@@ -375,14 +372,14 @@ appwrite/
 │   │                        #   on-child-org-invite, on-parent-consent,
 │   │                        #   on-member-guardians-changed, on-org-admin-transferred,
 │   │                        #   get-child-summary, process-my-invitations,
-│   │                        #   revoke-connection, merge-oauth-account,
+│   │                        #   revoke-connection,
 │   │                        #   cleanup-old-messages, cleanup-expired-polls,
 │   │                        #   cleanup-expired-announcements
 │   └── _shared/             # Geteilte Hilfsfunktionen (FCM, E-Mail, DB-Zugriff)
 └── setup.js                 # Einmalige Initialisierung (Collections, Permissions)
 
 firestore.rules              # Firestore Security Rules (FCM-Hilfsdaten)
-firebase.json                # Firebase-Konfiguration (FCM, Crashlytics, App Check)
+firebase.json                # Firebase-Konfiguration (FCM, Crashlytics)
 ```
 
 ---
@@ -519,7 +516,6 @@ Alle Functions laufen in Appwrite (Node.js 16). Event-getriggerte Functions reag
 | `process-my-invitations` | Callable | Verarbeitet ausstehende Einladungen beim Login |
 | `get-child-summary` | Callable | Gibt Aktivitätszusammenfassung eines Kindes zurück (24 h / 7 Tage) |
 | `revoke-connection` | Callable | Trennt eine verifizierte Eltern-Kind-Verbindung |
-| `merge-oauth-account` | Callable | Verknüpft Google-OAuth mit bestehendem Konto |
 | `cleanup-old-messages` | Cron `30 3 * * *` | Löscht Nachrichten älter als `messageRetentionDays` |
 | `cleanup-expired-polls` | Cron `5 3 * * *` | Schließt abgelaufene Abstimmungen |
 | `cleanup-expired-announcements` | Cron `0 3 * * *` | Entfernt abgelaufene Ankündigungen |
@@ -533,7 +529,7 @@ Alle Functions laufen in Appwrite (Node.js 16). Event-getriggerte Functions reag
 ### Voraussetzungen
 
 - [Flutter SDK](https://docs.flutter.dev/get-started/install) ≥ 3.x
-- [Appwrite](https://appwrite.io) (self-hosted oder Cloud) mit aktiviertem Google-OAuth und E-Mail-OTP
+- [Appwrite](https://appwrite.io) (self-hosted oder Cloud) mit aktiviertem E-Mail-OTP
 - [Appwrite CLI](https://appwrite.io/docs/tooling/command-line/installation) (für Functions-Deployment)
 - [Firebase CLI](https://firebase.google.com/docs/cli) + [FlutterFire CLI](https://firebase.flutter.dev/docs/cli) (nur für FCM / Crashlytics)
 - Android Studio (für Android-Builds) oder Visual Studio 2022 mit C++-Workload (für Windows-Builds)
@@ -549,7 +545,7 @@ cd guardian_com
 # 2. Appwrite-Projekt einrichten
 #    → Projekt anlegen (Appwrite Console oder CLI)
 #    → Endpunkt + Projekt-ID + Bucket-ID in guardian_app/lib/core/appwrite_client.dart eintragen
-#    → Authentication: Google OAuth + E-Mail-OTP aktivieren
+#    → Authentication: E-Mail-OTP aktivieren
 #    → Storage-Bucket "media" anlegen
 #    → Datenbank "guardian" anlegen + Schema deployen:
 cd appwrite
@@ -566,7 +562,6 @@ appwrite deploy function --all
 
 # 5. Firebase-Projekt einrichten (console.firebase.google.com) — nur für FCM & Crashlytics
 #    → Cloud Messaging aktivieren
-#    → App Check aktivieren (Android: Play Integrity)
 #    → Crashlytics aktivieren (Android)
 
 # 6. FlutterFire konfigurieren (erzeugt firebase_options.dart + google-services.json)

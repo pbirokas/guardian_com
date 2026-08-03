@@ -90,31 +90,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get signInWithGoogle => 'Sign in with Google';
-
-  @override
-  String get googleSignInHint =>
-      'Already have an account? Sign in with your email first, then link Google in your profile.';
-
-  @override
-  String get connectedAccounts => 'Connected accounts';
-
-  @override
-  String get linkGoogle => 'Link Google account';
-
-  @override
-  String get googleLinked => 'Google account linked successfully.';
-
-  @override
-  String get googleLinkedStatus => 'Linked';
-
-  @override
-  String get unlinkGoogle => 'Unlink Google';
-
-  @override
-  String get googleNotLinked => 'Not linked yet';
-
-  @override
   String get updateAvailableTitle => 'Update available';
 
   @override
@@ -133,9 +108,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get updateLaterButton => 'Later';
-
-  @override
-  String get or => 'or';
 
   @override
   String get emailAddress => 'Email address';

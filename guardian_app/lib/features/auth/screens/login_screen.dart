@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,21 +29,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _emailController.dispose();
     _otpController.dispose();
     super.dispose();
-  }
-
-  Future<void> _signInWithGoogle() async {
-    setState(() => _loading = true);
-    try {
-      await ref.read(authStateProvider.notifier).signInWithGoogle();
-    } catch (e) {
-      if (mounted) {
-        final l = AppLocalizations.of(context);
-        final msg = kDebugMode ? e.toString() : l.googleSignInHint;
-        _showError(msg);
-      }
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
   }
 
   Future<void> _sendOtp({String? overrideEmail}) async {
@@ -136,26 +120,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        OutlinedButton(
-          onPressed: _signInWithGoogle,
-          style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14)),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('G',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red)),
-              const SizedBox(width: 10),
-              Text(l.signInWithGoogle),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        _orDivider(l),
-        const SizedBox(height: 24),
         TextField(
           controller: _emailController,
           keyboardType: TextInputType.emailAddress,
@@ -239,15 +203,4 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ],
     );
   }
-
-  Widget _orDivider(AppLocalizations l) => Row(
-        children: [
-          const Expanded(child: Divider()),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(l.or, style: const TextStyle(color: Colors.grey)),
-          ),
-          const Expanded(child: Divider()),
-        ],
-      );
 }

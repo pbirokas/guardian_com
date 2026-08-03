@@ -27,15 +27,8 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
         .updateProfile(uid, displayName, photoUrl: photoUrl));
   }
 
-  Future<void> signInWithGoogle() =>
-      _authAction(() => ref.read(authServiceProvider).signInWithGoogle());
-
   Future<void> confirmMagicLink(String userId, String secret) =>
       _authAction(() => ref.read(authServiceProvider).confirmMagicLink(userId, secret));
-
-  Future<void> linkGoogleAccount() async {
-    await ref.read(authServiceProvider).linkGoogleAccount();
-  }
 
   Future<void> signOut() async {
     await ref.read(authServiceProvider).signOut();

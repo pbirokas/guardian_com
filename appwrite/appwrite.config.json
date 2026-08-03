@@ -1875,23 +1875,6 @@
             "vars": {}
         },
         {
-            "$id": "merge-oauth-account",
-            "name": "merge-oauth-account",
-            "runtime": "node-16.0",
-            "execute": [
-                "users"
-            ],
-            "events": [],
-            "schedule": "",
-            "timeout": 30,
-            "enabled": true,
-            "logging": true,
-            "entrypoint": "src/main.js",
-            "commands": "npm install",
-            "path": "functions/merge-oauth-account",
-            "vars": {}
-        },
-        {
             "$id": "daily-error-report",
             "name": "daily-error-report",
             "runtime": "node-16.0",

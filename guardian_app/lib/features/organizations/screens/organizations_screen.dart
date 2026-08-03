@@ -6,8 +6,9 @@ import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:showcaseview/showcaseview.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/battery_optimization_service.dart';
+import '../../../core/utils/initials.dart';
+import '../../../core/utils/launch_url.dart';
 import '../../../core/widgets/help_sheet.dart';
 import '../../../core/widgets/user_avatar.dart';
 import '../../../core/models/app_user.dart';
@@ -268,10 +269,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.code),
                 label: Text(l.githubRepository),
-                onPressed: () async {
-                  final uri = Uri.parse(_kGithubUrl);
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                },
+                onPressed: () => openExternalUrl(_kGithubUrl),
               ),
             ),
           ],
@@ -318,12 +316,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
             UserAvatar(
               radius: 32,
               photoUrl: user.photoUrl,
-              fallbackText: ((user.displayName.isNotEmpty
-                      ? user.displayName
-                      : user.email.isNotEmpty
-                          ? user.email
-                          : '?')[0])
-                  .toUpperCase(),
+              fallbackText: initialsFor(user.displayName, user.email),
               textStyle: const TextStyle(fontSize: 24),
             ),
             const SizedBox(height: 8),
@@ -501,12 +494,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                   child: UserAvatar(
                     radius: 18,
                     photoUrl: user.photoUrl,
-                    fallbackText: ((user.displayName.isNotEmpty
-                            ? user.displayName
-                            : user.email.isNotEmpty
-                                ? user.email
-                                : '?')[0])
-                        .toUpperCase(),
+                    fallbackText: initialsFor(user.displayName, user.email),
                   ),
                 ),
               ),
@@ -815,10 +803,7 @@ class _DonationButton extends StatelessWidget {
         ),
         icon: Icon(icon),
         label: Text(label),
-        onPressed: () async {
-          final uri = Uri.parse(url);
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        },
+        onPressed: () => openExternalUrl(url),
       ),
     );
   }

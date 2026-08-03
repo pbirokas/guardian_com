@@ -4,9 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:appwrite/appwrite.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:appwrite/enums.dart';
 import 'package:appwrite/models.dart' as aw;
-import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../appwrite_client.dart';
 import '../models/app_user.dart';
 import '../models/notification_settings.dart';
@@ -58,29 +56,10 @@ class AuthService {
 
   /// Lädt ein Profilbild in den Appwrite-Media-Bucket hoch und gibt dessen
   /// öffentliche View-URL zurück. Das Bild wird auf 400×400 JPEG komprimiert
-  /// (analog zu Gruppenbildern).
-  Future<String> uploadProfileImage(String uid, Uint8List bytes) async {
-    final compressed = await FlutterImageCompress.compressWithList(
-      bytes,
-      minWidth: 400,
-      minHeight: 400,
-      quality: 80,
-      format: CompressFormat.jpeg,
-    );
-    final file = await _storage.createFile(
-      bucketId: appwriteMediaBucketId,
-      fileId: ID.unique(),
-      file: InputFile.fromBytes(
-          bytes: compressed,
-          filename: 'profile.jpg',
-          contentType: 'image/jpeg'),
-      permissions: [
-        Permission.read(Role.any()),
-        Permission.delete(Role.user(uid)),
-      ],
-    );
-    return appwriteFileViewUrl(file.$id);
-  }
+  /// (analog zu Gruppenbildern, siehe [uploadMediaImage]).
+  Future<String> uploadProfileImage(String uid, Uint8List bytes) =>
+      uploadMediaImage(_storage, bytes: bytes, ownerUid: uid,
+          filename: 'profile.jpg');
 
   Future<AppUser> updateProfile(String uid, String displayName,
       {String? photoUrl}) async {
@@ -94,39 +73,6 @@ class AuthService {
       data: updates,
     );
     return AppUser.fromAppwrite({r'$id': doc.$id, ...doc.data});
-  }
-
-  Future<AppUser> signInWithGoogle() async {
-    await _resetSession();
-    await _account.createOAuth2Session(provider: OAuthProvider.google);
-    // Führe server-seitigen Account-Merge durch (falls ein migrierter Firebase-Account
-    // mit dieser E-Mail existiert, werden alle Daten auf den Google-Account übertragen).
-    try {
-      await _functions.createExecution(
-        functionId: 'merge-oauth-account',
-        xasync: false,
-      );
-      // Kurze Pause damit Appwrite DB-Änderungen aus dem Merge propagieren können
-      await Future.delayed(const Duration(seconds: 2));
-    } catch (e) {
-      if (kDebugMode) debugPrint('[AuthService] merge-oauth-account failed: $e');
-    }
-    return _finalizeSession();
-  }
-
-  /// Links a Google identity to the currently authenticated account.
-  /// Call this only when the user already has an active session.
-  Future<void> linkGoogleAccount() async {
-    await _account.createOAuth2Token(provider: OAuthProvider.google);
-  }
-
-  Future<bool> isGoogleLinked() async {
-    try {
-      final identities = await _account.listIdentities();
-      return identities.identities.any((id) => id.provider == 'google');
-    } catch (_) {
-      return false;
-    }
   }
 
   Future<String> sendEmailOtp(String email) async {

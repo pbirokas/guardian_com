@@ -649,28 +649,9 @@ class ChatService {
     }
   }
 
-  Future<String> uploadGroupImage(String convId, Uint8List bytes) async {
-    final compressed = await FlutterImageCompress.compressWithList(
-      bytes,
-      minWidth: 400,
-      minHeight: 400,
-      quality: 80,
-      format: CompressFormat.jpeg,
-    );
-    final file = await _storage.createFile(
-      bucketId: appwriteMediaBucketId,
-      fileId: ID.unique(),
-      file: InputFile.fromBytes(
-          bytes: compressed,
-          filename: 'avatar.jpg',
-          contentType: 'image/jpeg'),
-      permissions: [
-        Permission.read(Role.any()),
-        Permission.delete(Role.user(_uid)),
-      ],
-    );
-    return appwriteFileViewUrl(file.$id);
-  }
+  Future<String> uploadGroupImage(String convId, Uint8List bytes) =>
+      uploadMediaImage(_storage, bytes: bytes, ownerUid: _uid,
+          filename: 'avatar.jpg');
 
   Future<void> updateGroupInfo(
     String convId, {

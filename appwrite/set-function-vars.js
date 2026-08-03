@@ -40,7 +40,6 @@ const FUNCTION_IDS = [
   'cleanup-old-messages',
   'daily-error-report',
   'get-child-summary',
-  'merge-oauth-account',
   'on-child-org-invite',
   'on-claim-confirmed',
   'on-claim-request',

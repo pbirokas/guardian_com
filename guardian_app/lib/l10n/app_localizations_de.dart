@@ -90,31 +90,6 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get signInWithGoogle => 'Mit Google anmelden';
-
-  @override
-  String get googleSignInHint =>
-      'Bereits ein Konto? Melde dich per E-Mail an und verknüpfe Google danach im Profil.';
-
-  @override
-  String get connectedAccounts => 'Verbundene Konten';
-
-  @override
-  String get linkGoogle => 'Mit Google verknüpfen';
-
-  @override
-  String get googleLinked => 'Google-Konto erfolgreich verknüpft.';
-
-  @override
-  String get googleLinkedStatus => 'Verknüpft';
-
-  @override
-  String get unlinkGoogle => 'Google-Verknüpfung trennen';
-
-  @override
-  String get googleNotLinked => 'Noch nicht verknüpft';
-
-  @override
   String get updateAvailableTitle => 'Update verfügbar';
 
   @override
@@ -133,9 +108,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get updateLaterButton => 'Später';
-
-  @override
-  String get or => 'oder';
 
   @override
   String get emailAddress => 'E-Mail-Adresse';

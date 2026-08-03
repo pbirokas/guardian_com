@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:appwrite/appwrite.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:appwrite/enums.dart';
 import 'package:appwrite/models.dart' as aw;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
@@ -31,8 +32,16 @@ class AuthService {
   static const _colUsers = 'users';
 
   Future<AppUser?> getCurrentAppUser() async {
+    // Ohne Netz sofort scheitern, statt ~60s auf den SDK-Timeout zu warten.
+    final conn = await Connectivity().checkConnectivity();
+    if (conn.every((r) => r == ConnectivityResult.none)) {
+      throw Exception('Keine Netzwerkverbindung');
+    }
     try {
-      final account = await _account.get();
+      // Backstop, falls ein Netzwerk-Interface existiert, der Server aber nicht
+      // antwortet (z. B. Server offline / VM ohne Internet).
+      final account =
+          await _account.get().timeout(const Duration(seconds: 12));
       await cacheRealtimeSessionCookie(_client);
       return _getOrCreateUserDoc(account);
     } on AppwriteException catch (e) {
@@ -43,6 +52,8 @@ class AuthService {
       // der Router den Verbindungs-Screen zeigt statt den Login.
       rethrow;
     }
+    // TimeoutException / Exception('Keine Netzwerkverbindung') propagieren
+    // ungefangen → authState.hasError → Verbindungs-Screen.
   }
 
   /// Lädt ein Profilbild in den Appwrite-Media-Bucket hoch und gibt dessen

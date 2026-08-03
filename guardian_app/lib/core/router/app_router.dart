@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/connection_error_screen.dart';
+import '../../features/auth/screens/splash_screen.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import '../../features/organizations/screens/organizations_screen.dart';
 import '../../features/organizations/screens/organization_detail_screen.dart';
@@ -35,7 +36,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.onDispose(notifier.dispose);
 
   return GoRouter(
-    initialLocation: '/login',
+    initialLocation: '/splash',
     refreshListenable: notifier,
     onException: (context, state, router) {
       final isLoggedIn = ref.read(authStateProvider).value != null;
@@ -55,17 +56,27 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       final authState = ref.read(authStateProvider);
-      final isOnConnError = state.uri.path == '/connection-error';
-      if (authState.isLoading) return null;
+      final path = state.uri.path;
+      final isOnSplash = path == '/splash';
+      final isOnConnError = path == '/connection-error';
+
+      // Solange der Session-Check läuft: Splash zeigen (nicht Login). Beim
+      // Retry auf dem Verbindungs-Screen dort bleiben (er hat einen eigenen
+      // Ladeindikator).
+      if (authState.isLoading) {
+        return (isOnSplash || isOnConnError) ? null : '/splash';
+      }
 
       // Verbindungs-/Serverfehler (kein echter 401): Session-Status unbekannt →
       // Verbindungs-Screen statt Login, damit die Anmeldung erhalten bleibt.
       if (authState.hasError) return isOnConnError ? null : '/connection-error';
 
       final isLoggedIn = authState.value != null;
-      final isOnLogin = state.uri.path == '/login';
-      // Verbindung wieder da → von der Fehlerseite normal weiterleiten.
-      if (isOnConnError) return isLoggedIn ? '/organizations' : '/login';
+      final isOnLogin = path == '/login';
+      // Nach Auflösung von Splash/Fehlerseite normal weiterleiten.
+      if (isOnSplash || isOnConnError) {
+        return isLoggedIn ? '/organizations' : '/login';
+      }
       if (!isLoggedIn && !isOnLogin) return '/login';
       if (isLoggedIn && isOnLogin) return '/organizations';
       return null;
@@ -74,6 +85,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/update-required',
         builder: (context, state) => const UpdateRequiredScreen(),
+      ),
+      GoRoute(
+        path: '/splash',
+        builder: (context, state) => const SplashScreen(),
       ),
       GoRoute(
         path: '/login',

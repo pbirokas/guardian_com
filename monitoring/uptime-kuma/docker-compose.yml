@@ -1,0 +1,15 @@
+# Uptime Kuma — Monitoring für den Appwrite-Server (läuft auf dem Pi-Hole im LAN)
+# Start:  docker compose up -d    →  Web-UI: http://<pi-ip>:3001
+# Einrichtung der Monitore: siehe README.md in diesem Ordner.
+services:
+  uptime-kuma:
+    # v2, "slim" = ohne eingebettetes MariaDB/Chromium (SQLite reicht für den Pi)
+    image: louislam/uptime-kuma:2-slim
+    container_name: uptime-kuma
+    restart: unless-stopped
+    ports:
+      - "3001:3001" # Pi-Hole belegt 80/443, daher Kuma-Standardport
+    volumes:
+      - ./data:/app/data # SQLite + Einstellungen (lokales Volume, kein NFS)
+    environment:
+      - TZ=Europe/Berlin

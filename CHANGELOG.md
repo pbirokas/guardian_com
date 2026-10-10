@@ -12,6 +12,7 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 - **App bleibt nach der Rückkehr aus dem Hintergrund im selben Bildschirm.** Bisher sprang sie zurück auf „Meine Organisationen" — auch nach dem Auswählen eines Bildes oder einer Datei zum Senden.
 - **Live-Updates nach Ab- und Anmelden (auch mit anderem Konto).** Nach dem Login wird die Echtzeit-Verbindung jetzt immer mit der neuen Sitzung aufgebaut.
 - **Windows: Benachrichtigungen bleiben nach Rückkehr aus dem Hintergrund aktiv**, und Fehlermeldungen der Taskleiste bei ins Tray minimiertem Fenster werden abgefangen.
+- **Stabilere Zustandsverwaltung.** Riverpod auf 3.3.2 aktualisiert (behebt einen internen Fehler beim Zurückkehren auf zuvor verdeckte Bildschirme); ungenutzte Code-Generatoren entfernt.
 
 ---
 

@@ -127,9 +127,9 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
     _lastRealtimeRefresh = now;
     // Nur die WebSocket-Verbindung erneuern (der Broadcaster zieht alle Kanäle
     // um und stößt ein Neuladen an). Bewusst KEIN ref.invalidate der Services:
-    // das baute alle Streams neu auf, riss pausierte Provider mit (Riverpod-
-    // Assertion "pausedActiveSubscriptionCount", behoben erst in riverpod 3.3.2)
-    // und setzte über den Auth-Status den Router auf /organizations zurück.
+    // das baute alle Streams neu auf (bis riverpod 3.3.2 zusätzlich Assertion
+    // "pausedActiveSubscriptionCount" bei pausierten Providern) und setzte über
+    // den Auth-Status den Router auf /organizations zurück.
     ref.read(appwriteRealtimeBroadcasterProvider).reconnect();
   }
 

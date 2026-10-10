@@ -87,7 +87,7 @@ class RealtimeBroadcaster {
 
   final Realtime Function() _createRealtime;
   Realtime _realtime;
-  final Map<String, Stream<dynamic>> _cache = {};
+  final Map<String, Stream<RealtimeMessage>> _cache = {};
   // Active channels → re-subscribe on the current instance (see reconnect()).
   final Map<String, void Function()> _reattach = {};
 
@@ -110,12 +110,13 @@ class RealtimeBroadcaster {
     await _realtime.disconnect();
   }
 
-  Stream<dynamic> stream(String channel) {
+  Stream<RealtimeMessage> stream(String channel) {
     return _cache.putIfAbsent(channel, () {
       // LinkedHashSet.identity(): O(1) add/remove by object identity.
-      final sinks = LinkedHashSet<MultiStreamController<dynamic>>.identity();
+      final sinks =
+          LinkedHashSet<MultiStreamController<RealtimeMessage>>.identity();
       RealtimeSubscription? rtSub;
-      StreamSubscription<dynamic>? sub;
+      StreamSubscription<RealtimeMessage>? sub;
 
       // Cancelling only the Dart listener leaves the subscription registered
       // in the SDK, which re-sends it on every reconnect. Cancel the listener
@@ -123,22 +124,26 @@ class RealtimeBroadcaster {
       // unsubscribe.
       // Not close(): it sets the SDK's _reconnect=false, which would swallow
       // the next auto-reconnect if this instance is subscribed again later.
-      void teardown() {
-        sub?.cancel();
+      void evict() {
         sub = null;
-        rtSub?.unsubscribe();
         rtSub = null;
         _cache.remove(channel);
         _reattach.remove(channel);
+      }
+
+      void teardown() {
+        sub?.cancel();
+        rtSub?.unsubscribe();
+        evict();
       }
 
       // Guard against reentrant cancellation during fan-out: if a listener
       // cancels synchronously inside its onData, defer the remove until after
       // the current dispatch loop finishes to avoid concurrent modification.
       bool dispatching = false;
-      final deferred = <MultiStreamController<dynamic>>[];
+      final deferred = <MultiStreamController<RealtimeMessage>>[];
 
-      void fanOut(void Function(MultiStreamController<dynamic>) fn) {
+      void fanOut(void Function(MultiStreamController<RealtimeMessage>) fn) {
         dispatching = true;
         for (final s in sinks) {
           if (!s.isClosed) fn(s);
@@ -154,12 +159,9 @@ class RealtimeBroadcaster {
         sub = rtSub!.stream.listen(
           (event) => fanOut((s) => s.add(event)),
           onDone: () {
-            // Clean up cache first so any onCancel triggered by s.close()
-            // finds sub == null and _cache already evicted (both no-ops).
-            sub = null;
-            rtSub = null;
-            _cache.remove(channel);
-            _reattach.remove(channel);
+            // Evict first so any onCancel triggered by s.close() finds
+            // sub == null and _cache already evicted (both no-ops).
+            evict();
             for (final s in List.of(sinks)) {
               if (!s.isClosed) s.close();
             }
@@ -170,7 +172,7 @@ class RealtimeBroadcaster {
         );
       }
 
-      return Stream<dynamic>.multi(
+      return Stream<RealtimeMessage>.multi(
         (controller) {
           if (sinks.isEmpty) {
             attach();

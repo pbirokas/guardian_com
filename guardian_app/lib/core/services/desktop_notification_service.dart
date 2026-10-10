@@ -122,10 +122,7 @@ class DesktopNotificationService {
 
     final sub = _broadcaster!
         .stream('databases.guardian.collections.chat_messages.documents')
-        .listen((raw) {
-      // Typed cast required: since Appwrite SDK v24 `events` is List<String>,
-      // and a closure built on a `dynamic` receiver fails the type check.
-      final event = raw as RealtimeMessage;
+        .listen((event) {
       // Only care about newly created messages in this conversation
       // (also skips the empty resync event from RealtimeBroadcaster.reconnect).
       final isCreate =

@@ -11,9 +11,9 @@ import '../models/notification_settings.dart';
 import 'notification_service.dart';
 
 // Bewusst ohne RealtimeBroadcaster-Feld: authStateProvider hängt an diesem
-// Service. Würde er den Broadcaster halten, baute jedes Realtime-Invalidate
-// (App-Resume, Reconnect) den Login-Status neu auf → Router springt über
-// /splash zurück auf /organizations.
+// Service. Hinge er am Broadcaster-Provider, würde jedes Ersetzen des
+// Broadcasters den Login-Status neu aufbauen → Router springt über /splash
+// zurück auf /organizations. Wer Realtime braucht, bekommt ihn als Parameter.
 class AuthService {
   AuthService(Client client)
       : _client = client,

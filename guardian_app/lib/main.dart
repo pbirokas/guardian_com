@@ -89,7 +89,7 @@ class GuardianApp extends ConsumerStatefulWidget {
 class _GuardianAppState extends ConsumerState<GuardianApp>
     with WidgetsBindingObserver {
   bool _wasInBackground = false;
-  DateTime? _lastInvalidation;
+  DateTime? _lastRealtimeRefresh;
   ProviderSubscription<AsyncValue<bool>>? _connectivitySub;
 
   @override
@@ -120,11 +120,11 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
     if (ref.read(authStateProvider).value == null) return;
     if (ref.read(connectivityProvider).value != true) return;
     final now = DateTime.now();
-    if (_lastInvalidation != null &&
-        now.difference(_lastInvalidation!) < const Duration(minutes: 2)) {
+    if (_lastRealtimeRefresh != null &&
+        now.difference(_lastRealtimeRefresh!) < const Duration(minutes: 2)) {
       return;
     }
-    _lastInvalidation = now;
+    _lastRealtimeRefresh = now;
     // Nur die WebSocket-Verbindung erneuern (der Broadcaster zieht alle Kanäle
     // um und stößt ein Neuladen an). Bewusst KEIN ref.invalidate der Services:
     // das baute alle Streams neu auf, riss pausierte Provider mit (Riverpod-
@@ -175,11 +175,10 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
         // den frischen Session-Cookies neu aufbauen. Seit Appwrite-SDK v24
         // bleibt eine Verbindung dauerhaft offen — eine vor dem Login geöffnete
         // bliebe sonst unauthentifiziert und lieferte keine Events.
-        if (prev?.value?.uid != user.uid) {
-          ref.read(appwriteRealtimeBroadcasterProvider).reconnect();
-        }
+        final broadcaster = ref.read(appwriteRealtimeBroadcasterProvider);
+        if (prev?.value?.uid != user.uid) broadcaster.reconnect();
         NotificationService().initialize(Databases(client), user.uid);
-        if (_isDesktop) DesktopNotificationService().startListening(client, ref.read(appwriteRealtimeBroadcasterProvider), user.uid);
+        if (_isDesktop) DesktopNotificationService().startListening(client, broadcaster, user.uid);
         // Cold-Start via Share: wenn die App über "Teilen" gestartet wurde,
         // war Auth beim ersten _checkForSharedData()-Aufruf noch nicht geladen.
         // Sobald Auth erstmals verfügbar wird, erneut prüfen.

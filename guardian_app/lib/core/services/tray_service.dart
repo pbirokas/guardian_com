@@ -77,11 +77,11 @@ class TrayService with WindowListener {
         WindowsTaskbar.setOverlayIcon(
           ThumbnailToolbarAssetIcon('assets/icon/app_icon_badge.ico'),
           tooltip: '$label ungelesene Nachricht${count == 1 ? '' : 'en'}',
-        ).catchError((Object _) {});
+        ).ignore();
         WindowsTaskbar.setFlashTaskbarAppIcon(
           mode: TaskbarFlashMode.tray | TaskbarFlashMode.timer,
           flashCount: 3,
-        ).catchError((Object _) {});
+        ).ignore();
       }
     } else {
       // Tray-Icon: normales Icon
@@ -89,8 +89,8 @@ class TrayService with WindowListener {
       await _systemTray.setToolTip('Guardian Com');
       // Taskleisten-Symbol: Overlay entfernen
       if (!kIsWeb && Platform.isWindows) {
-        WindowsTaskbar.resetOverlayIcon().catchError((Object _) {});
-        WindowsTaskbar.resetFlashTaskbarAppIcon().catchError((Object _) {});
+        WindowsTaskbar.resetOverlayIcon().ignore();
+        WindowsTaskbar.resetFlashTaskbarAppIcon().ignore();
       }
     }
   }

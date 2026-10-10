@@ -4,6 +4,17 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-10-10
+
+- **Server auf Appwrite 1.9.6 aktualisiert.** Fehlerbehebungen bei Teams, Sitzungen, Functions und Echtzeit-Verbindung; die Datenbank ist nicht mehr direkt aus dem Internet erreichbar (Firewall).
+- **App nutzt das aktuelle Appwrite-SDK (26.1).** Passend zur neuen Server-Version. Erfordert Appwrite-Server ≥ 1.9.6.
+- **Echtzeit-Verbindung sparsamer.** Verlassene Chats und Listen werden jetzt sauber vom Server abgemeldet, statt bei jedem Wiederverbinden erneut angemeldet zu werden. Alte Verbindungen nach Rückkehr aus dem Hintergrund bauen sich nicht mehr endlos neu auf.
+- **App bleibt nach der Rückkehr aus dem Hintergrund im selben Bildschirm.** Bisher sprang sie zurück auf „Meine Organisationen" — auch nach dem Auswählen eines Bildes oder einer Datei zum Senden.
+- **Live-Updates nach Ab- und Anmelden (auch mit anderem Konto).** Nach dem Login wird die Echtzeit-Verbindung jetzt immer mit der neuen Sitzung aufgebaut.
+- **Windows: Benachrichtigungen bleiben nach Rückkehr aus dem Hintergrund aktiv**, und Fehlermeldungen der Taskleiste bei ins Tray minimiertem Fenster werden abgefangen.
+
+---
+
 ## 2026-08-03
 
 - **Google-Anmeldung entfernt.** Die Anmeldung läuft jetzt ausschließlich über E-Mail (Einmal-Code). Der „Mit Google anmelden"-Knopf und die Google-Verknüpfung im Profil sind entfallen; bestehende Konten melden sich mit derselben E-Mail-Adresse per Code an.

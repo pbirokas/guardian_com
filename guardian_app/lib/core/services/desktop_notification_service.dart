@@ -109,7 +109,7 @@ class DesktopNotificationService {
 
     _convSub = _broadcaster!
         .stream('databases.guardian.collections.conversations.documents')
-        .listen((_) => refresh());
+        .listen((_) => refresh(), onError: (_) {});
     refresh();
   }
 
@@ -122,8 +122,12 @@ class DesktopNotificationService {
 
     final sub = _broadcaster!
         .stream('databases.guardian.collections.chat_messages.documents')
-        .listen((event) {
+        .listen((raw) {
+      // Typed cast required: since Appwrite SDK v24 `events` is List<String>,
+      // and a closure built on a `dynamic` receiver fails the type check.
+      final event = raw as RealtimeMessage;
       // Only care about newly created messages in this conversation
+      // (also skips the empty resync event from RealtimeBroadcaster.reconnect).
       final isCreate =
           event.events.any((e) => e.endsWith('.create'));
       if (!isCreate) return;
@@ -164,7 +168,7 @@ class DesktopNotificationService {
         convId: convId,
         chatTitle: chatTitle,
       );
-    });
+    }, onError: (_) {});
 
     _msgSubs[convId] = sub;
   }
@@ -239,10 +243,10 @@ class DesktopNotificationService {
 
     _unreadSub = _broadcaster!
         .stream('databases.guardian.collections.conversations.documents')
-        .listen((_) => recalculate());
+        .listen((_) => recalculate(), onError: (_) {});
     _receiptSub = _broadcaster!
         .stream('databases.guardian.collections.read_receipts.documents')
-        .listen((_) => recalculate());
+        .listen((_) => recalculate(), onError: (_) {});
     recalculate();
   }
 

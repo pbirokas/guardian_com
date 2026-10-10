@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show debugPrint;
-import 'package:appwrite/appwrite.dart';
+import 'package:appwrite/appwrite.dart' hide Organization;
 import 'package:appwrite/enums.dart';
 import 'package:appwrite/models.dart' as aw;
 import '../appwrite_client.dart' show RealtimeBroadcaster;

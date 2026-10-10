@@ -10,21 +10,23 @@ import '../models/app_user.dart';
 import '../models/notification_settings.dart';
 import 'notification_service.dart';
 
+// Bewusst ohne RealtimeBroadcaster-Feld: authStateProvider hängt an diesem
+// Service. Würde er den Broadcaster halten, baute jedes Realtime-Invalidate
+// (App-Resume, Reconnect) den Login-Status neu auf → Router springt über
+// /splash zurück auf /organizations.
 class AuthService {
-  AuthService(Client client, RealtimeBroadcaster broadcaster)
+  AuthService(Client client)
       : _client = client,
         _account = Account(client),
         _db = Databases(client),
         _functions = Functions(client),
-        _storage = Storage(client),
-        _broadcaster = broadcaster;
+        _storage = Storage(client);
 
   final Client _client;
   final Account _account;
   final Databases _db;
   final Functions _functions;
   final Storage _storage;
-  final RealtimeBroadcaster _broadcaster;
 
   static const _dbId = 'guardian';
   static const _colUsers = 'users';
@@ -117,7 +119,7 @@ class AuthService {
   /// lokalen CookieJar nicht leert — veraltete Cookies würden sonst mit
   /// dem nächsten Request mitgesendet und Appwrite zum 400/401 verleiten.
   /// Nutzt dynamischen Cast auf das interne `cookieJar`-Feld von ClientIO
-  /// (Appwrite SDK 23.0.0). Bei SDK-Upgrades prüfen ob das Feld noch existiert.
+  /// (geprüft mit Appwrite SDK 26.1.0). Bei SDK-Upgrades prüfen ob das Feld noch existiert.
   Future<void> _clearCookieJar() async {
     try {
       final dynamic jar = (_client as dynamic).cookieJar;
@@ -164,7 +166,8 @@ class AuthService {
     }
   }
 
-  Stream<NotificationSettings> watchNotificationSettings(String uid) {
+  Stream<NotificationSettings> watchNotificationSettings(
+      String uid, RealtimeBroadcaster broadcaster) {
     late StreamController<NotificationSettings> ctrl;
     StreamSubscription? realtimeSub;
 
@@ -190,7 +193,7 @@ class AuthService {
     }
 
     ctrl = StreamController(onCancel: dispose);
-    realtimeSub = _broadcaster
+    realtimeSub = broadcaster
         .stream('databases.$_dbId.collections.$_colUsers.documents.$uid')
         .listen((_) => reload(), onDone: dispose, onError: (_) {});
     reload();

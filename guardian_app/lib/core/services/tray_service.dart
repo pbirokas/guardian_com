@@ -72,14 +72,16 @@ class TrayService with WindowListener {
       // Taskleisten-Symbol: roter Overlay-Badge mit Zahl
       if (!kIsWeb && Platform.isWindows) {
         final label = count > 99 ? '99+' : '$count';
+        // Schlägt fehl, solange das Fenster nur im Tray liegt (kein
+        // Taskleisten-Button) — dann ist der Badge im Tray-Icon genug.
         WindowsTaskbar.setOverlayIcon(
           ThumbnailToolbarAssetIcon('assets/icon/app_icon_badge.ico'),
           tooltip: '$label ungelesene Nachricht${count == 1 ? '' : 'en'}',
-        );
+        ).catchError((Object _) {});
         WindowsTaskbar.setFlashTaskbarAppIcon(
           mode: TaskbarFlashMode.tray | TaskbarFlashMode.timer,
           flashCount: 3,
-        );
+        ).catchError((Object _) {});
       }
     } else {
       // Tray-Icon: normales Icon
@@ -87,8 +89,8 @@ class TrayService with WindowListener {
       await _systemTray.setToolTip('Guardian Com');
       // Taskleisten-Symbol: Overlay entfernen
       if (!kIsWeb && Platform.isWindows) {
-        WindowsTaskbar.resetOverlayIcon();
-        WindowsTaskbar.resetFlashTaskbarAppIcon();
+        WindowsTaskbar.resetOverlayIcon().catchError((Object _) {});
+        WindowsTaskbar.resetFlashTaskbarAppIcon().catchError((Object _) {});
       }
     }
   }

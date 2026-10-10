@@ -103,7 +103,7 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
         (prev, next) {
           final wasOffline = prev?.value == false;
           final isNowOnline = next.value == true;
-          if (wasOffline && isNowOnline) _invalidateRealtimeProviders();
+          if (wasOffline && isNowOnline) _refreshRealtime();
         },
       );
     });
@@ -116,7 +116,7 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
     super.dispose();
   }
 
-  void _invalidateRealtimeProviders() {
+  void _refreshRealtime() {
     if (ref.read(authStateProvider).value == null) return;
     if (ref.read(connectivityProvider).value != true) return;
     final now = DateTime.now();
@@ -125,13 +125,12 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
       return;
     }
     _lastInvalidation = now;
-    // Realtime zuerst invalidieren: neue Services erhalten eine frische Instanz
-    // mit _reconnect=true statt der nach _closeConnection() auf false gesetzten.
-    ref.invalidate(appwriteRealtimeProvider);
-    ref.invalidate(appwriteRealtimeBroadcasterProvider);
-    ref.invalidate(chatServiceProvider);
-    ref.invalidate(organizationServiceProvider);
-    ref.invalidate(parentClaimServiceProvider);
+    // Nur die WebSocket-Verbindung erneuern (der Broadcaster zieht alle Kanäle
+    // um und stößt ein Neuladen an). Bewusst KEIN ref.invalidate der Services:
+    // das baute alle Streams neu auf, riss pausierte Provider mit (Riverpod-
+    // Assertion "pausedActiveSubscriptionCount", behoben erst in riverpod 3.3.2)
+    // und setzte über den Auth-Status den Router auf /organizations zurück.
+    ref.read(appwriteRealtimeBroadcasterProvider).reconnect();
   }
 
   @override
@@ -145,7 +144,7 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
       _checkForSharedData();
       if (_wasInBackground) {
         _wasInBackground = false;
-        _invalidateRealtimeProviders();
+        _refreshRealtime();
       }
     }
   }
@@ -172,6 +171,13 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
       final user = next.value;
       final client = ref.read(appwriteClientProvider);
       if (user != null) {
+        // Neue Sitzung (Login, Nutzerwechsel, Session-Restore): WebSocket mit
+        // den frischen Session-Cookies neu aufbauen. Seit Appwrite-SDK v24
+        // bleibt eine Verbindung dauerhaft offen — eine vor dem Login geöffnete
+        // bliebe sonst unauthentifiziert und lieferte keine Events.
+        if (prev?.value?.uid != user.uid) {
+          ref.read(appwriteRealtimeBroadcasterProvider).reconnect();
+        }
         NotificationService().initialize(Databases(client), user.uid);
         if (_isDesktop) DesktopNotificationService().startListening(client, ref.read(appwriteRealtimeBroadcasterProvider), user.uid);
         // Cold-Start via Share: wenn die App über "Teilen" gestartet wurde,
@@ -187,7 +193,6 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
         // auslösen → Bad state / _skippedNotification assertion.
         if (_isDesktop) DesktopNotificationService().stopListening();
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          ref.invalidate(appwriteRealtimeProvider);
           ref.invalidate(appwriteRealtimeBroadcasterProvider);
           ref.invalidate(chatServiceProvider);
           ref.invalidate(organizationServiceProvider);

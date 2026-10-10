@@ -89,7 +89,7 @@ class GuardianApp extends ConsumerStatefulWidget {
 class _GuardianAppState extends ConsumerState<GuardianApp>
     with WidgetsBindingObserver {
   bool _wasInBackground = false;
-  DateTime? _lastInvalidation;
+  DateTime? _lastRealtimeRefresh;
   ProviderSubscription<AsyncValue<bool>>? _connectivitySub;
 
   @override
@@ -103,7 +103,7 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
         (prev, next) {
           final wasOffline = prev?.value == false;
           final isNowOnline = next.value == true;
-          if (wasOffline && isNowOnline) _invalidateRealtimeProviders();
+          if (wasOffline && isNowOnline) _refreshRealtime();
         },
       );
     });
@@ -116,22 +116,21 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
     super.dispose();
   }
 
-  void _invalidateRealtimeProviders() {
+  void _refreshRealtime() {
     if (ref.read(authStateProvider).value == null) return;
     if (ref.read(connectivityProvider).value != true) return;
     final now = DateTime.now();
-    if (_lastInvalidation != null &&
-        now.difference(_lastInvalidation!) < const Duration(minutes: 2)) {
+    if (_lastRealtimeRefresh != null &&
+        now.difference(_lastRealtimeRefresh!) < const Duration(minutes: 2)) {
       return;
     }
-    _lastInvalidation = now;
-    // Realtime zuerst invalidieren: neue Services erhalten eine frische Instanz
-    // mit _reconnect=true statt der nach _closeConnection() auf false gesetzten.
-    ref.invalidate(appwriteRealtimeProvider);
-    ref.invalidate(appwriteRealtimeBroadcasterProvider);
-    ref.invalidate(chatServiceProvider);
-    ref.invalidate(organizationServiceProvider);
-    ref.invalidate(parentClaimServiceProvider);
+    _lastRealtimeRefresh = now;
+    // Nur die WebSocket-Verbindung erneuern (der Broadcaster zieht alle Kanäle
+    // um und stößt ein Neuladen an). Bewusst KEIN ref.invalidate der Services:
+    // das baute alle Streams neu auf (bis riverpod 3.3.2 zusätzlich Assertion
+    // "pausedActiveSubscriptionCount" bei pausierten Providern) und setzte über
+    // den Auth-Status den Router auf /organizations zurück.
+    ref.read(appwriteRealtimeBroadcasterProvider).reconnect();
   }
 
   @override
@@ -145,7 +144,7 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
       _checkForSharedData();
       if (_wasInBackground) {
         _wasInBackground = false;
-        _invalidateRealtimeProviders();
+        _refreshRealtime();
       }
     }
   }
@@ -172,8 +171,14 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
       final user = next.value;
       final client = ref.read(appwriteClientProvider);
       if (user != null) {
+        // Neue Sitzung (Login, Nutzerwechsel, Session-Restore): WebSocket mit
+        // den frischen Session-Cookies neu aufbauen. Seit Appwrite-SDK v24
+        // bleibt eine Verbindung dauerhaft offen — eine vor dem Login geöffnete
+        // bliebe sonst unauthentifiziert und lieferte keine Events.
+        final broadcaster = ref.read(appwriteRealtimeBroadcasterProvider);
+        if (prev?.value?.uid != user.uid) broadcaster.reconnect();
         NotificationService().initialize(Databases(client), user.uid);
-        if (_isDesktop) DesktopNotificationService().startListening(client, ref.read(appwriteRealtimeBroadcasterProvider), user.uid);
+        if (_isDesktop) DesktopNotificationService().startListening(client, broadcaster, user.uid);
         // Cold-Start via Share: wenn die App über "Teilen" gestartet wurde,
         // war Auth beim ersten _checkForSharedData()-Aufruf noch nicht geladen.
         // Sobald Auth erstmals verfügbar wird, erneut prüfen.
@@ -187,7 +192,6 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
         // auslösen → Bad state / _skippedNotification assertion.
         if (_isDesktop) DesktopNotificationService().stopListening();
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          ref.invalidate(appwriteRealtimeProvider);
           ref.invalidate(appwriteRealtimeBroadcasterProvider);
           ref.invalidate(chatServiceProvider);
           ref.invalidate(organizationServiceProvider);

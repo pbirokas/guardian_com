@@ -528,8 +528,8 @@ Alle Functions laufen in Appwrite (Node.js 16). Event-getriggerte Functions reag
 
 ### Voraussetzungen
 
-- [Flutter SDK](https://docs.flutter.dev/get-started/install) ≥ 3.x
-- [Appwrite](https://appwrite.io) (self-hosted oder Cloud) mit aktiviertem E-Mail-OTP
+- [Flutter SDK](https://docs.flutter.dev/get-started/install) ≥ 3.29 (Appwrite-SDK 26.x)
+- [Appwrite](https://appwrite.io) ≥ 1.9.6 (self-hosted oder Cloud) mit aktiviertem E-Mail-OTP
 - [Appwrite CLI](https://appwrite.io/docs/tooling/command-line/installation) (für Functions-Deployment)
 - [Firebase CLI](https://firebase.google.com/docs/cli) + [FlutterFire CLI](https://firebase.flutter.dev/docs/cli) (nur für FCM / Crashlytics)
 - Android Studio (für Android-Builds) oder Visual Studio 2022 mit C++-Workload (für Windows-Builds)

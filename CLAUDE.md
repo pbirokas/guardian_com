@@ -20,8 +20,8 @@ flutter build apk --debug
 # Build Android release APK
 flutter build apk --release
 
-# Regenerate Riverpod providers (after changing @riverpod annotations)
-dart run build_runner build --delete-conflicting-outputs
+# Run unit tests (e.g. test/realtime_broadcaster_test.dart)
+flutter test
 
 # Regenerate localizations (after editing any .arb file)
 flutter gen-l10n
@@ -55,7 +55,7 @@ cd functions && npm install
 
 ### Flutter App (`guardian_app/lib/`)
 
-**State management:** Riverpod 3.x with code generation (`@riverpod`). After adding or changing a `@riverpod` annotation, run `build_runner` to regenerate `.g.dart` files.
+**State management:** Riverpod 3.x with hand-written providers (`Provider`, `StreamProvider`, `AsyncNotifierProvider` …) — no code generation, no `riverpod_generator`/`build_runner`. `flutter_riverpod` must stay ≥ 3.3.2 (fix for the unpause assertion `pausedActiveSubscriptionCount`); `riverpod` ≥ 3.3.2 needs `uuid` ^4.5, hence the `dependency_overrides: uuid` in `pubspec.yaml` for `system_tray` 2.0.3 (it only uses `const Uuid().v1()`).
 
 **Navigation:** GoRouter via `routerProvider` in `core/router/app_router.dart`. Routes: `/login`, `/organizations`, `/org/:orgId`, `/chat/:chatId`, `/profile`, `/relationships`.
 
@@ -118,7 +118,7 @@ Conversations in the picker are filtered to the user's current orgs (`myOrganiza
 
 ### Realtime / WebSocket
 
-All Appwrite Realtime subscriptions go through a single shared `RealtimeBroadcaster` instance provided by `appwriteRealtimeBroadcasterProvider` (in `core/appwrite_client.dart`). The broadcaster ref-counts subscriptions per channel: multiple services listening to the same collection share one WebSocket slot. Services receive a `RealtimeBroadcaster` via constructor injection and call `broadcaster.stream(channel)` instead of creating their own `Realtime` instance. When invalidating `appwriteRealtimeProvider` (on logout or reconnect), always also invalidate `appwriteRealtimeBroadcasterProvider`.
+All Appwrite Realtime subscriptions go through a single shared `RealtimeBroadcaster` instance provided by `appwriteRealtimeBroadcasterProvider` (in `core/appwrite_client.dart`). The broadcaster owns the `Realtime` instance and ref-counts subscriptions per channel: multiple services listening to the same collection share one subscription; when the last listener leaves, the channel is `unsubscribe()`d in the SDK (never `close()` — that sets the SDK's `_reconnect=false`). Services receive a `RealtimeBroadcaster` via constructor injection and call `broadcaster.stream(channel)` instead of creating their own `Realtime` instance. **Since Appwrite SDK v24 one WebSocket stays open permanently** (subscriptions are sent as messages, not encoded in the URL), so a socket opened with a stale/absent session never heals by itself. To refresh the connection (app resume, back online, login/user switch) call `broadcaster.reconnect()` — it swaps in a fresh `Realtime` instance, re-subscribes all active channels and emits an empty `RealtimeMessage` so listeners reload missed data. Do **not** `ref.invalidate` services for this: rebuilding them tears down every stream (and before riverpod 3.3.2 tripped the `pausedActiveSubscriptionCount` assertion), and rebuilding `authStateProvider` bounces the router to `/organizations`. Only logout invalidates `appwriteRealtimeBroadcasterProvider` (its `onDispose` disconnects the old socket). `AuthService` must not depend on the broadcaster (pass it as a parameter instead), because `authStateProvider` depends on `AuthService`. Listeners must tolerate the empty resync event (`events` empty). The Realtime cookie workaround `createPatchedRealtime` relies on SDK internals (`getWebSocket`, `getFallbackCookie`, `cookieJar`) — re-check on every SDK upgrade.
 
 ### Desktop (Windows)
 
@@ -127,7 +127,7 @@ Windows uses Firestore listeners for notifications instead of FCM. `TrayService`
 ## Important Conventions
 
 - **After editing `.arb` files:** always run `flutter gen-l10n` and commit the generated files.
-- **After adding `@riverpod` annotations:** run `dart run build_runner build --delete-conflicting-outputs`.
+- **After changing `RealtimeBroadcaster`:** run `flutter test` (`test/realtime_broadcaster_test.dart` covers ref-counting, unsubscribe, reconnect/resync).
 - **Chat-Berechtigungen laufen über Appwrite Teams (nicht `Role.users()`):** **Ein Chat = ein Team** (Team-ID = `convId`). Mitglieder = Teilnehmer + Guardians + **Aufsicht** (Admin/Moderatoren der Org). Die ACL von Conversation, Nachricht, Poll-Nachricht etc. referenziert **nur `team(convId)`** — bewusst, denn beim Erstellen eines Dokuments erlaubt Appwrite dem Client nur Permissions für Rollen, die er selbst hat; ein normales Mitglied kann `team(convId)` setzen (es ist Mitglied), aber **kein** org-weites Aufsichts-Team. Deshalb sitzt die Aufsicht **im Conv-Team** statt in einem separaten ACL-Team. Team-Mitgliedschaft wird **ausschließlich serverseitig** gepflegt:
   - `sync-conversation-permissions` (Trigger: conversations create/update/delete) — Conv-Team = Teilnehmer + Guardians + Supervisoren; setzt die Conv-ACL auf `team(convId)`.
   - `sync-supervisor-team` (Trigger: members create/update/delete) — propagiert Rollenänderungen (Admin/Mod) in **alle** Conv-Teams der Org. `sup_<orgId>` ist dabei **kein ACL-Team**, sondern nur ein Änderungs-Detektor-Cache (spart die Conv-Iteration, wenn sich der Supervisor-Satz nicht ändert).

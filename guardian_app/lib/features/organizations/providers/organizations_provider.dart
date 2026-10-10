@@ -77,7 +77,8 @@ final notificationSettingsProvider =
     StreamProvider<NotificationSettings>((ref) {
   final uid = ref.watch(authStateProvider).value?.uid;
   if (uid == null) return Stream.value(const NotificationSettings());
-  return ref.watch(authServiceProvider).watchNotificationSettings(uid);
+  return ref.watch(authServiceProvider).watchNotificationSettings(
+      uid, ref.watch(appwriteRealtimeBroadcasterProvider));
 });
 
 /// Benachrichtigungsintervall für eine bestimmte Org (eigener Member-Doc-Eintrag)

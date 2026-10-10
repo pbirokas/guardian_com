@@ -69,36 +69,81 @@ final appwriteClientProvider = Provider<Client>((ref) {
       .setProject(appwriteProjectId);
 });
 
-final appwriteRealtimeProvider = Provider<Realtime>((ref) {
-  return createPatchedRealtime(ref.watch(appwriteClientProvider));
-});
-
 final appwriteStorageProvider = Provider<Storage>((ref) {
   return Storage(ref.watch(appwriteClientProvider));
 });
 
-/// Ref-counted Realtime channel multiplexer.
+/// Ref-counted Realtime channel multiplexer and owner of the Realtime instance.
 /// Multiple concurrent listeners to the same channel share one WebSocket slot;
 /// the Realtime subscription is opened on the first listen and cancelled
 /// automatically when the last listener unsubscribes.
+///
+/// The broadcaster itself stays stable for the whole login session (only
+/// replaced on logout). To refresh the connection — app resume, back online,
+/// login — call [reconnect]: it swaps in a fresh Realtime instance and moves
+/// every active channel over, so no service/provider has to be rebuilt.
 class RealtimeBroadcaster {
-  RealtimeBroadcaster(this._realtime);
+  RealtimeBroadcaster(this._createRealtime) : _realtime = _createRealtime();
 
-  final Realtime _realtime;
-  final Map<String, Stream<dynamic>> _cache = {};
+  final Realtime Function() _createRealtime;
+  Realtime _realtime;
+  final Map<String, Stream<RealtimeMessage>> _cache = {};
+  // Active channels → re-subscribe on the current instance (see reconnect()).
+  final Map<String, void Function()> _reattach = {};
 
-  Stream<dynamic> stream(String channel) {
+  /// Opens a new WebSocket (with the current session cookies), re-subscribes
+  /// all active channels on it and closes the old one. Each channel then gets
+  /// an empty event so listeners reload data they may have missed while the
+  /// old socket was dead (SDK heartbeat sends pings but never checks pongs, so
+  /// a half-open socket after a long background phase goes unnoticed).
+  void reconnect() {
+    final old = _realtime;
+    _realtime = _createRealtime();
+    for (final reattach in List.of(_reattach.values)) {
+      reattach();
+    }
+    old.disconnect();
+  }
+
+  Future<void> dispose() async {
+    _reattach.clear();
+    await _realtime.disconnect();
+  }
+
+  Stream<RealtimeMessage> stream(String channel) {
     return _cache.putIfAbsent(channel, () {
       // LinkedHashSet.identity(): O(1) add/remove by object identity.
-      final sinks = LinkedHashSet<MultiStreamController<dynamic>>.identity();
-      StreamSubscription<dynamic>? sub;
+      final sinks =
+          LinkedHashSet<MultiStreamController<RealtimeMessage>>.identity();
+      RealtimeSubscription? rtSub;
+      StreamSubscription<RealtimeMessage>? sub;
+
+      // Cancelling only the Dart listener leaves the subscription registered
+      // in the SDK, which re-sends it on every reconnect. Cancel the listener
+      // first (so unsubscribe()'s controller.close() doesn't hit onDone), then
+      // unsubscribe.
+      // Not close(): it sets the SDK's _reconnect=false, which would swallow
+      // the next auto-reconnect if this instance is subscribed again later.
+      void evict() {
+        sub = null;
+        rtSub = null;
+        _cache.remove(channel);
+        _reattach.remove(channel);
+      }
+
+      void teardown() {
+        sub?.cancel();
+        rtSub?.unsubscribe();
+        evict();
+      }
+
       // Guard against reentrant cancellation during fan-out: if a listener
       // cancels synchronously inside its onData, defer the remove until after
       // the current dispatch loop finishes to avoid concurrent modification.
       bool dispatching = false;
-      final deferred = <MultiStreamController<dynamic>>[];
+      final deferred = <MultiStreamController<RealtimeMessage>>[];
 
-      void fanOut(void Function(MultiStreamController<dynamic>) fn) {
+      void fanOut(void Function(MultiStreamController<RealtimeMessage>) fn) {
         dispatching = true;
         for (final s in sinks) {
           if (!s.isClosed) fn(s);
@@ -106,31 +151,44 @@ class RealtimeBroadcaster {
         dispatching = false;
         for (final s in deferred) { sinks.remove(s); }
         deferred.clear();
-        if (sinks.isEmpty) {
-          sub?.cancel();
-          sub = null;
-          _cache.remove(channel);
-        }
+        if (sinks.isEmpty) teardown();
       }
 
-      return Stream<dynamic>.multi(
+      void attach() {
+        rtSub = _realtime.subscribe([channel]);
+        sub = rtSub!.stream.listen(
+          (event) => fanOut((s) => s.add(event)),
+          onDone: () {
+            // Evict first so any onCancel triggered by s.close() finds
+            // sub == null and _cache already evicted (both no-ops).
+            evict();
+            for (final s in List.of(sinks)) {
+              if (!s.isClosed) s.close();
+            }
+            sinks.clear();
+          },
+          onError: (Object e, StackTrace st) =>
+              fanOut((s) => s.addError(e, st)),
+        );
+      }
+
+      return Stream<RealtimeMessage>.multi(
         (controller) {
           if (sinks.isEmpty) {
-            sub = _realtime.subscribe([channel]).stream.listen(
-              (event) => fanOut((s) => s.add(event)),
-              onDone: () {
-                // Clean up cache first so any onCancel triggered by s.close()
-                // finds sub == null and _cache already evicted (both no-ops).
-                sub = null;
-                _cache.remove(channel);
-                for (final s in List.of(sinks)) {
-                  if (!s.isClosed) s.close();
-                }
-                sinks.clear();
-              },
-              onError: (Object e, StackTrace st) =>
-                  fanOut((s) => s.addError(e, st)),
-            );
+            attach();
+            _reattach[channel] = () {
+              // Old instance is disconnected by reconnect(); only drop our
+              // listener so its controller.close() doesn't reach onDone.
+              sub?.cancel();
+              attach();
+              final resync = RealtimeMessage(
+                events: const [],
+                payload: const {},
+                channels: [channel],
+                timestamp: DateTime.now().toUtc().toIso8601String(),
+              );
+              fanOut((s) => s.add(resync));
+            };
           }
           sinks.add(controller);
           controller.onCancel = () {
@@ -138,11 +196,7 @@ class RealtimeBroadcaster {
               deferred.add(controller);
             } else {
               sinks.remove(controller);
-              if (sinks.isEmpty) {
-                sub?.cancel();
-                sub = null;
-                _cache.remove(channel);
-              }
+              if (sinks.isEmpty) teardown();
             }
           };
         },
@@ -153,7 +207,11 @@ class RealtimeBroadcaster {
 }
 
 final appwriteRealtimeBroadcasterProvider = Provider<RealtimeBroadcaster>((ref) {
-  return RealtimeBroadcaster(ref.watch(appwriteRealtimeProvider));
+  final client = ref.watch(appwriteClientProvider);
+  final broadcaster = RealtimeBroadcaster(() => createPatchedRealtime(client));
+  // Logout invalidates this provider → close the old user's WebSocket.
+  ref.onDispose(broadcaster.dispose);
+  return broadcaster;
 });
 
 /// Call after every successful login/session-restore to cache the Appwrite
@@ -234,6 +292,10 @@ Realtime createPatchedRealtime(Client client) {
     final headers = cookieStr.isNotEmpty
         ? {HttpHeaders.cookieHeader: cookieStr}
         : <String, String>{};
+    if (kDebugMode) {
+      debugPrint('[Realtime] connect: cookies=${rawCookies.length} '
+          'fallback=${_realtimeSessionCookie != null}');
+    }
 
     // Dart doesn't register a default port for the wss/ws schemes (only for
     // http/https), so wsUri.port is 0 when no explicit port was given.

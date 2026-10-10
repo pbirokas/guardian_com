@@ -4,7 +4,7 @@ import '../../../core/models/app_user.dart';
 import '../../../core/services/auth_service.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) {
-  return AuthService(ref.watch(appwriteClientProvider), ref.watch(appwriteRealtimeBroadcasterProvider));
+  return AuthService(ref.watch(appwriteClientProvider));
 });
 
 class AuthNotifier extends AsyncNotifier<AppUser?> {

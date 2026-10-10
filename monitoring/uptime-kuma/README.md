@@ -82,7 +82,7 @@ Erläuterungen:
 | # | Name | URL (`https://appwrite.guardian-com.de/v1/…`) | Prüft | Intervall |
 |---|------|------------------------------------------------|-------|-----------|
 | 7 | **Health – Gesamt** | `health` | Appwrite-HTTP-Server | 300 s |
-| 8 | **Health – Datenbank** | `health/db` | MariaDB | 300 s |
+| 8 | **Health – Datenbank** | `health/db` | MongoDB | 300 s |
 | 9 | **Health – Cache** | `health/cache` | Redis | 300 s |
 | 10 | **Health – PubSub** | `health/pubsub` | Redis PubSub (Realtime-Verteilung) | 300 s |
 | 11 | **Health – Storage** | `health/storage/local` | Schreibzugriff auf Storage | 600 s |

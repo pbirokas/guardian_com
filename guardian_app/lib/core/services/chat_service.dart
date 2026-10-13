@@ -4,7 +4,6 @@ import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:appwrite/appwrite.dart';
-import 'package:appwrite/enums.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../appwrite_client.dart';
@@ -544,13 +543,12 @@ class ChatService {
   }
 
   Future<void> markAsRead(String convId, {DateTime? readAt}) async {
-    await _functions.createExecution(
+    await _functions.executeRaw(
       functionId: 'mark-as-read',
       body: jsonEncode({
         'convId': convId,
         if (readAt != null) 'readAt': readAt.toUtc().toIso8601String(),
       }),
-      method: ExecutionMethod.pOST,
     );
   }
 
@@ -747,7 +745,7 @@ class ChatService {
     String newText, {
     required String archivedByName,
   }) async {
-    await _functions.createExecution(
+    await _functions.executeRaw(
       functionId: 'moderate-message',
       body: jsonEncode({
         'convId': convId,
@@ -755,7 +753,6 @@ class ChatService {
         'newText': newText,
         'archivedByName': archivedByName,
       }),
-      method: ExecutionMethod.pOST,
     );
   }
 

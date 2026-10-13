@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-10-13
+
+- **Aktivitätszusammenfassung für Kinder funktioniert wieder.** Seit dem SDK-Update (26.1) zeigte sie immer „konnte nicht geladen werden“, obwohl der Server die Daten korrekt lieferte. Ursache: Das neue SDK erwartet bei Function-Aufrufen ein Feld, das Server 1.9.6 noch nicht sendet. Betroffen waren alle Server-Aufrufe aus der App — u. a. auch Mitglieder-Verwaltung (Fehlermeldung trotz erfolgreicher Aktion), Moderation, Verbindung trennen und Gelesen-Markierung. Alle laufen jetzt über einen gemeinsamen, robusten Aufruf.
+
+---
+
 ## 2026-10-10
 
 - **Server auf Appwrite 1.9.6 aktualisiert.** Fehlerbehebungen bei Teams, Sitzungen, Functions und Echtzeit-Verbindung; die Datenbank ist nicht mehr direkt aus dem Internet erreichbar (Firewall).

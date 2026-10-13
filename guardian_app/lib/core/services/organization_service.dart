@@ -3,9 +3,8 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:appwrite/appwrite.dart' hide Organization;
-import 'package:appwrite/enums.dart';
 import 'package:appwrite/models.dart' as aw;
-import '../appwrite_client.dart' show RealtimeBroadcaster;
+import '../appwrite_client.dart' show RealtimeBroadcaster, FunctionsRawExecution;
 import '../models/announcement.dart';
 import '../models/app_user.dart';
 import '../models/member_suggestion.dart';
@@ -177,10 +176,9 @@ class OrganizationService {
     // xasync: true — Funktion läuft im Hintergrund, kein 30s-Client-Timeout.
     // Die Org verschwindet aus der UI über den Realtime-Listener sobald
     // das Dokument tatsächlich gelöscht wurde.
-    await _functions.createExecution(
+    await _functions.executeRaw(
       functionId: _adminMemberActionId,
       body: jsonEncode({'action': 'deleteOrg', 'orgId': orgId}),
-      method: ExecutionMethod.pOST,
       xasync: true,
     );
   }
@@ -922,7 +920,7 @@ class OrganizationService {
     Map<String, dynamic> payload = const {},
   }) async {
     try {
-      final execution = await _functions.createExecution(
+      final execution = await _functions.executeRaw(
         functionId: _adminMemberActionId,
         body: jsonEncode({
           'action': action,
@@ -930,10 +928,8 @@ class OrganizationService {
           if (targetUid != null) 'targetUid': targetUid,
           if (payload.isNotEmpty) 'payload': payload,
         }),
-        method: ExecutionMethod.pOST,
-        xasync: false,
       );
-      final body = execution.responseBody;
+      final body = execution.body;
       if (body.isEmpty) return {'error': 'Empty response from function'};
       return Map<String, dynamic>.from(jsonDecode(body) as Map);
     } catch (e) {

@@ -4,6 +4,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:appwrite/appwrite.dart';
+// HttpMethod wird vom SDK nicht öffentlich exportiert (nur für executeRaw).
+// ignore: implementation_imports
+import 'package:appwrite/src/enums.dart' show HttpMethod;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +15,50 @@ import 'package:web_socket_channel/io.dart';
 const appwriteEndpoint = 'https://appwrite.guardian-com.de/v1';
 const appwriteProjectId = '6a02e4160023948ef257';
 const appwriteMediaBucketId = '6a02e524000954c9f1de';
+
+/// Ergebnis einer Function-Execution: HTTP-Status und Body der Function-Antwort.
+typedef FunctionResult = ({int statusCode, String body});
+
+extension FunctionsRawExecution on Functions {
+  /// Ersatz für [Functions.createExecution]: ruft denselben Endpoint auf, liest
+  /// aber nur `responseStatusCode`/`responseBody` statt das strikte
+  /// `Execution`-Model zu bauen. SDK 26.x erwartet dort `resourceType`, das
+  /// Server 1.9.x nicht liefert (sendet noch `functionId`) → `fromMap` wirft
+  /// `StateError: No element`, obwohl die Function erfolgreich lief.
+  /// (SDK-Bug: es fordert selbst Response-Format 1.9.6 an.)
+  /// Bei `xasync: true` ist das Ergebnis `(statusCode: 0, body: '')`.
+  /// Bei jedem SDK-/Server-Upgrade prüfen, ob `Execution.fromMap` wieder mit
+  /// unserem Server funktioniert → dann zurück auf `createExecution`. Header
+  /// spiegeln `Functions.createExecution` (SDK 26.1) — bei SDK-Bumps abgleichen.
+  Future<FunctionResult> executeRaw({
+    required String functionId,
+    String? body,
+    bool xasync = false,
+  }) async {
+    final res = await client.call(
+      HttpMethod.post,
+      path: '/functions/$functionId/executions',
+      params: {
+        'body': ?body,
+        'async': xasync,
+        'method': 'POST',
+      },
+      headers: {
+        // SDK 26 setzt den Projekt-Header nicht mehr global (setProject füllt
+        // nur config), sondern jede Service-Methode pro Request. Ohne ihn
+        // prüft der Server gegen das Console-Projekt → 403 "Invalid Origin".
+        'X-Appwrite-Project': client.config['project'] ?? '',
+        'content-type': 'application/json',
+        'accept': 'application/json',
+      },
+    );
+    final data = res.data as Map;
+    return (
+      statusCode: (data['responseStatusCode'] as num?)?.toInt() ?? 0,
+      body: data['responseBody']?.toString() ?? '',
+    );
+  }
+}
 
 /// Öffentliche View-URL einer Datei im Media-Bucket (Profil-/Gruppen-/Chatbilder).
 String appwriteFileViewUrl(String fileId) =>

@@ -212,7 +212,7 @@ class AuthService {
 
   Future<void> _callProcessMyInvitations() async {
     try {
-      await _functions.createExecution(
+      await _functions.executeRaw(
         functionId: 'process-my-invitations',
         xasync: true,
       );

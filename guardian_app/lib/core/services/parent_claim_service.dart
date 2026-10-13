@@ -2,8 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:appwrite/appwrite.dart';
-import 'package:appwrite/enums.dart';
-import '../appwrite_client.dart' show RealtimeBroadcaster;
+import '../appwrite_client.dart' show RealtimeBroadcaster, FunctionsRawExecution;
 import '../models/child_summary.dart';
 import '../models/claim_request.dart';
 import '../models/org_invite_consent.dart';
@@ -232,13 +231,12 @@ class ParentClaimService {
   /// Revokes a verified parent-child connection on both sides atomically.
   /// Uses a Cloud Function because the client cannot write to another user's doc.
   Future<void> revokeConnection(String otherUid) async {
-    final result = await _functions.createExecution(
+    final result = await _functions.executeRaw(
       functionId: 'revoke-connection',
       body: jsonEncode({'otherUid': otherUid}),
-      method: ExecutionMethod.pOST,
     );
-    if (result.responseStatusCode != 200) {
-      throw Exception('revokeConnection failed: ${result.responseBody}');
+    if (result.statusCode != 200) {
+      throw Exception('revokeConnection failed: ${result.body}');
     }
   }
 
@@ -298,16 +296,15 @@ class ParentClaimService {
       }
     }
 
-    final exec = await _functions.createExecution(
+    final exec = await _functions.executeRaw(
       functionId: 'get-child-summary',
       body: jsonEncode({'childUid': childUid, 'period': period}),
-      method: ExecutionMethod.pOST,
     );
 
-    if (exec.responseStatusCode != 200) {
-      throw Exception('get-child-summary failed (${exec.responseStatusCode})');
+    if (exec.statusCode != 200) {
+      throw Exception('get-child-summary failed (${exec.statusCode}): ${exec.body}');
     }
-    final data = jsonDecode(exec.responseBody) as Map<String, dynamic>;
+    final data = jsonDecode(exec.body) as Map<String, dynamic>;
     final summary = ChildSummary.fromMap(data);
     _summaryCache[key] = (summary: summary, fetchedAt: DateTime.now());
     return summary;

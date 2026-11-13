@@ -425,17 +425,38 @@ async function deleteMessageBatch(db, storage, queries) {
     const { documents } = await db.listDocuments(DB_ID, COL_MESSAGES, [...queries, Query.limit(100)]);
     if (documents.length === 0) break;
     await Promise.all(documents.map(async (msg) => {
-      // Storage-Dateien parallel löschen (Fehler ignorieren — Datei kann
-      // bereits weg sein oder nie existiert haben)
-      const fileIds = [msg.imageUrl, ...(msg.imageUrls ?? []), msg.audioUrl, msg.fileUrl]
-        .filter(Boolean)
-        .map(extractStorageFileId)
-        .filter(Boolean);
-      await Promise.allSettled(fileIds.map(id => storage.deleteFile(BUCKET_MEDIA, id)));
+      await deleteMessageFiles(storage, msg);
       await db.deleteDocument(DB_ID, COL_MESSAGES, msg.$id);
     }));
     if (documents.length < 100) break;
   }
+}
+
+// Löscht die Storage-Dateien einer Nachricht — aber nur solche, die der Autor
+// der Nachricht selbst hochgeladen hat. Die URLs in einer Nachricht sind
+// Client-Daten: ohne diese Prüfung könnte jemand die Datei-ID einer fremden
+// Datei in eine eigene Nachricht schreiben und sie mit API-Key löschen lassen.
+// Der Autor wird aus der Dokument-ACL gelesen (ein Client kann dort nur seine
+// eigene `user:`-Rolle setzen), nicht aus dem frei beschreibbaren `senderUid`.
+// Uploads tragen `delete("user:<uploader>")` (siehe chat_service.dart).
+async function deleteMessageFiles(storage, msg) {
+  const authorPerms = (msg.$permissions ?? [])
+    .map((p) => p.match(/^(?:update|delete)\("user:([^"/]+)/)?.[1])
+    .filter(Boolean)
+    .map((uid) => `delete("user:${uid}")`);
+  if (authorPerms.length === 0) return;
+  const fileIds = [...new Set(
+    [msg.imageUrl, ...(msg.imageUrls ?? []), msg.audioUrl, msg.fileUrl]
+      .filter(Boolean)
+      .map(extractStorageFileId)
+      .filter(Boolean),
+  )];
+  // Fehler ignorieren — Datei kann bereits weg sein oder nie existiert haben.
+  await Promise.allSettled(fileIds.map(async (id) => {
+    const file = await storage.getFile(BUCKET_MEDIA, id);
+    if (!file.$permissions.some((p) => authorPerms.includes(p))) return;
+    await storage.deleteFile(BUCKET_MEDIA, id);
+  }));
 }
 
 // Extrahiert die Appwrite-File-ID aus einer Storage-View-URL.

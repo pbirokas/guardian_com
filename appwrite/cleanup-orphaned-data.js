@@ -96,16 +96,43 @@ async function deleteBatch(col, queries) {
 // Löscht Messages inklusive zugehöriger Storage-Dateien (Bilder, Audio, Anhänge).
 async function deleteMessageBatch(queries) {
   for await (const msg of listAll(COL_MESSAGES, queries)) {
-    if (!DRY_RUN) {
-      const fileIds = [msg.imageUrl, ...(msg.imageUrls ?? []), msg.audioUrl, msg.fileUrl]
-        .filter(Boolean)
-        .map(url => { const m = url.match(/\/files\/([^/?]+)\/view/); return m?.[1]; })
-        .filter(Boolean);
-      // Fehler ignorieren — Datei kann bereits weg sein
-      await Promise.allSettled(fileIds.map(id => storage.deleteFile(BUCKET_MEDIA, id)));
-    }
+    if (!DRY_RUN) await deleteMessageFiles(storage, msg);
     await deleteDoc(COL_MESSAGES, msg.$id);
   }
+}
+
+// Extrahiert die Appwrite-File-ID aus einer Storage-View-URL.
+// Format: .../storage/buckets/<bucketId>/files/<fileId>/view?...
+function extractStorageFileId(url) {
+  const m = url && url.match(/\/files\/([^/?]+)\/view/);
+  return m ? m[1] : null;
+}
+
+// Löscht die Storage-Dateien einer Nachricht — aber nur solche, die der Autor
+// der Nachricht selbst hochgeladen hat. Die URLs in einer Nachricht sind
+// Client-Daten: ohne diese Prüfung könnte jemand die Datei-ID einer fremden
+// Datei in eine eigene Nachricht schreiben und sie mit API-Key löschen lassen.
+// Der Autor wird aus der Dokument-ACL gelesen (ein Client kann dort nur seine
+// eigene `user:`-Rolle setzen), nicht aus dem frei beschreibbaren `senderUid`.
+// Uploads tragen `delete("user:<uploader>")` (siehe chat_service.dart).
+async function deleteMessageFiles(storage, msg) {
+  const authorPerms = (msg.$permissions ?? [])
+    .map((p) => p.match(/^(?:update|delete)\("user:([^"/]+)/)?.[1])
+    .filter(Boolean)
+    .map((uid) => `delete("user:${uid}")`);
+  if (authorPerms.length === 0) return;
+  const fileIds = [...new Set(
+    [msg.imageUrl, ...(msg.imageUrls ?? []), msg.audioUrl, msg.fileUrl]
+      .filter(Boolean)
+      .map(extractStorageFileId)
+      .filter(Boolean),
+  )];
+  // Fehler ignorieren — Datei kann bereits weg sein oder nie existiert haben.
+  await Promise.allSettled(fileIds.map(async (id) => {
+    const file = await storage.getFile(BUCKET_MEDIA, id);
+    if (!file.$permissions.some((p) => authorPerms.includes(p))) return;
+    await storage.deleteFile(BUCKET_MEDIA, id);
+  }));
 }
 
 async function main() {

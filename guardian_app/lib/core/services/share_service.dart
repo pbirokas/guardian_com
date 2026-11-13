@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:flutter/services.dart';
 
+import 'chat_service.dart';
+
 class ShareData {
   final String type; // 'text' | 'image' | 'file' | 'images' | 'files'
   final String? text;
@@ -49,5 +51,32 @@ class ShareService {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Sendet geteilte Inhalte in den Chat [convId]. Bilder gehen gebündelt als
+  /// eine Nachricht raus (eine Benachrichtigung). Gelesen wird blockweise,
+  /// damit nie mehr als [ChatService.maxImagesPerMessage] Originalbilder
+  /// gleichzeitig im Speicher liegen.
+  Future<void> sendTo(ChatService chat, String convId, ShareData data) async {
+    if (data.isText) {
+      await chat.sendMessage(convId, data.text!);
+      return;
+    }
+    var images = <Uint8List>[];
+    for (var i = 0; i < data.uris.length; i++) {
+      final bytes = await readUri(data.uris[i]);
+      if (bytes == null) continue;
+      if (!data.isImage) {
+        final fileName = data.fileNames.length > i ? data.fileNames[i] : 'file';
+        await chat.sendFile(convId, bytes, fileName, bytes.length);
+        continue;
+      }
+      images.add(bytes);
+      if (images.length == ChatService.maxImagesPerMessage) {
+        await chat.sendImages(convId, images);
+        images = <Uint8List>[];
+      }
+    }
+    await chat.sendImages(convId, images);
   }
 }

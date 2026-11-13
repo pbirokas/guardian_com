@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+import '../router/chat_navigation.dart';
+
 /// Muss top-level sein (außerhalb jeder Klasse) für Background-Handler.
 /// Wird nur auf mobilen Plattformen registriert.
 @pragma('vm:entry-point')
@@ -28,15 +30,22 @@ class NotificationService {
     if (_pendingMessage != null) {
       final msg = _pendingMessage!;
       _pendingMessage = null;
-      Future.microtask(() => _staticHandleTap(msg));
+      Future.microtask(() => _handleTap(msg));
     }
   }
 
-  static void _staticHandleTap(RemoteMessage message) {
+  static void _handleTap(RemoteMessage message) {
+    final router = _router;
+    if (router == null) return;
+    final type = message.data['type'] as String?;
     final convId = message.data['convId'] as String?;
-    if (convId != null) {
-      _router?.push('/chat/$convId',
-          extra: message.data['chatTitle'] as String?);
+    final orgId = message.data['orgId'] as String?;
+
+    if (type == 'new_announcement' && orgId != null) {
+      router.push('/org/$orgId');
+    } else if (convId != null) {
+      openChatFromNotification(router, convId,
+          title: message.data['chatTitle'] as String?);
     }
   }
 
@@ -115,19 +124,6 @@ class NotificationService {
       );
     } on AppwriteException catch (e) {
       if (kDebugMode) debugPrint('FCM token save failed: ${e.message}');
-    }
-  }
-
-  void _handleTap(RemoteMessage message) {
-    final type = message.data['type'] as String?;
-    final convId = message.data['convId'] as String?;
-    final orgId = message.data['orgId'] as String?;
-
-    if (type == 'new_announcement' && orgId != null) {
-      _router?.push('/organizations/$orgId');
-    } else if (convId != null) {
-      _router?.push('/chat/$convId',
-          extra: message.data['chatTitle'] as String?);
     }
   }
 }

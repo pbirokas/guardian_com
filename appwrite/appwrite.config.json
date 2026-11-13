@@ -720,6 +720,15 @@
                     "encrypt": false
                 },
                 {
+                    "key": "imageUrls",
+                    "type": "string",
+                    "required": false,
+                    "array": true,
+                    "size": 512,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
                     "key": "audioUrl",
                     "type": "string",
                     "required": false,

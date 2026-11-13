@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:local_notifier/local_notifier.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../router/chat_navigation.dart';
 import 'tray_service.dart';
 
 /// Desktop-Ersatz für FCM-Push-Benachrichtigungen (Windows / Linux).
@@ -145,10 +146,11 @@ class DesktopNotificationService {
       final senderName = data['senderName'] as String? ?? 'Unbekannt';
       final text = data['text'] as String? ?? '';
       final isImage = data['imageUrl'] != null;
+      final imageCount = (data['imageUrls'] as List?)?.length ?? 0;
       final isAudio = data['audioUrl'] != null;
 
       final body = isImage
-          ? 'Bild'
+          ? (imageCount > 1 ? '$imageCount Bilder' : 'Bild')
           : isAudio
               ? 'Sprachnachricht'
               : text.length > 100
@@ -180,7 +182,10 @@ class DesktopNotificationService {
     notification.onClick = () async {
       await windowManager.show();
       await windowManager.focus();
-      _router?.push('/chat/$convId', extra: chatTitle);
+      final router = _router;
+      if (router != null) {
+        openChatFromNotification(router, convId, title: chatTitle);
+      }
     };
     await notification.show();
   }

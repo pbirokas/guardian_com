@@ -97,7 +97,7 @@ async function deleteBatch(col, queries) {
 async function deleteMessageBatch(queries) {
   for await (const msg of listAll(COL_MESSAGES, queries)) {
     if (!DRY_RUN) {
-      const fileIds = [msg.imageUrl, msg.audioUrl, msg.fileUrl]
+      const fileIds = [msg.imageUrl, ...(msg.imageUrls ?? []), msg.audioUrl, msg.fileUrl]
         .filter(Boolean)
         .map(url => { const m = url.match(/\/files\/([^/?]+)\/view/); return m?.[1]; })
         .filter(Boolean);

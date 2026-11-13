@@ -427,7 +427,7 @@ async function deleteMessageBatch(db, storage, queries) {
     await Promise.all(documents.map(async (msg) => {
       // Storage-Dateien parallel löschen (Fehler ignorieren — Datei kann
       // bereits weg sein oder nie existiert haben)
-      const fileIds = [msg.imageUrl, msg.audioUrl, msg.fileUrl]
+      const fileIds = [msg.imageUrl, ...(msg.imageUrls ?? []), msg.audioUrl, msg.fileUrl]
         .filter(Boolean)
         .map(extractStorageFileId)
         .filter(Boolean);

@@ -36,20 +36,7 @@ class _SharePickerSheetState extends ConsumerState<SharePickerSheet> {
     final data = widget.shareData;
 
     try {
-      if (data.isText) {
-        await chatService.sendMessage(conv.id, data.text!);
-      } else {
-        for (var i = 0; i < data.uris.length; i++) {
-          final bytes = await shareService.readUri(data.uris[i]);
-          if (bytes == null) continue;
-          final fileName = data.fileNames.length > i ? data.fileNames[i] : 'file';
-          if (data.isImage) {
-            await chatService.sendImage(conv.id, bytes);
-          } else {
-            await chatService.sendFile(conv.id, bytes, fileName, bytes.length);
-          }
-        }
-      }
+      await shareService.sendTo(chatService, conv.id, data);
 
       if (mounted) {
         ref.read(pendingShareProvider.notifier).clear();

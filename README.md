@@ -160,6 +160,7 @@ Erreichbar über **Profil → Meine Verknüpfungen**. Der Screen vereint alle As
 - **Text in Zwischenablage kopieren** (per Langer Druck → Kopieren)
 - Bearbeitete Nachrichten von Admin/Moderator werden automatisch archiviert (Moderations-Log)
 - Bilder senden (JPEG, max. 2 MB, automatisch komprimiert)
+- **Mehrere Bilder in einer Nachricht** (bis zu 10) — eine Benachrichtigung statt einer pro Bild; Anzeige als Raster, Vollbild-Ansicht zum Durchblättern
 - **Bild antippen** öffnet Vollbild-Ansicht mit Pinch-to-Zoom und Speicher-Button (lokale Ordnerauswahl)
 - Bilder im Chat werden zwischengespeichert (keine Laderuckler beim Scrollen)
 - Sprachnachrichten aufnehmen und abspielen (AAC/Opus, max. 10 MB)
@@ -442,6 +443,7 @@ chat_messages/{$id}
   systemEvent                   ← 'memberAdded' | 'memberRemoved'
   systemActorName, systemTargetName
   imageUrl
+  imageUrls                     ← alle Bilder einer Mehrfach-Bild-Nachricht (imageUrl = erstes Bild)
   audioUrl, audioDurationMs
   fileUrl, fileName, fileSizeBytes
   pollId

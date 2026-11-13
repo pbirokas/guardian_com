@@ -7,6 +7,11 @@ class Message {
   final String text;
   final DateTime sentAt;
   final String? imageUrl;
+
+  /// Alle Bilder einer Mehrfach-Bild-Nachricht (leer bei Einzelbild). Das
+  /// erste Bild steht zusätzlich in [imageUrl], damit ältere App-Versionen
+  /// wenigstens dieses anzeigen.
+  final List<String> imageUrls;
   final String? audioUrl;
   final int? audioDurationMs;
   final String? pollId;
@@ -31,6 +36,12 @@ class Message {
 
   bool get isDeleted => deletedAt != null;
 
+  /// Alle Bilder der Nachricht – unabhängig davon, ob Einzel- oder
+  /// Mehrfach-Bild-Nachricht.
+  List<String> get allImageUrls => imageUrls.isNotEmpty
+      ? imageUrls
+      : [?imageUrl];
+
   const Message({
     required this.id,
     required this.senderUid,
@@ -38,6 +49,7 @@ class Message {
     required this.text,
     required this.sentAt,
     this.imageUrl,
+    this.imageUrls = const [],
     this.audioUrl,
     this.audioDurationMs,
     this.pollId,
@@ -73,6 +85,8 @@ class Message {
       text: data['text'] as String? ?? '',
       sentAt: DateTime.parse(data['sentAt'] as String).toLocal(),
       imageUrl: data['imageUrl'] as String?,
+      imageUrls: (data['imageUrls'] as List?)?.whereType<String>().toList() ??
+          const [],
       audioUrl: data['audioUrl'] as String?,
       audioDurationMs: data['audioDurationMs'] as int?,
       pollId: data['pollId'] as String?,
@@ -111,6 +125,7 @@ class Message {
         if (systemActorName != null) 'systemActorName': systemActorName,
         if (systemTargetName != null) 'systemTargetName': systemTargetName,
         if (imageUrl != null) 'imageUrl': imageUrl,
+        if (imageUrls.isNotEmpty) 'imageUrls': imageUrls,
         if (audioUrl != null) 'audioUrl': audioUrl,
         if (audioDurationMs != null) 'audioDurationMs': audioDurationMs,
         if (pollId != null) 'pollId': pollId,

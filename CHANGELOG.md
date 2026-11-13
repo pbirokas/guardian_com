@@ -4,6 +4,14 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-11-13
+
+- **Mehrere Bilder als eine Nachricht.** Wer mehrere Fotos auswählt (oder aus einer anderen App teilt), verschickt sie jetzt gemeinsam in einer Nachricht — mit nur einer Benachrichtigung statt einer pro Bild. Im Chat erscheinen sie als Raster; in der Vollbildansicht lässt sich durch die Bilder blättern. Bis zu 10 Bilder pro Nachricht. Ältere App-Versionen zeigen von einer solchen Nachricht nur das erste Bild.
+- **„Zurück“ aus einem Chat führt wieder direkt zur Übersicht.** Wurde ein Chat mehrfach über Benachrichtigungen geöffnet, stapelte er sich bisher mehrfach übereinander und man musste entsprechend oft zurückgehen.
+- **Tippen auf eine Ankündigungs-Benachrichtigung öffnet die Organisation** (führte bisher nur zur Organisations-Übersicht).
+
+---
+
 ## 2026-10-13
 
 - **Aktivitätszusammenfassung für Kinder funktioniert wieder.** Seit dem SDK-Update (26.1) zeigte sie immer „konnte nicht geladen werden“, obwohl der Server die Daten korrekt lieferte. Ursache: Das neue SDK erwartet bei Function-Aufrufen ein Feld, das Server 1.9.6 noch nicht sendet. Betroffen waren alle Server-Aufrufe aus der App — u. a. auch Mitglieder-Verwaltung (Fehlermeldung trotz erfolgreicher Aktion), Moderation, Verbindung trennen und Gelesen-Markierung. Alle laufen jetzt über einen gemeinsamen, robusten Aufruf.

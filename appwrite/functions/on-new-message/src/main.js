@@ -15,6 +15,8 @@ function cooldownElapsed(interval, lastAlertIso) {
 }
 
 function buildNotifBody(message, senderName) {
+  const imageCount = Array.isArray(message.imageUrls) ? message.imageUrls.length : 0;
+  if (imageCount > 1) return `${senderName} hat ${imageCount} Bilder gesendet`;
   if (message.imageUrl) return `${senderName} hat ein Bild gesendet`;
   if (message.audioUrl) return `${senderName} hat eine Sprachnachricht gesendet`;
   if (message.fileUrl)  return `${senderName} hat eine Datei gesendet`;

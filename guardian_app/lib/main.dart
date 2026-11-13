@@ -24,6 +24,7 @@ import 'core/providers/chat_font_size_provider.dart';
 import 'core/providers/scale_provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/router/app_router.dart';
+import 'core/router/chat_navigation.dart';
 import 'core/services/desktop_notification_service_stub.dart'
     if (dart.library.io) 'core/services/desktop_notification_service.dart';
 import 'core/services/notification_service.dart';
@@ -311,8 +312,6 @@ class _ShareListener extends ConsumerWidget {
 
   const _ShareListener({required this.child});
 
-  static final _chatRoutePattern = RegExp(r'^/chat/(.+)$');
-
   Future<void> _sendDirectToChat(
     WidgetRef ref,
     ShareData shareData,
@@ -322,21 +321,7 @@ class _ShareListener extends ConsumerWidget {
     final chatService = ref.read(chatServiceProvider);
     final shareService = ref.read(shareServiceProvider);
     try {
-      if (shareData.isText) {
-        await chatService.sendMessage(chatId, shareData.text!);
-      } else {
-        for (var i = 0; i < shareData.uris.length; i++) {
-          final bytes = await shareService.readUri(shareData.uris[i]);
-          if (bytes == null) continue;
-          final fileName =
-              shareData.fileNames.length > i ? shareData.fileNames[i] : 'file';
-          if (shareData.isImage) {
-            await chatService.sendImage(chatId, bytes);
-          } else {
-            await chatService.sendFile(chatId, bytes, fileName, bytes.length);
-          }
-        }
-      }
+      await shareService.sendTo(chatService, chatId, shareData);
     } catch (e) {
       if (navContext.mounted) {
         ScaffoldMessenger.of(navContext).showSnackBar(
@@ -359,9 +344,9 @@ class _ShareListener extends ConsumerWidget {
       // Wenn der User gerade in einem Chat ist: direkt dorthin senden,
       // kein Picker zeigen (z. B. GIF-Einfügen über die Tastatur).
       final currentPath = router.routeInformationProvider.value.uri.path;
-      final chatMatch = _chatRoutePattern.firstMatch(currentPath);
-      if (chatMatch != null) {
-        _sendDirectToChat(ref, shareData, chatMatch.group(1)!, navContext);
+      final openChatId = chatIdFromPath(currentPath);
+      if (openChatId != null) {
+        _sendDirectToChat(ref, shareData, openChatId, navContext);
         return;
       }
 

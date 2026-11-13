@@ -861,9 +861,19 @@ class ChatService {
     await _updateLastMessage(convId, '🎤 Sprachnachricht');
   }
 
+  /// Maximale Anzahl Bilder pro Nachricht.
+  static const int maxImagesPerMessage = 10;
+
   Future<void> sendImage(String convId, Uint8List imageBytes,
+          {String mimeType = 'image/jpeg'}) =>
+      sendImages(convId, [imageBytes], mimeType: mimeType);
+
+  /// Sendet [images] als **eine** Nachricht (→ eine Benachrichtigung).
+  /// Mehr als [maxImagesPerMessage] Bilder werden auf mehrere Nachrichten
+  /// verteilt.
+  Future<void> sendImages(String convId, List<Uint8List> images,
       {String mimeType = 'image/jpeg'}) async {
-    final orgId = await _getOrgId(convId);
+    if (images.isEmpty) return;
     const allowedMimeTypes = {
       'image/gif', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp'
     };
@@ -871,8 +881,46 @@ class ChatService {
     if (!allowedMimeTypes.any((t) => normalizedMime.startsWith(t))) {
       throw Exception('Nicht unterstützter Dateityp: $mimeType');
     }
-    final msgId = ID.unique();
+    final orgId = await _getOrgId(convId);
     final isGif = normalizedMime.startsWith('image/gif');
+
+    for (var start = 0; start < images.length; start += maxImagesPerMessage) {
+      final end = start + maxImagesPerMessage < images.length
+          ? start + maxImagesPerMessage
+          : images.length;
+      final msgId = ID.unique();
+      final urls = <String>[];
+      for (var i = start; i < end; i++) {
+        urls.add(await _uploadImage(images[i], isGif, '${_uid}_${msgId}_$i'));
+      }
+
+      final msg = Message(
+        id: msgId,
+        senderUid: _uid,
+        senderName: _displayName,
+        text: '',
+        sentAt: DateTime.now().toUtc(),
+        imageUrl: urls.first,
+        // Nur bei mehreren Bildern setzen: Einzelbilder bleiben damit
+        // unabhängig vom Attribut `imageUrls` im Appwrite-Schema.
+        imageUrls: urls.length > 1 ? urls : const [],
+        isGif: isGif,
+      );
+      await _db.createDocument(
+        databaseId: _dbId,
+        collectionId: _colMessages,
+        documentId: msgId,
+        data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
+        permissions: _msgPerms(convId),
+      );
+      await _updateLastMessage(
+          convId, urls.length > 1 ? '[${urls.length} Bilder]' : '[Bild]');
+    }
+  }
+
+  /// Lädt ein Bild in den Media-Bucket und liefert die View-URL.
+  Future<String> _uploadImage(
+      Uint8List imageBytes, bool isGif, String baseName) async {
     final Uint8List uploadBytes;
     final String ext;
     final String uploadContentType;
@@ -901,32 +949,14 @@ class ChatService {
       fileId: ID.unique(),
       file: InputFile.fromBytes(
           bytes: uploadBytes,
-          filename: '${_uid}_$msgId.$ext',
+          filename: '$baseName.$ext',
           contentType: uploadContentType),
       permissions: [
         Permission.read(Role.any()),
         Permission.delete(Role.user(_uid)),
       ],
     );
-    final imageUrl = appwriteFileViewUrl(file.$id);
-
-    final msg = Message(
-      id: msgId,
-      senderUid: _uid,
-      senderName: _displayName,
-      text: '',
-      sentAt: DateTime.now().toUtc(),
-      imageUrl: imageUrl,
-      isGif: isGif,
-    );
-    await _db.createDocument(
-      databaseId: _dbId,
-      collectionId: _colMessages,
-      documentId: msgId,
-      data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
-      permissions: _msgPerms(convId),
-    );
-    await _updateLastMessage(convId, '[Bild]');
+    return appwriteFileViewUrl(file.$id);
   }
 
   Future<void> sendFile(

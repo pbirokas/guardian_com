@@ -234,6 +234,8 @@ async function setupMessages() {
   await str(COL.MESSAGES,  'text',                4096, false, '');
   await dt(COL.MESSAGES,   'sentAt',              true);
   await str(COL.MESSAGES,  'imageUrl',            512);
+  // Mehrfach-Bild-Nachricht: alle Bild-URLs (imageUrl = erstes Bild, für alte Clients)
+  await str(COL.MESSAGES,  'imageUrls',           512,  false, null, true);
   await str(COL.MESSAGES,  'audioUrl',            512);
   await int(COL.MESSAGES,  'audioDurationMs');
   await str(COL.MESSAGES,  'pollId',              36);

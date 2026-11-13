@@ -765,14 +765,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         maxWidth: 1024,
         maxHeight: 1024,
         imageQuality: 80,
+        limit: ChatService.maxImagesPerMessage,
       );
       if (picked.isEmpty || !mounted) return;
-      // Mehrere Bilder werden nacheinander als je eine Nachricht gesendet.
-      for (final image in picked) {
-        final bytes = await image.readAsBytes();
-        await ref.read(chatServiceProvider).sendImage(widget.chatId, bytes);
-        if (!mounted) return;
-      }
+      // Mehrere Bilder gehen als eine Nachricht raus (eine Benachrichtigung).
+      final images = [for (final image in picked) await image.readAsBytes()];
+      await ref.read(chatServiceProvider).sendImages(widget.chatId, images);
+      if (!mounted) return;
       _markRead();
       _scrollToBottom();
       _refreshMessages();
@@ -1396,7 +1395,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                   )
                               : null,
                           onImageTap: msg.imageUrl != null && !msg.isDeleted
-                              ? () => _openImageFullscreen(context, msg.imageUrl!)
+                              ? (index) => _openImageFullscreen(
+                                  context, msg.allImageUrls, index)
                               : null,
                           onReply: isArchived || msg.isDeleted
                               ? null
@@ -1506,10 +1506,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return 2;
   }
 
-  void _openImageFullscreen(BuildContext context, String imageUrl) {
+  void _openImageFullscreen(
+      BuildContext context, List<String> imageUrls, int initialIndex) {
     showDialog<void>(
       context: context,
-      builder: (_) => _FullscreenImageDialog(imageUrl: imageUrl),
+      builder: (_) => _FullscreenImageDialog(
+          imageUrls: imageUrls, initialIndex: initialIndex),
     );
   }
 
@@ -1673,6 +1675,92 @@ Widget _buildGifImage(String url, {Widget Function(BuildContext)? errorChild}) {
   );
 }
 
+/// Raster für Nachrichten mit mehreren Bildern: zwei Spalten, höchstens vier
+/// Kacheln; weitere Bilder werden als „+N" auf der letzten Kachel angezeigt.
+class _ImageGrid extends StatelessWidget {
+  final List<String> imageUrls;
+  final void Function(int index)? onTap;
+
+  const _ImageGrid({required this.imageUrls, this.onTap});
+
+  static const double _width = 220;
+  static const double _gap = 4;
+  static const int _maxTiles = 4;
+
+  @override
+  Widget build(BuildContext context) {
+    final tileCount =
+        imageUrls.length > _maxTiles ? _maxTiles : imageUrls.length;
+    final hidden = imageUrls.length - tileCount;
+    const half = (_width - _gap) / 2;
+    final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        width: _width,
+        child: Wrap(
+          spacing: _gap,
+          runSpacing: _gap,
+          children: [
+            for (var i = 0; i < tileCount; i++)
+              _tile(
+                i,
+                // Bei drei Bildern füllt das erste die ganze Breite.
+                width: tileCount == 3 && i == 0 ? _width : half,
+                height: half,
+                pixelRatio: pixelRatio,
+                overlay: i == tileCount - 1 && hidden > 0 ? '+$hidden' : null,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tile(int index,
+      {required double width,
+      required double height,
+      required double pixelRatio,
+      String? overlay}) {
+    return GestureDetector(
+      onTap: onTap == null ? null : () => onTap!(index),
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            CachedNetworkImage(
+              imageUrl: imageUrls[index],
+              fit: BoxFit.cover,
+              // Kachelgröße statt Originalauflösung dekodieren (Speicher).
+              memCacheWidth: (width * pixelRatio).round(),
+              placeholder: (_, _) =>
+                  const Center(child: CircularProgressIndicator()),
+              errorWidget: (_, _, _) => const Icon(Icons.broken_image),
+            ),
+            if (overlay != null)
+              ColoredBox(
+                color: Colors.black54,
+                child: Center(
+                  child: Text(
+                    overlay,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _MessageBubble extends ConsumerWidget {
   final Message message;
   final bool isMe;
@@ -1681,7 +1769,8 @@ class _MessageBubble extends ConsumerWidget {
   final bool isAdminOrMod;
   final VoidCallback? onReport;
   final VoidCallback? onEdit;
-  final VoidCallback? onImageTap;
+  /// Index des angetippten Bildes innerhalb von `message.allImageUrls`.
+  final void Function(int index)? onImageTap;
   final VoidCallback? onReply;
   final void Function(String? emoji)? onReact;
   final VoidCallback? onPin;
@@ -2013,9 +2102,11 @@ class _MessageBubble extends ConsumerWidget {
                 durationMs: message.audioDurationMs,
                 isMe: isMe,
               )
+            else if (message.imageUrls.length > 1)
+              _ImageGrid(imageUrls: message.imageUrls, onTap: onImageTap)
             else if (message.imageUrl != null)
               GestureDetector(
-                onTap: onImageTap,
+                onTap: onImageTap == null ? null : () => onImageTap!(0),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: message.isGif
@@ -3423,8 +3514,12 @@ class _VoicePlayerState extends State<_VoicePlayer> {
 // ── Fullscreen-Bildbetrachter mit Speichern-Option ────────────────────────────
 
 class _FullscreenImageDialog extends StatefulWidget {
-  final String imageUrl;
-  const _FullscreenImageDialog({required this.imageUrl});
+  final List<String> imageUrls;
+  final int initialIndex;
+  const _FullscreenImageDialog({
+    required this.imageUrls,
+    this.initialIndex = 0,
+  });
 
   @override
   State<_FullscreenImageDialog> createState() => _FullscreenImageDialogState();
@@ -3432,13 +3527,22 @@ class _FullscreenImageDialog extends StatefulWidget {
 
 class _FullscreenImageDialogState extends State<_FullscreenImageDialog> {
   bool _saving = false;
+  late int _index = widget.initialIndex;
+  late final PageController _pageController =
+      PageController(initialPage: widget.initialIndex);
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   Future<void> _save() async {
     if (_saving) return;
     setState(() => _saving = true);
     final l = AppLocalizations.of(context);
     try {
-      final uri = Uri.parse(widget.imageUrl);
+      final uri = Uri.parse(widget.imageUrls[_index]);
       var fileName = uri.pathSegments.last.split('?').first;
       if (!RegExp(r'\.(jpe?g|png|webp|gif)$', caseSensitive: false)
           .hasMatch(fileName)) {
@@ -3476,20 +3580,34 @@ class _FullscreenImageDialogState extends State<_FullscreenImageDialog> {
       backgroundColor: Colors.black,
       child: Stack(
         children: [
-          Center(
-            child: InteractiveViewer(
-              minScale: 0.5,
-              maxScale: 5.0,
-              child: CachedNetworkImage(
-                imageUrl: widget.imageUrl,
-                fit: BoxFit.contain,
-                placeholder: (_, _) => const Center(
-                    child: CircularProgressIndicator(color: Colors.white)),
-                errorWidget: (_, _, _) => const Icon(
-                    Icons.broken_image, color: Colors.white, size: 64),
+          PageView.builder(
+            controller: _pageController,
+            itemCount: widget.imageUrls.length,
+            onPageChanged: (i) => setState(() => _index = i),
+            itemBuilder: (_, i) => Center(
+              child: InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 5.0,
+                child: CachedNetworkImage(
+                  imageUrl: widget.imageUrls[i],
+                  fit: BoxFit.contain,
+                  placeholder: (_, _) => const Center(
+                      child: CircularProgressIndicator(color: Colors.white)),
+                  errorWidget: (_, _, _) => const Icon(
+                      Icons.broken_image, color: Colors.white, size: 64),
+                ),
               ),
             ),
           ),
+          if (widget.imageUrls.length > 1)
+            Positioned(
+              top: 28,
+              left: 20,
+              child: Text(
+                '${_index + 1} / ${widget.imageUrls.length}',
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+              ),
+            ),
           Positioned(
             top: 16,
             right: 16,

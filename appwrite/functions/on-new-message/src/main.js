@@ -156,13 +156,32 @@ module.exports = async ({ req, res, log, error }) => {
     const childUids = participantUids.filter((uid) => memberMap[uid]?.role === 'child');
     const guardianTasks = [];
 
+    const nameOf = (uid) =>
+      memberMap[uid]?.displayName ?? userMap[uid]?.displayName ?? 'Unbekannt';
+    const isGroup = conv.isGroup === true || !!conv.name;
+
     for (const childUid of childUids) {
       const childData = memberMap[childUid];
       const guardianUidList = childData?.guardianUids ?? [];
       const childName = childData?.displayName ?? 'Kind';
-      const action = senderUid === childUid
-        ? 'hat eine Nachricht gesendet'
-        : 'hat eine Nachricht erhalten';
+      const childSent = senderUid === childUid;
+      // Klar machen, dass es um einen überwachten Chat des Kindes geht — der
+      // Guardian ist selbst kein Teilnehmer. Bei Direkt-Chats den Namen des
+      // Gegenübers nennen statt eines „Chat-Titels" (der dort nur der Absender-
+      // name wäre: „Kassandra … in Kassandra").
+      let guardianBody;
+      if (isGroup) {
+        guardianBody = childSent
+          ? `${childName} hat in der Gruppe „${conv.name}“ geschrieben`
+          : `Neue Nachricht von ${senderName} in der Gruppe „${conv.name}“`;
+      } else {
+        const partnerUid = childSent
+          ? participantUids.find((uid) => uid !== childUid)
+          : senderUid;
+        guardianBody = childSent
+          ? `${childName} hat ${nameOf(partnerUid)} geschrieben`
+          : `${senderName} hat ${childName} geschrieben`;
+      }
 
       for (const guardianUid of guardianUidList) {
         if (guardianUid === senderUid) continue;
@@ -181,8 +200,8 @@ module.exports = async ({ req, res, log, error }) => {
           await sendToUsers(
             db,
             [guardianUid],
-            `Kind-Aktivität: ${childName}`,
-            `${childName} ${action} in ${chatTitle}`,
+            `👁 Überwachter Chat: ${childName}`,
+            guardianBody,
             { convId, chatTitle },
             log,
             error,

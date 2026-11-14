@@ -152,7 +152,19 @@ class RealtimeBroadcaster {
     old.disconnect();
   }
 
+  bool _disposed = false;
+
+  /// Logout: closes the socket and drops every subscription in one go.
+  ///
+  /// The SDK's `disconnect()` iterates its subscription map with an `await`
+  /// per entry. Logout invalidates the services right after this provider, so
+  /// their streams get cancelled while that loop is suspended — each cancel
+  /// would call `unsubscribe()`, which removes from the very map being
+  /// iterated → `Concurrent modification during iteration`. After dispose,
+  /// [_disposed] makes teardown skip `unsubscribe()` (disconnect drops all
+  /// subscriptions anyway, and the socket is gone).
   Future<void> dispose() async {
+    _disposed = true;
     _reattach.clear();
     await _realtime.disconnect();
   }
@@ -180,7 +192,9 @@ class RealtimeBroadcaster {
 
       void teardown() {
         sub?.cancel();
-        rtSub?.unsubscribe();
+        // After dispose() the SDK's disconnect() owns all subscriptions (see
+        // dispose()); unsubscribing here would mutate its map mid-iteration.
+        if (!_disposed) rtSub?.unsubscribe();
         evict();
       }
 

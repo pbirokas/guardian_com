@@ -428,6 +428,7 @@ async function setupReports() {
   await str('reports', 'status',            20,   false, 'pending');  // pending|reviewed
   await dt('reports',  'createdAt',         true);
   await idx('reports', 'orgId_idx',     'key', ['orgId']);
+  await idx('reports', 'orgId_status_idx', 'key', ['orgId', 'status']); // on-new-report: Recount pending
   await idx('reports', 'createdAt_idx', 'key', ['createdAt'], ['DESC']);
 }
 

@@ -26,6 +26,17 @@ module.exports = async ({ req, res, log, error }) => {
     return res.empty();
   }
 
+  // Update-Event (z. B. „als geprüft markiert"): nur den Zähler neu berechnen.
+  // Der Client darf das Org-Dokument nicht mehr selbst schreiben (keine
+  // Collection-Level-Update-Rechte). Recount statt ±1 → idempotent, heilt Drift.
+  // Unsere eigene ACL-Änderung unten löst ebenfalls ein Update-Event aus —
+  // harmlos, da nur der Zähler (Org-Doc) geschrieben wird, nie der Report.
+  const event = req.headers['x-appwrite-event'] || '';
+  if (event.endsWith('.update')) {
+    await recountPendingReports(db, orgId, log, error);
+    return res.empty();
+  }
+
   // Admin + alle Moderatoren ermitteln
   const alertUids = [orgAdminUid];
 
@@ -73,15 +84,25 @@ module.exports = async ({ req, res, log, error }) => {
 
   log(`on-new-report: sent to ${alertUids.length} recipient(s) for report ${report.$id}`);
 
-  // Increment pendingReportsCount on org so the badge updates via org Realtime
-  try {
-    const org = await db.getDocument(DB_ID, COL_ORGANIZATIONS, orgId);
-    await db.updateDocument(DB_ID, COL_ORGANIZATIONS, orgId, {
-      pendingReportsCount: (org.pendingReportsCount ?? 0) + 1,
-    });
-  } catch (e) {
-    error(`Failed to increment pendingReportsCount: ${e.message}`);
-  }
+  // pendingReportsCount auf der Org neu berechnen → Badge aktualisiert sich per Org-Realtime.
+  await recountPendingReports(db, orgId, log, error);
 
   return res.empty();
 };
+
+async function recountPendingReports(db, orgId, log, error) {
+  try {
+    const pending = await db.listDocuments(DB_ID, COL_REPORTS, [
+      Query.equal('orgId', orgId),
+      Query.equal('status', 'pending'),
+      Query.limit(1),
+    ]);
+    const count = pending.total ?? 0;
+    const org = await db.getDocument(DB_ID, COL_ORGANIZATIONS, orgId);
+    if ((org.pendingReportsCount ?? 0) === count) return;
+    await db.updateDocument(DB_ID, COL_ORGANIZATIONS, orgId, { pendingReportsCount: count });
+    log(`Org ${orgId}: pendingReportsCount = ${count}`);
+  } catch (e) {
+    error(`Failed to recount pendingReportsCount: ${e.message}`);
+  }
+}

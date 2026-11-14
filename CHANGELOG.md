@@ -6,6 +6,7 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ## 2026-11-14
 
+- **An- und Abmelden ohne Fehler.** Beim Abmelden brach das Schließen der Live-Verbindung mit einem Fehler ab (wurde an Crashlytics gemeldet), und direkt nach dem Anmelden konnte die Organisations-Übersicht einen Fehler auslösen, der die App auf Android zeitweise hängen ließ. Beides ist behoben.
 - **Sicherheit (vorbereitet, noch nicht live): Chat-Daten nur noch für Berechtigte lesbar.** Auf Datenbank-Ebene waren Chats, Nachrichten, Abstimmungen, Meldungen und Lesebestätigungen bisher für jedes angemeldete Konto abrufbar, obwohl die einzelnen Dokumente schon auf Chat-Teilnehmer und Aufsicht beschränkt waren. Diese breiten Rechte werden stufenweise entzogen. Dafür laufen Reaktionen auf fremde Nachrichten und Ankündigungen, Termin-Zusagen, das Löschen eines Chats durch Admins/Moderatoren, das Löschen einer gemeldeten Nachricht und das Ablehnen einer Kind-Einladung jetzt über den Server; der Zähler offener Meldungen wird serverseitig berechnet.
 - **Klarere Benachrichtigungen für Guardians aus überwachten Chats.** Statt „Kassandra hat eine Nachricht gesendet in Kassandra“ heißt es jetzt z. B. „👁 Überwachter Chat: Kassandra – Kassandra hat Max geschrieben“ bzw. „Max hat Kassandra geschrieben“; bei Gruppen wird der Gruppenname genannt.
 

@@ -29,9 +29,17 @@ module.exports = async ({ req, res, log, error }) => {
     }
   }
 
-  const { convId, msgId, newText, archivedByName } = body;
-  if (!convId || !msgId || typeof newText !== 'string') {
-    return res.json({ error: 'convId, msgId, newText required' }, 400);
+  // action: 'archive' (Default, Text ersetzen + archivieren) | 'softDelete'
+  // (Nachricht als gelöscht markieren, z. B. aus der Report-Ansicht).
+  const { convId, msgId, newText, archivedByName, action = 'archive' } = body;
+  if (!convId || !msgId) {
+    return res.json({ error: 'convId, msgId required' }, 400);
+  }
+  if (action !== 'archive' && action !== 'softDelete') {
+    return res.json({ error: `Unknown action: ${action}` }, 400);
+  }
+  if (action === 'archive' && typeof newText !== 'string') {
+    return res.json({ error: 'newText required' }, 400);
   }
 
   const client = new Client()
@@ -68,20 +76,24 @@ module.exports = async ({ req, res, log, error }) => {
     return res.json({ error: 'Insufficient role' }, 403);
   }
 
-  // Moderation anwenden: Text ersetzen + als archiviert markieren.
+  // Moderation anwenden.
+  const update = action === 'softDelete'
+    ? { deletedAt: new Date().toISOString(), deletedBy: callerId }
+    : {
+        // Text ersetzen + als archiviert markieren.
+        text: newText,
+        editedAt: new Date().toISOString(),
+        isArchived: true,
+        archivedByUid: callerId,
+        archivedByName: archivedByName || '',
+      };
   try {
-    await db.updateDocument(DB_ID, COL_MESSAGES, msgId, {
-      text: newText,
-      editedAt: new Date().toISOString(),
-      isArchived: true,
-      archivedByUid: callerId,
-      archivedByName: archivedByName || '',
-    });
+    await db.updateDocument(DB_ID, COL_MESSAGES, msgId, update);
   } catch (e) {
     error(`Failed to moderate message ${msgId}: ${e.message}`);
     return res.json({ error: 'Update failed' }, 500);
   }
 
-  log(`Message ${msgId} moderated by ${callerId} (${role}) in org ${orgId}`);
+  log(`Message ${msgId} moderated (${action}) by ${callerId} (${role}) in org ${orgId}`);
   return res.json({ ok: true });
 };

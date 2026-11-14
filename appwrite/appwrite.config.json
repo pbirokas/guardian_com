@@ -1702,7 +1702,8 @@
             "runtime": "node-16.0",
             "execute": [],
             "events": [
-                "databases.guardian.collections.reports.documents.*.create"
+                "databases.guardian.collections.reports.documents.*.create",
+                "databases.guardian.collections.reports.documents.*.update"
             ],
             "schedule": "",
             "timeout": 30,
@@ -1930,6 +1931,23 @@
             "entrypoint": "src/main.js",
             "commands": "npm install",
             "path": "functions/moderate-message",
+            "vars": {}
+        },
+        {
+            "$id": "set-reaction",
+            "name": "set-reaction",
+            "runtime": "node-16.0",
+            "execute": [
+                "users"
+            ],
+            "events": [],
+            "schedule": "",
+            "timeout": 15,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/set-reaction",
             "vars": {}
         },
         {

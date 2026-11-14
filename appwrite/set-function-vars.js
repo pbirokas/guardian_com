@@ -53,6 +53,7 @@ const FUNCTION_IDS = [
   'sync-conversation-permissions',
   'sync-supervisor-team',
   'moderate-message',
+  'set-reaction',
   'on-parent-consent',
   'on-poll-vote',
   'process-my-invitations',

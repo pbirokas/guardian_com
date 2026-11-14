@@ -179,6 +179,18 @@ class _GuardianAppState extends ConsumerState<GuardianApp>
       final user = next.value;
       final client = ref.read(appwriteClientProvider);
       if (user != null) {
+        // Die Services hängen am Auth-State und sind nach dem Login „dirty“.
+        // Hier (außerhalb jedes Builds) sofort neu erzeugen: sonst passiert das
+        // erst, wenn die Org-Liste lazy ihre Einträge baut
+        // (unreadOrgCountProvider → myReadReceiptsProvider → chatServiceProvider),
+        // und der Rebuild invalidiert bereits gemountete Abhängige mitten im
+        // Build → Riverpod ruft setState auf UncontrolledProviderScope
+        // („markNeedsBuild() called during build“).
+        if (prev?.value?.uid != user.uid) {
+          ref.read(chatServiceProvider);
+          ref.read(organizationServiceProvider);
+          ref.read(parentClaimServiceProvider);
+        }
         // Neue Sitzung (Login, Nutzerwechsel, Session-Restore): WebSocket mit
         // den frischen Session-Cookies neu aufbauen. Seit Appwrite-SDK v24
         // bleibt eine Verbindung dauerhaft offen — eine vor dem Login geöffnete

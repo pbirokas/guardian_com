@@ -10,6 +10,7 @@ class FakeRealtime implements Realtime {
   final List<RealtimeSubscription> subs = [];
   int unsubscribeCalls = 0;
   bool disconnected = false;
+  bool removeOnUnsubscribe = false;
 
   List<String> get subscribedChannels =>
       [for (final s in subs) ...s.channels];
@@ -26,6 +27,9 @@ class FakeRealtime implements Realtime {
       queries: queries,
       unsubscribe: () async {
         unsubscribeCalls++;
+        // Like the SDK: unsubscribe removes the entry from the collection that
+        // disconnect() iterates (with an await per entry).
+        if (removeOnUnsubscribe) subs.removeWhere((s) => s.controller == controller);
         await controller.close();
       },
       update: ({channels, queries}) async {},
@@ -175,5 +179,26 @@ void main() {
     await broadcaster.dispose();
 
     expect(instances.last.disconnected, isTrue);
+  });
+
+  test(
+      'logout: listeners cancelled while dispose() is disconnecting do not '
+      'unsubscribe (no concurrent modification of the SDK map)', () async {
+    instances.single.removeOnUnsubscribe = true;
+    final a = broadcaster.stream(_channel).listen((_) {});
+    final b = broadcaster.stream('${_channel}2').listen((_) {});
+    final c = broadcaster.stream('${_channel}3').listen((_) {});
+    await pumpEventQueue();
+
+    // main.dart invalidates the broadcaster first, then the services — their
+    // streams get cancelled while disconnect() is suspended in its loop.
+    final disposing = broadcaster.dispose();
+    await a.cancel();
+    await b.cancel();
+    await c.cancel();
+
+    await expectLater(disposing, completes);
+    expect(instances.single.disconnected, isTrue);
+    expect(instances.single.unsubscribeCalls, 0);
   });
 }

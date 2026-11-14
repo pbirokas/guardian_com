@@ -23,16 +23,35 @@ module.exports = async ({ req, res, log, error }) => {
     return res.empty();
   }
 
+  // Anfragender = Ersteller laut Default-ACL (ein Client kann nur seine eigene
+  // `user:`-Rolle granten). Passt `fromUid` nicht dazu, ist die Anfrage
+  // gefälscht (jemand gibt sich als Elternteil eines anderen aus) → löschen.
+  const creator = (claimRequest.$permissions ?? [])
+    .map((p) => p.match(/^(?:read|update|delete)\("user:([^"/]+)"\)$/)?.[1])
+    .find(Boolean);
+  if (creator && creator !== fromUid) {
+    error(`Claim ${claimRequest.$id}: fromUid ${fromUid} != creator ${creator} → deleted`);
+    await db.deleteDocument(DB_ID, 'claim_requests', claimRequest.$id).catch(() => {});
+    return res.empty();
+  }
+
   // Document-Level-Permissions setzen, damit Realtime für beide Seiten feuert.
   // Client kann keine fremden User-IDs in Permissions setzen → hier via Admin-Key.
+  // KEIN update für den Anfragenden: sonst könnte er seine eigene Anfrage
+  // bestätigen und würde verifizierter Elternteil eines beliebigen Kontos
+  // (on-claim-confirmed prüft das zusätzlich anhand dieser ACL). Die neue App
+  // ändert den Status nur über `self-service/respondClaim`; `update` für das
+  // Kind bleibt für alte App-Versionen (es kann nur über sich selbst
+  // entscheiden). Status beim Anlegen immer `pending`.
   try {
-    await db.updateDocument(DB_ID, 'claim_requests', claimRequest.$id, {}, [
-      Permission.read(Role.user(fromUid)),
-      Permission.update(Role.user(fromUid)),
-      Permission.delete(Role.user(fromUid)),
-      Permission.read(Role.user(toUid)),
-      Permission.update(Role.user(toUid)),
-    ]);
+    await db.updateDocument(DB_ID, 'claim_requests', claimRequest.$id,
+      claimRequest.status === 'pending' ? {} : { status: 'pending' },
+      [
+        Permission.read(Role.user(fromUid)),
+        Permission.delete(Role.user(fromUid)),
+        Permission.read(Role.user(toUid)),
+        Permission.update(Role.user(toUid)),
+      ]);
     log(`Permissions set for claim ${claimRequest.$id}`);
   } catch (e) {
     error(`Failed to set permissions on claim ${claimRequest.$id}: ${e.message}`);

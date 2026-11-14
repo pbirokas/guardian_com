@@ -37,8 +37,6 @@ class ChatService {
   static const _colMessages = 'chat_messages';
   static const _colPolls = 'polls';
   static const _colScheduled = 'scheduled_messages';
-  static const _colMembers = 'members';
-  static const _colOrgs = 'organizations';
   static const _colReports = 'reports';
   static const _colReceipts = 'read_receipts';
 
@@ -335,186 +333,58 @@ class ChatService {
 
   // ── Konversations-Aktionen ─────────────────────────────────────────────────
 
+  // ── Konversationen schreiben: nur über `conversation-action` ─────────────
+  // Die Conversation-ACL ist `read team(convId)` — Appwrite kennt keine
+  // Feld-Rechte, ein Team-`update` erlaubte jedem Teilnehmer (auch Kindern),
+  // status/participantUids/guardianUids zu ändern. Rollen prüft die Function
+  // live; guardianUids/canApproveUids berechnet sie selbst.
+
+  static const _convActionId = 'conversation-action';
+
+  Future<Map<String, dynamic>> _convAction(
+          String action, Map<String, dynamic> params) =>
+      _functions.callJson(_convActionId, {'action': action, ...params});
+
+  Conversation _convFromResult(Map<String, dynamic> result) =>
+      Conversation.fromAppwrite(
+          Map<String, dynamic>.from(result['conversation'] as Map));
+
   Future<Conversation> requestConversation(
       String orgId, String targetUid) async {
-    final existing = await _db.listDocuments(
-      databaseId: _dbId,
-      collectionId: _colConvs,
-      queries: [
-        Query.contains('participantUids', [_uid]),
-        Query.equal('orgId', orgId),
-        Query.limit(100),
-      ],
-    );
-    for (final doc in existing.documents) {
-      final conv = Conversation.fromAppwrite({r'$id': doc.$id, ...doc.data});
-      if (!conv.isGroup &&
-          conv.participantUids.contains(targetUid) &&
-          conv.status != ConversationStatus.rejected &&
-          conv.status != ConversationStatus.archived) {
+    try {
+      return _convFromResult(await _convAction(
+          'request', {'orgId': orgId, 'targetUid': targetUid}));
+    } on FunctionCallException catch (e) {
+      if (e.message == 'conversation_exists') {
         throw Exception('Eine Konversation mit dieser Person existiert bereits.');
       }
+      rethrow;
     }
-
-    final memberDoc = await _safeGetDocument(
-        _colMembers, '${orgId}_$_uid');
-    final guardianUid = memberDoc?.data['guardianUids'] is List &&
-            (memberDoc!.data['guardianUids'] as List).isNotEmpty
-        ? (memberDoc.data['guardianUids'] as List).first as String?
-        : null;
-
-    final orgDoc = await _db.getDocument(
-        databaseId: _dbId, collectionId: _colOrgs, documentId: orgId);
-    final orgAdminUid = orgDoc.data['adminUid'] as String;
-    final supervisors = await _buildSupervisorUids(orgId, [_uid, targetUid]);
-
-    final convId = ID.unique();
-    final conv = Conversation(
-      id: convId,
-      orgId: orgId,
-      orgAdminUid: orgAdminUid,
-      participantUids: [_uid, targetUid],
-      requestedBy: _uid,
-      status: ConversationStatus.pending,
-      createdAt: DateTime.now().toUtc(),
-      requestorGuardianUid: guardianUid,
-      canApproveUids: supervisors.canApproveUids,
-      guardianUids: supervisors.guardianUids,
-    );
-    await _db.createDocument(
-      databaseId: _dbId,
-      collectionId: _colConvs,
-      documentId: convId,
-      data: conv.toAppwrite(),
-      // Nur der Ersteller — sofort sichtbar. Die Server-Function
-      // `sync-conversation-permissions` legt danach das Team-Modell (Teilnehmer +
-      // Guardians + Org-Supervisor-Team) als ACL fest.
-      permissions: [
-        Permission.read(Role.user(_uid)),
-        Permission.update(Role.user(_uid)),
-      ],
-    );
-    return conv;
   }
 
+  /// Genehmigter Direktchat (Admin/Mod oder Guardian des Ziels); liefert einen
+  /// bestehenden Direktchat zurück, falls vorhanden.
   Future<Conversation> createApprovedConversation(
-      String orgId, String targetUid) async {
-    final existing = await _db.listDocuments(
-      databaseId: _dbId,
-      collectionId: _colConvs,
-      queries: [
-        Query.contains('participantUids', [_uid]),
-        Query.equal('orgId', orgId),
-        Query.limit(100),
-      ],
-    );
-    for (final doc in existing.documents) {
-      final conv = Conversation.fromAppwrite({r'$id': doc.$id, ...doc.data});
-      if (conv.participantUids.contains(targetUid) && !conv.isGroup) {
-        return conv;
-      }
-    }
-
-    final orgDoc = await _db.getDocument(
-        databaseId: _dbId, collectionId: _colOrgs, documentId: orgId);
-    final orgAdminUid = orgDoc.data['adminUid'] as String;
-    final supervisors =
-        await _buildSupervisorUids(orgId, [_uid, targetUid]);
-
-    final convId = ID.unique();
-    final conv = Conversation(
-      id: convId,
-      orgId: orgId,
-      orgAdminUid: orgAdminUid,
-      participantUids: [_uid, targetUid],
-      requestedBy: _uid,
-      status: ConversationStatus.approved,
-      createdAt: DateTime.now().toUtc(),
-      approvedBy: _uid,
-      approvedAt: DateTime.now().toUtc(),
-      canApproveUids: supervisors.canApproveUids,
-      guardianUids: supervisors.guardianUids,
-    );
-    await _db.createDocument(
-      databaseId: _dbId,
-      collectionId: _colConvs,
-      documentId: convId,
-      data: conv.toAppwrite(),
-      // Nur der Ersteller — sofort sichtbar. Die Server-Function
-      // `sync-conversation-permissions` legt danach das Team-Modell (Teilnehmer +
-      // Guardians + Org-Supervisor-Team) als ACL fest.
-      permissions: [
-        Permission.read(Role.user(_uid)),
-        Permission.update(Role.user(_uid)),
-      ],
-    );
-    return conv;
-  }
+          String orgId, String targetUid) async =>
+      _convFromResult(await _convAction(
+          'createDirect', {'orgId': orgId, 'targetUid': targetUid}));
 
   Future<Conversation> createGroupChat(
-      String orgId, String name, List<String> memberUids) async {
-    final orgDoc = await _db.getDocument(
-        databaseId: _dbId, collectionId: _colOrgs, documentId: orgId);
-    final orgAdminUid = orgDoc.data['adminUid'] as String;
-    final supervisors = await _buildSupervisorUids(orgId, memberUids);
+          String orgId, String name, List<String> memberUids) async =>
+      _convFromResult(await _convAction('createGroup',
+          {'orgId': orgId, 'name': name, 'memberUids': memberUids}));
 
-    final convId = ID.unique();
-    final conv = Conversation(
-      id: convId,
-      orgId: orgId,
-      orgAdminUid: orgAdminUid,
-      participantUids: memberUids,
-      requestedBy: _uid,
-      status: ConversationStatus.approved,
-      createdAt: DateTime.now().toUtc(),
-      approvedBy: _uid,
-      approvedAt: DateTime.now().toUtc(),
-      name: name,
-      isGroup: true,
-      canApproveUids: supervisors.canApproveUids,
-      guardianUids: supervisors.guardianUids,
-    );
-    await _db.createDocument(
-      databaseId: _dbId,
-      collectionId: _colConvs,
-      documentId: convId,
-      data: conv.toAppwrite(),
-      // Nur der Ersteller — sofort sichtbar. Die Server-Function
-      // `sync-conversation-permissions` legt danach das Team-Modell (Teilnehmer +
-      // Guardians + Org-Supervisor-Team) als ACL fest.
-      permissions: [
-        Permission.read(Role.user(_uid)),
-        Permission.update(Role.user(_uid)),
-      ],
-    );
-    return conv;
-  }
-
+  /// Genehmigt eine Anfrage bzw. holt einen archivierten Chat zurück.
   Future<void> approveConversation(String convId) async {
-    await _db.updateDocument(
-      databaseId: _dbId,
-      collectionId: _colConvs,
-      documentId: convId,
-      data: {
-        'status': ConversationStatus.approved.name,
-        'approvedBy': _uid,
-        'approvedAt': DateTime.now().toUtc().toIso8601String(),
-      },
-    );
+    await _convAction('approve', {'convId': convId});
   }
 
   Future<void> rejectConversation(String convId) async {
-    await _db.deleteDocument(
-        databaseId: _dbId, collectionId: _colConvs, documentId: convId);
+    await _convAction('reject', {'convId': convId});
   }
 
   Future<void> archiveConversation(String convId) async {
-    await _db.updateDocument(
-      databaseId: _dbId,
-      collectionId: _colConvs,
-      documentId: convId,
-      data: {'status': ConversationStatus.archived.name},
-    );
+    await _convAction('archive', {'convId': convId});
   }
 
   /// Löscht einen Chat samt aller Nachrichten (auch fremder), Polls, geplanten
@@ -537,13 +407,8 @@ class ChatService {
     );
   }
 
-  Future<void> renameConversation(String convId, String name) async {
-    await _db.updateDocument(
-        databaseId: _dbId,
-        collectionId: _colConvs,
-        documentId: convId,
-        data: {'name': name.trim()});
-  }
+  Future<void> renameConversation(String convId, String name) =>
+      updateGroupInfo(convId, name: name);
 
   /// Laufende mark-as-read-Aufrufe je `uid:convId`. Statisch, damit auch mehrere
   /// gleichzeitig offene ChatScreens desselben Chats (oder ein neu gebauter
@@ -587,41 +452,17 @@ class ChatService {
   }
 
   Future<void> setPersonalName(String convId, String name) async {
-    final doc = await _db.getDocument(
-        databaseId: _dbId, collectionId: _colConvs, documentId: convId);
-    final conv = Conversation.fromAppwrite({r'$id': doc.$id, ...doc.data});
-    final names = Map<String, String>.from(conv.personalNames);
-    final trimmed = name.trim();
-    if (trimmed.isEmpty) {
-      names.remove(_uid);
-    } else {
-      names[_uid] = trimmed;
-    }
-    await _db.updateDocument(
-        databaseId: _dbId,
-        collectionId: _colConvs,
-        documentId: convId,
-        data: {'personalNamesJson': jsonEncode(names)});
+    await _convAction('setPersonalName', {'convId': convId, 'name': name.trim()});
   }
 
+  /// Der angezeigte Text kommt serverseitig aus der Nachricht ([text] bleibt
+  /// für die Aufrufer-Signatur).
   Future<void> pinMessage(String convId, String msgId, String text) async {
-    await _db.updateDocument(
-        databaseId: _dbId,
-        collectionId: _colConvs,
-        documentId: convId,
-        data: {
-          'pinnedMessageId': msgId,
-          'pinnedMessageText':
-              text.length > 120 ? '${text.substring(0, 120)}…' : text,
-        });
+    await _convAction('pin', {'convId': convId, 'msgId': msgId});
   }
 
   Future<void> unpinMessage(String convId) async {
-    await _db.updateDocument(
-        databaseId: _dbId,
-        collectionId: _colConvs,
-        documentId: convId,
-        data: {'pinnedMessageId': null, 'pinnedMessageText': null});
+    await _convAction('unpin', {'convId': convId});
   }
 
   Future<void> setTyping(String convId, bool isTyping) async {
@@ -632,50 +473,18 @@ class ChatService {
 
   Future<void> removeMemberFromConversation(
       String convId, String memberUid, {String memberName = ''}) async {
-    final doc = await _db.getDocument(
-        databaseId: _dbId, collectionId: _colConvs, documentId: convId);
-    final conv = Conversation.fromAppwrite({r'$id': doc.$id, ...doc.data});
-    final newUids = conv.participantUids.where((u) => u != memberUid).toList();
-    await _db.updateDocument(
-        databaseId: _dbId,
-        collectionId: _colConvs,
-        documentId: convId,
-        data: {'participantUids': newUids});
+    await _convAction('removeMember', {'convId': convId, 'uid': memberUid});
     if (memberName.isNotEmpty) {
-      await _postSystemMessage(convId, conv.orgId, 'memberRemoved', memberName);
+      final orgId = await _getOrgId(convId);
+      await _postSystemMessage(convId, orgId, 'memberRemoved', memberName);
     }
   }
 
   Future<void> addMembersToConversation(
       String convId, String orgId, List<String> newMemberUids) async {
-    final doc = await _db.getDocument(
-        databaseId: _dbId, collectionId: _colConvs, documentId: convId);
-    final conv = Conversation.fromAppwrite({r'$id': doc.$id, ...doc.data});
-
-    final newGuardianUids = <String>[];
-    final addedNames = <String>[];
-    for (final uid in newMemberUids) {
-      final memberDoc =
-          await _safeGetDocument(_colMembers, '${orgId}_$uid');
-      if (memberDoc == null) continue;
-      final guardians = List<String>.from(
-          memberDoc.data['guardianUids'] as List? ?? []);
-      newGuardianUids.addAll(guardians);
-      final name = memberDoc.data['displayName'] as String? ?? '';
-      if (name.isNotEmpty) addedNames.add(name);
-    }
-
-    final updatedUids = {...conv.participantUids, ...newMemberUids}.toList();
-    final updatedGuardians =
-        {...conv.guardianUids, ...newGuardianUids}.toList();
-    await _db.updateDocument(
-        databaseId: _dbId,
-        collectionId: _colConvs,
-        documentId: convId,
-        data: {
-          'participantUids': updatedUids,
-          'guardianUids': updatedGuardians,
-        });
+    final result = await _convAction(
+        'addMembers', {'convId': convId, 'uids': newMemberUids});
+    final addedNames = List<String>.from(result['addedNames'] as List? ?? []);
     for (final name in addedNames) {
       await _postSystemMessage(convId, orgId, 'memberAdded', name);
     }
@@ -691,17 +500,13 @@ class ChatService {
     String? imageUrl,
     bool removeImage = false,
   }) async {
-    final updates = <String, dynamic>{};
-    if (name != null) updates['name'] = name.trim();
-    if (imageUrl != null) updates['imageUrl'] = imageUrl;
-    if (removeImage) updates['imageUrl'] = null;
-    if (updates.isNotEmpty) {
-      await _db.updateDocument(
-          databaseId: _dbId,
-          collectionId: _colConvs,
-          documentId: convId,
-          data: updates);
-    }
+    if (name == null && imageUrl == null && !removeImage) return;
+    await _convAction('updateGroupInfo', {
+      'convId': convId,
+      if (name != null) 'name': name.trim(),
+      'imageUrl': ?imageUrl,
+      if (removeImage) 'removeImage': true,
+    });
   }
 
   // ── Nachrichten ────────────────────────────────────────────────────────────
@@ -751,8 +556,6 @@ class ChatService {
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
       permissions: _msgPerms(convId),
     );
-    await _updateLastMessage(
-        convId, text.length > 200 ? '${text.substring(0, 200)}…' : text);
   }
 
   /// Bearbeitet die EIGENE Nachricht (Autor). Fremd-Moderation läuft über
@@ -913,7 +716,6 @@ class ChatService {
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
       permissions: _msgPerms(convId),
     );
-    await _updateLastMessage(convId, '🎤 Sprachnachricht');
   }
 
   /// Maximale Anzahl Bilder pro Nachricht.
@@ -968,8 +770,6 @@ class ChatService {
         data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
         permissions: _msgPerms(convId),
       );
-      await _updateLastMessage(
-          convId, urls.length > 1 ? '[${urls.length} Bilder]' : '[Bild]');
     }
   }
 
@@ -1052,7 +852,6 @@ class ChatService {
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
       permissions: _msgPerms(convId),
     );
-    await _updateLastMessage(convId, '📎 $fileName');
   }
 
   // ── Abstimmungen ───────────────────────────────────────────────────────────
@@ -1114,7 +913,6 @@ class ChatService {
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
       permissions: _msgPerms(convId),
     );
-    await _updateLastMessage(convId, preview);
   }
 
   Future<void> castVote(String convId, String pollId, String optionId) async {
@@ -1278,17 +1076,8 @@ class ChatService {
 
   // ── Hilfsmethoden ──────────────────────────────────────────────────────────
 
-  Future<void> _updateLastMessage(String convId, String preview) async {
-    await _db.updateDocument(
-      databaseId: _dbId,
-      collectionId: _colConvs,
-      documentId: convId,
-      data: {
-        'lastMessage': preview,
-        'lastMessageAt': DateTime.now().toUtc().toIso8601String(),
-      },
-    );
-  }
+  // lastMessage/lastMessageAt der Conversation setzt `on-new-message`
+  // serverseitig (Conversations sind für Clients nur lesbar).
 
   Future<void> _postSystemMessage(
       String convId, String orgId, String event, String targetName) async {
@@ -1311,51 +1100,5 @@ class ChatService {
       data: {...msg.toAppwrite(), 'convId': convId, 'orgId': orgId},
       permissions: _msgPerms(convId),
     );
-  }
-
-  Future<({List<String> canApproveUids, List<String> guardianUids})>
-      _buildSupervisorUids(String orgId, List<String> participantUids) async {
-    final orgDoc = await _db.getDocument(
-        databaseId: _dbId, collectionId: _colOrgs, documentId: orgId);
-    final orgAdminUid = orgDoc.data['adminUid'] as String;
-
-    final modsResult = await _db.listDocuments(
-      databaseId: _dbId,
-      collectionId: _colMembers,
-      queries: [
-        Query.equal('orgId', orgId),
-        Query.equal('role', 'moderator'),
-        Query.limit(100),
-      ],
-    );
-    final moderatorUids =
-        modsResult.documents.map((d) => d.data['uid'] as String).toList();
-
-    final guardianUids = <String>[];
-    for (final uid in participantUids) {
-      final memberDoc =
-          await _safeGetDocument(_colMembers, '${orgId}_$uid');
-      if (memberDoc == null) continue;
-      final guards = List<String>.from(
-          memberDoc.data['guardianUids'] as List? ?? []);
-      for (final g in guards) {
-        if (!guardianUids.contains(g)) guardianUids.add(g);
-      }
-    }
-
-    return (
-      canApproveUids: {orgAdminUid, ...moderatorUids}.toList(),
-      guardianUids: guardianUids,
-    );
-  }
-
-  Future<dynamic> _safeGetDocument(String col, String docId) async {
-    try {
-      return await _db.getDocument(
-          databaseId: _dbId, collectionId: col, documentId: docId);
-    } on AppwriteException catch (e) {
-      if (e.code == 404) return null;
-      rethrow;
-    }
   }
 }

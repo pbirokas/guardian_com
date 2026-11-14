@@ -84,10 +84,11 @@ module.exports = async ({ req, res, log, error }) => {
     // ── addMember ────────────────────────────────────────────────────────────
     case 'addMember': {
       if (!isAdminOrMod) return res.json({ error: 'Forbidden' }, 403);
-      const { memberData, isChild } = payload;
-      if (!targetUid || !memberData) {
-        return res.json({ error: 'targetUid and memberData required' }, 400);
-      }
+      // memberData vom Client wird NICHT mehr übernommen (sonst könnte ein
+      // Moderator jemanden direkt als Admin anlegen) — nur role/guardianUids
+      // als Wunsch, der Rest kommt aus dem users-Doc des Ziels.
+      const requested = payload.memberData ?? {};
+      if (!targetUid) return res.json({ error: 'targetUid required' }, 400);
       const memberId = `${orgId}_${targetUid}`;
 
       // Bereits Mitglied?
@@ -101,11 +102,56 @@ module.exports = async ({ req, res, log, error }) => {
         }
       }
 
+      let targetUser;
       try {
+        targetUser = await db.getDocument(DB_ID, COL_USERS, targetUid);
+      } catch (_) {
+        return res.json({ error: 'User not found' }, 404);
+      }
+
+      let role = requested.role ?? 'member';
+      if (!['admin', 'moderator', 'member', 'child'].includes(role)) {
+        return res.json({ error: 'Invalid role' }, 400);
+      }
+      if (role === 'admin') return res.json({ error: 'Use transferAdmin' }, 400);
+      if (!isAdmin && role === 'moderator') {
+        return res.json({ error: 'Only admin can grant admin/moderator role' }, 403);
+      }
+      if (targetUser.isChild && role !== 'child') {
+        return res.json({ error: 'child_account_role_locked' }, 400);
+      }
+      const isChild = role === 'child';
+
+      let guardianUids = [];
+      if (isChild) {
+        const check = await validGuardians(db, orgId, requested.guardianUids);
+        if (check.error) return res.json({ error: check.error }, 400);
+        guardianUids = check.guardianUids;
+      }
+
+      const memberData = {
+        orgId,
+        uid: targetUid,
+        displayName: targetUser.displayName ?? targetUser.email ?? targetUid,
+        // Email nur für Nicht-Kinder (DSGVO, siehe inviteMember im Client).
+        email: isChild ? '' : (targetUser.email ?? ''),
+        ...(targetUser.photoUrl ? { photoUrl: targetUser.photoUrl } : {}),
+        role,
+        joinedAt: new Date().toISOString(),
+        guardianUids,
+        status: isChild ? 'pending' : 'active',
+        childAlertInterval: 'hourly',
+        notificationsEnabled: true,
+        messageAlertInterval: 'always',
+        hideEmail: targetUser.hideEmail ?? false,
+        lastChildAlertAtJson: '{}',
+      };
+
+      try {
+        // Nur lesbar — Member-Docs schreiben ausschließlich Server-Functions
+        // (Selbst-Eskalation über `role`, siehe self-service).
         await db.createDocument(DB_ID, COL_MEMBERS, memberId, memberData, [
           Permission.read(Role.users()),
-          Permission.update(Role.user(targetUid)),
-          Permission.delete(Role.user(targetUid)),
         ]);
       } catch (e) {
         if ((e?.code ?? 0) === 409) return res.json({ error: 'already_member' }, 409);
@@ -122,11 +168,10 @@ module.exports = async ({ req, res, log, error }) => {
           await db.updateDocument(DB_ID, COL_ORGS, orgId, { memberUids });
         }
         // membershipsJson aktualisieren
-        const role = memberData.role ?? 'member';
         await addMembership(db, targetUid, orgId, role, log);
       }
 
-      return res.json({ ok: true });
+      return res.json({ ok: true, role });
     }
 
     // ── updateRole ───────────────────────────────────────────────────────────
@@ -152,6 +197,10 @@ module.exports = async ({ req, res, log, error }) => {
       }
       const oldRole = memberDoc.role;
       if (oldRole === newRole) return res.json({ ok: true }); // idempotent
+      // Moderatoren dürfen Admin/Moderatoren nicht herabstufen.
+      if (!isAdmin && (oldRole === 'admin' || oldRole === 'moderator')) {
+        return res.json({ error: 'Only admin can change admin/moderator roles' }, 403);
+      }
 
       // Kind-Konten dürfen nie eine andere Rolle als `child` haben. Bisher nur
       // client-seitig geprüft (las dafür fremde users-Docs) → jetzt hier.
@@ -224,10 +273,12 @@ module.exports = async ({ req, res, log, error }) => {
     case 'updateGuardians': {
       if (!isAdminOrMod) return res.json({ error: 'Forbidden' }, 403);
       if (!targetUid) return res.json({ error: 'targetUid required' }, 400);
-      const { guardianUids } = payload;
-      if (!Array.isArray(guardianUids)) {
+      if (!Array.isArray(payload.guardianUids)) {
         return res.json({ error: 'guardianUids array required' }, 400);
       }
+      const check = await validGuardians(db, orgId, payload.guardianUids);
+      if (check.error) return res.json({ error: check.error }, 400);
+      const { guardianUids } = check;
 
       const memberId = `${orgId}_${targetUid}`;
       await db.updateDocument(DB_ID, COL_MEMBERS, memberId, { guardianUids });
@@ -441,6 +492,22 @@ module.exports = async ({ req, res, log, error }) => {
 };
 
 // ── Hilfsfunktionen ────────────────────────────────────────────────────────────
+
+// Guardians eines Kindes: mindestens einer, alle aktive Nicht-Kind-Mitglieder
+// der Org (sonst könnte man beliebige Konten zu Mitlesern eines Kindes machen).
+async function validGuardians(db, orgId, raw) {
+  const guardianUids = [...new Set((Array.isArray(raw) ? raw : [])
+    .filter((u) => typeof u === 'string' && u.length > 0))];
+  if (guardianUids.length === 0) return { error: 'guardian_required' };
+  const docs = await Promise.all(guardianUids.map((u) =>
+    db.getDocument(DB_ID, COL_MEMBERS, `${orgId}_${u}`).catch(() => null)));
+  const bad = guardianUids.filter((u, i) => {
+    const d = docs[i];
+    return !d || d.uid !== u || d.role === 'child' || (d.status ?? 'active') !== 'active';
+  });
+  if (bad.length > 0) return { error: `invalid_guardians: ${bad.join(',')}` };
+  return { guardianUids };
+}
 
 async function addMembership(db, uid, orgId, role, log) {
   try {

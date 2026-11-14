@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-11-15
+
+- **Sicherheit (vorbereitet, noch nicht live): Niemand kann sich mehr selbst Rechte verschaffen.** Bisher konnte ein Mitglied über die Programmierschnittstelle seine eigene Rolle auf „Admin“ setzen (und damit alle Chats der Organisation lesen), sich als Admin in eine fremde Organisation eintragen, ein Kind seine Guardians entfernen oder seine Eltern-Verknüpfung lösen, ein Chat-Teilnehmer eine Chat-Anfrage selbst genehmigen, Mitglieder ändern oder den Chat löschen, und ein Elternteil seine eigene Verknüpfungsanfrage bestätigen. Profil, Benachrichtigungs-Einstellungen, Organisation gründen und alle Chat-Verwaltungsaktionen laufen jetzt über den Server, der Rolle und Berechtigung jedes Mal prüft; die Chat-Vorschau in der Liste setzt ebenfalls der Server. Moderatoren können Mitglieder nicht mehr direkt als Moderator anlegen und den Admin nicht mehr herabstufen.
+
+---
+
 ## 2026-11-14
 
 - **Firebase-Altlasten entfernt.** Firebase dient nur noch Push (FCM) und Absturzberichten (Crashlytics) auf Android; die alten Firestore-/Storage-Regeln, Firebase-Konfiguration, die früheren Firebase Cloud Functions und die Migrationsskripte sind aus dem Projekt entfernt. Unter Windows wird Firebase nicht mehr gestartet. Datenschutzerklärung und Doku beschreiben jetzt den tatsächlichen Stand (keine Google-Anmeldung, kein Firestore, kein App Check; Web-App ergänzt).

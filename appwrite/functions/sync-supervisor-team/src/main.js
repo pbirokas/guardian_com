@@ -1,7 +1,8 @@
-const { Client, Databases, Teams, Query } = require('node-appwrite');
+const { Client, Databases, Teams, Query, Permission, Role } = require('node-appwrite');
 
 const DB_ID = 'guardian';
 const COL_MEMBERS = 'members';
+const COL_ORGS = 'organizations';
 const COL_CONVERSATIONS = 'conversations';
 
 // `sup_<orgId>` ist KEIN ACL-Team mehr, sondern ein günstiger Cache/Detektor:
@@ -37,9 +38,20 @@ module.exports = async ({ req, res, log, error }) => {
     return res.empty();
   }
 
+  const event = req.headers['x-appwrite-event'] || '';
+
+  // Guard: Member-Docs legen seit der Härtung nur Server-Functions an (ohne
+  // `update("user:…")`). Ein Doc MIT dieser Rolle stammt von einem Client
+  // (Collection-`create`, solange nicht entzogen) — z. B. `{fremdeOrg}_{self}`
+  // mit `role: "admin"`, was ihn zur Aufsicht machen würde. Einzig legitimer
+  // Fall: eine alte App legt beim Erstellen der eigenen Org ihr Admin-Doc an.
+  if (event.endsWith('.create')) {
+    const verdict = await guardClientCreatedMember(db, member, log, error);
+    if (verdict === 'deleted') return res.empty();
+  }
+
   // Früh-Ausstieg: ein NEU erstelltes Mitglied ohne Aufsichtsrolle ändert den
   // Supervisor-Satz nie → häufigster Fall (Beitritte) ohne weitere Arbeit.
-  const event = req.headers['x-appwrite-event'] || '';
   if (event.endsWith('.create') && !['admin', 'moderator'].includes(member.role)) {
     return res.empty();
   }
@@ -84,6 +96,54 @@ module.exports = async ({ req, res, log, error }) => {
   log(`Propagated supervisor change to ${convCount} conversation(s) in org ${orgId}`);
   return res.empty();
 };
+
+/**
+ * Liefert 'deleted', wenn ein client-angelegtes Member-Doc ungültig war und
+ * entfernt wurde; normalisiert die ACL eines legitimen (Org-Gründer-)Docs.
+ */
+async function guardClientCreatedMember(db, member, log, error) {
+  const creator = (member.$permissions ?? [])
+    .map((p) => p.match(/^update\("user:([^"/]+)"\)$/)?.[1])
+    .find(Boolean);
+  if (!creator) return 'ok'; // server-angelegt
+
+  let legit = false;
+  if (creator === member.uid && member.$id === `${member.orgId}_${member.uid}` &&
+      member.role === 'admin') {
+    try {
+      const org = await db.getDocument(DB_ID, COL_ORGS, member.orgId);
+      const others = await db.listDocuments(DB_ID, COL_MEMBERS, [
+        Query.equal('orgId', member.orgId),
+        Query.notEqual('uid', member.uid),
+        Query.limit(1),
+      ]);
+      legit = org.adminUid === member.uid && others.total === 0;
+    } catch (_) {
+      legit = false;
+    }
+  }
+
+  if (!legit) {
+    try {
+      await db.deleteDocument(DB_ID, COL_MEMBERS, member.$id);
+      error(`Guard: deleted client-created member doc ${member.$id} (creator ${creator}, role ${member.role})`);
+    } catch (e) {
+      error(`Guard: failed to delete ${member.$id}: ${e.message}`);
+    }
+    return 'deleted';
+  }
+
+  // Org-Gründer: Felder normalisieren, Schreibrechte entziehen.
+  try {
+    await db.updateDocument(DB_ID, COL_MEMBERS, member.$id,
+      { guardianUids: [], status: 'active' },
+      [Permission.read(Role.users())]);
+    log(`Guard: normalized founder member doc ${member.$id}`);
+  } catch (e) {
+    error(`Guard: failed to normalize ${member.$id}: ${e.message}`);
+  }
+  return 'ok';
+}
 
 async function orgSupervisors(db, orgId) {
   const result = await db.listDocuments(DB_ID, COL_MEMBERS, [

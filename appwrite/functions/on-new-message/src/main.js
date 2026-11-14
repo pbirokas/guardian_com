@@ -24,6 +24,18 @@ function buildNotifBody(message, senderName) {
   return `${senderName} hat geschrieben`;
 }
 
+// Vorschautext wie zuvor im Client (chat_service.dart).
+function buildPreview(message) {
+  const imageCount = Array.isArray(message.imageUrls) ? message.imageUrls.length : 0;
+  if (message.type === 'poll') return String(message.text ?? '').substring(0, 200);
+  if (imageCount > 1) return `[${imageCount} Bilder]`;
+  if (message.imageUrl) return '[Bild]';
+  if (message.audioUrl) return '🎤 Sprachnachricht';
+  if (message.fileUrl) return `📎 ${message.fileName ?? 'Datei'}`;
+  const text = String(message.text ?? '');
+  return text.length > 200 ? `${text.substring(0, 200)}…` : text;
+}
+
 module.exports = async ({ req, res, log, error }) => {
   const client = new Client()
     .setEndpoint(process.env.APPWRITE_ENDPOINT)
@@ -53,6 +65,34 @@ module.exports = async ({ req, res, log, error }) => {
     error(`Conversation ${convId} error: code=${e.code} msg=${e.message}`);
     return res.empty();
   }
+
+  // Absender verifizieren: Nachrichten-ACL muss `read team(convId)` enthalten
+  // (ein Client kann nur Rollen granten, die er hat → er war im Conv-Team) und
+  // der Autor laut ACL muss `senderUid` sein. Sonst könnte jeder mit einer
+  // fremden convId die Chatvorschau ändern oder Pushes auslösen.
+  const msgPerms = message.$permissions ?? [];
+  const author = msgPerms
+    .map((p) => p.match(/^update\("user:([^"/]+)"\)$/)?.[1])
+    .find(Boolean);
+  if (!msgPerms.includes(`read("team:${convId}")`) || author !== senderUid) {
+    error(`Message ${message.$id}: sender ${senderUid} not verified for conv ${convId} — ignored`);
+    return res.empty();
+  }
+
+  // Chatvorschau setzen (früher Client-Update auf die Conversation; die ist
+  // jetzt nur noch lesbar). Ältere Nachrichten überschreiben keine neueren.
+  const sentAt = message.sentAt ?? message.$createdAt ?? new Date().toISOString();
+  if (!conv.lastMessageAt || new Date(conv.lastMessageAt) <= new Date(sentAt)) {
+    try {
+      await db.updateDocument(DB_ID, COL_CONVERSATIONS, convId, {
+        lastMessage: buildPreview(message),
+        lastMessageAt: sentAt,
+      });
+    } catch (e) {
+      error(`Failed to update lastMessage of ${convId}: ${e.message}`);
+    }
+  }
+
   if (conv.status !== 'approved') return res.empty();
 
   const participantUids = conv.participantUids ?? [];

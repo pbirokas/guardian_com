@@ -62,6 +62,43 @@ extension FunctionsRawExecution on Functions {
       body: data['responseBody']?.toString() ?? '',
     );
   }
+
+  /// Synchroner Aufruf einer Callable-Function mit JSON-Body, die
+  /// `{ok: true, …}` bzw. `{error: '…'}` liefert (self-service,
+  /// conversation-action, …). Wirft [FunctionCallException], wenn die
+  /// Function einen Fehler meldet — [executeRaw] selbst wirft dann nicht.
+  Future<Map<String, dynamic>> callJson(
+    String functionId,
+    Map<String, dynamic> payload,
+  ) async {
+    final r = await executeRaw(functionId: functionId, body: jsonEncode(payload));
+    Map<String, dynamic> body = const {};
+    if (r.body.isNotEmpty) {
+      try {
+        body = Map<String, dynamic>.from(jsonDecode(r.body) as Map);
+      } catch (_) {}
+    }
+    final error = body['error'];
+    if (r.statusCode >= 400 || error != null || body['ok'] != true) {
+      throw FunctionCallException(
+          error?.toString() ?? 'HTTP ${r.statusCode}', r.statusCode);
+    }
+    return body;
+  }
+
+  /// Asynchroner Aufruf (Ergebnis kommt per Realtime) — siehe CLAUDE.md:
+  /// häufige Aufrufe ohne benötigtes Ergebnis nie synchron.
+  Future<void> callAsync(String functionId, Map<String, dynamic> payload) =>
+      executeRaw(functionId: functionId, body: jsonEncode(payload), xasync: true);
+}
+
+/// Fehler einer Callable-Function (`{error: …}` bzw. HTTP ≥ 400).
+class FunctionCallException implements Exception {
+  FunctionCallException(this.message, this.statusCode);
+  final String message;
+  final int statusCode;
+  @override
+  String toString() => message;
 }
 
 /// Öffentliche View-URL einer Datei im Media-Bucket (Profil-/Gruppen-/Chatbilder).

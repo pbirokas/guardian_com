@@ -117,10 +117,10 @@ module.exports = async ({ req, res, log, error }) => {
     };
     if (userData?.photoUrl) memberData.photoUrl = userData.photoUrl;
 
+    // Nur lesbar — Member-Docs schreiben ausschließlich Server-Functions
+    // (sonst Selbst-Eskalation über `role`, siehe self-service).
     await db.createDocument(DB_ID, COL_MEMBERS, memberId, memberData, [
       Permission.read(Role.users()),
-      Permission.update(Role.user(uid)),
-      Permission.delete(Role.user(uid)),
     ]);
 
     if (!isChild) {

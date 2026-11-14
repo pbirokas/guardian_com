@@ -20,22 +20,23 @@ class OrganizationService {
     required RealtimeBroadcaster broadcaster,
     required String uid,
     required String displayName,
+    // Ungenutzt seit createOrganization serverseitig läuft (Server liest die
+    // E-Mail aus dem users-Doc); bleibt für die Provider-Signatur.
     String? email,
   })  : _db = Databases(client),
         _functions = Functions(client),
         _broadcaster = broadcaster,
         _uid = uid,
-        _displayName = displayName,
-        _email = email ?? '';
+        _displayName = displayName;
 
   final Databases _db;
   final Functions _functions;
   final RealtimeBroadcaster _broadcaster;
   final String _uid;
   final String _displayName;
-  final String _email;
 
   static const _adminMemberActionId = 'admin-member-action';
+  static const _selfServiceId = 'self-service';
 
   static const _dbId = 'guardian';
   static const _colOrgs = 'organizations';
@@ -87,55 +88,17 @@ class OrganizationService {
 
   // ── Organisations-CRUD ─────────────────────────────────────────────────────
 
+  /// Serverseitig (`self-service/createOrganization`): Org, eigenes
+  /// Admin-Member-Doc und membershipsJson. Member-Docs legt kein Client mehr
+  /// an — sonst könnte jeder `{fremdeOrg}_{self}` mit `role: admin` erzeugen.
   Future<Organization> createOrganization(String name, OrgTag tag) async {
-    final now = DateTime.now().toUtc();
-    final orgId = ID.unique();
-
-    final org = Organization(
-      id: orgId,
-      name: name,
-      adminUid: _uid,
-      tag: tag,
-      memberUids: [_uid],
-      createdAt: now,
-    );
-
-    final membership = OrgMembership(orgId: orgId, role: OrgRole.admin);
-    final memberId = '${orgId}_$_uid';
-    final memberData = OrgMember(
-      uid: _uid,
-      displayName: _displayName,
-      email: _email,
-      role: OrgRole.admin,
-      joinedAt: now,
-    ).toAppwrite();
-
-    // Appwrite hat keine Client-Transaktionen — sequenzielle Writes
-    await _db.createDocument(
-      databaseId: _dbId,
-      collectionId: _colOrgs,
-      documentId: orgId,
-      data: org.toAppwrite(),
-      permissions: [
-        Permission.read(Role.users()),
-        Permission.update(Role.user(_uid)),
-        Permission.delete(Role.user(_uid)),
-      ],
-    );
-    await _db.createDocument(
-      databaseId: _dbId,
-      collectionId: _colMembers,
-      documentId: memberId,
-      data: {...memberData, 'orgId': orgId},
-      permissions: [
-        Permission.read(Role.users()),
-        Permission.update(Role.user(_uid)),
-        Permission.delete(Role.user(_uid)),
-      ],
-    );
-    await _updateMembershipsJson(_uid, membership, add: true);
-
-    return org;
+    final result = await _functions.callJson(_selfServiceId, {
+      'action': 'createOrganization',
+      'name': name,
+      'tag': tag.name,
+    });
+    return Organization.fromAppwrite(
+        Map<String, dynamic>.from(result['organization'] as Map));
   }
 
   Future<void> updateOrganization(String orgId,
@@ -560,78 +523,30 @@ class OrganizationService {
 
   // ── Member-Profil ──────────────────────────────────────────────────────────
 
-  Future<void> updateMyMemberProfile(String displayName,
-      {String? photoUrl}) async {
-    final userDoc = await _db.getDocument(
-        databaseId: _dbId, collectionId: 'users', documentId: _uid);
-    final membershipsJson = userDoc.data['membershipsJson'] as String?;
-    if (membershipsJson == null || membershipsJson.isEmpty) return;
-
-    final memberships =
-        List<Map<String, dynamic>>.from(_decodeMemberships(membershipsJson));
-    for (final m in memberships) {
-      final orgId = m['orgId'] as String?;
-      if (orgId == null) continue;
-      final memberId = '${orgId}_$_uid';
-      try {
-        final updates = <String, dynamic>{'displayName': displayName};
-        if (photoUrl != null) updates['photoUrl'] = photoUrl;
-        await _db.updateDocument(
-            databaseId: _dbId,
-            collectionId: _colMembers,
-            documentId: memberId,
-            data: updates);
-      } catch (_) {}
-    }
-  }
+  // Anzeigename/Foto der eigenen Member-Docs schreibt `self-service`
+  // (updateProfile) gleich mit — siehe AuthService.updateProfile.
 
   Future<void> setHideEmail(bool hideEmail) async {
-    await _db.updateDocument(
-        databaseId: _dbId,
-        collectionId: 'users',
-        documentId: _uid,
-        data: {'hideEmail': hideEmail});
-
-    final userDoc = await _db.getDocument(
-        databaseId: _dbId, collectionId: 'users', documentId: _uid);
-    final membershipsJson = userDoc.data['membershipsJson'] as String?;
-    if (membershipsJson == null || membershipsJson.isEmpty) return;
-    final memberships =
-        List<Map<String, dynamic>>.from(_decodeMemberships(membershipsJson));
-    for (final m in memberships) {
-      final orgId = m['orgId'] as String?;
-      if (orgId == null) continue;
-      try {
-        await _db.updateDocument(
-            databaseId: _dbId,
-            collectionId: _colMembers,
-            documentId: '${orgId}_$_uid',
-            data: {'hideEmail': hideEmail});
-      } catch (_) {}
-    }
+    await _functions.callJson(
+        _selfServiceId, {'action': 'setHideEmail', 'hideEmail': hideEmail});
   }
 
   Future<void> updateChildAlertInterval(
       String orgId, ChildAlertInterval interval) async {
-    await _db.updateDocument(
-      databaseId: _dbId,
-      collectionId: _colMembers,
-      documentId: '${orgId}_$_uid',
-      data: {'childAlertInterval': interval.name},
-    );
+    await _functions.callJson(_selfServiceId, {
+      'action': 'setChildAlertInterval',
+      'orgId': orgId,
+      'interval': interval.name,
+    });
   }
 
   Future<void> setOrgMessageInterval(
       String orgId, MessageAlertInterval interval) async {
-    await _db.updateDocument(
-      databaseId: _dbId,
-      collectionId: _colMembers,
-      documentId: '${orgId}_$_uid',
-      data: {
-        'messageAlertInterval': interval.name,
-        'notificationsEnabled': interval != MessageAlertInterval.never,
-      },
-    );
+    await _functions.callJson(_selfServiceId, {
+      'action': 'setMessageInterval',
+      'orgId': orgId,
+      'interval': interval.name,
+    });
   }
 
   Future<void> updateKeywords(String orgId, List<String> keywords) async {
@@ -922,33 +837,6 @@ class OrganizationService {
     }
   }
 
-  Future<void> _updateMembershipsJson(
-      String targetUid, OrgMembership membership,
-      {required bool add}) async {
-    try {
-      final doc = await _db.getDocument(
-          databaseId: _dbId, collectionId: 'users', documentId: targetUid);
-      final raw = doc.data['membershipsJson'] as String?;
-      final memberships = raw != null && raw.isNotEmpty
-          ? List<Map<String, dynamic>>.from(_decodeMemberships(raw))
-          : <Map<String, dynamic>>[];
-      if (add) {
-        if (!memberships.any((m) => m['orgId'] == membership.orgId)) {
-          memberships.add(membership.toMap());
-        }
-      } else {
-        memberships.removeWhere((m) =>
-            m['orgId'] == membership.orgId &&
-            m['role'] == membership.role.name);
-      }
-      await _db.updateDocument(
-          databaseId: _dbId,
-          collectionId: 'users',
-          documentId: targetUid,
-          data: {'membershipsJson': _encodeJson(memberships)});
-    } catch (_) {}
-  }
-
   Future<aw.Document?> _safeGetDocument(String col, String docId) async {
     try {
       return await _db.getDocument(
@@ -967,8 +855,6 @@ class OrganizationService {
       return [];
     }
   }
-
-  static String _encodeJson(dynamic obj) => jsonEncode(obj);
 
   Stream<List<OrgAuditEntry>> watchAuditLog(String orgId) {
     return _watchCollection<OrgAuditEntry>(

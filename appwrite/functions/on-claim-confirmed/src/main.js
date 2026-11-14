@@ -34,6 +34,22 @@ module.exports = async ({ req, res, log, error }) => {
     return res.empty();
   }
 
+  // Bestätigt haben darf nur das Kind. Nachweis über die ACL, die
+  // on-claim-request gesetzt hat: der Anfragende hat `delete`, aber KEIN
+  // `update` (kann den Status also nicht selbst setzen). Trägt das Doc noch
+  // die Default-ACL des Erstellers (update für den Anfragenden), stammt die
+  // Bestätigung womöglich von ihm selbst → ignorieren.
+  const perms = claimRequest.$permissions ?? [];
+  if (!perms.includes(`delete("user:${parentUid}")`) ||
+      perms.includes(`update("user:${parentUid}")`)) {
+    error(`Claim ${claimRequest.$id}: ACL not hardened (parent may have confirmed) → ignored`);
+    return res.empty();
+  }
+  if (claimRequest.expiresAt && new Date(claimRequest.expiresAt) < new Date()) {
+    log(`Claim ${claimRequest.$id} expired, skipping`);
+    return res.empty();
+  }
+
   // Idempotenz-Check: falls Verknüpfung bereits besteht, überspringen
   let childUser;
   try {

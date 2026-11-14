@@ -99,6 +99,17 @@ Grundsatz: Collection-Rechte erst entziehen, wenn **alle** Clients, die einen Pf
 
 Windows hat keine Update-Pflicht: Alt-Clients verlieren nach Stufe 4 nur Reaktionen auf fremde Nachrichten, Chat-Löschen durch Admin/Mod und das Löschen aus der Report-Ansicht (diese Aktionen schlagen fehl) — kein Datenverlust, kein Lesezugriff betroffen.
 
+### Live-Stand
+
+| Datum | Stufe | Was |
+|---|---|---|
+| 2026-11-14 | 0 | Deployed (vom Branch `security/collection-acls`, 6cba376): `on-new-report` (+ Event `reports.*.update`), `moderate-message`, `admin-member-action`, `set-reaction` (neu, Vars gesetzt; Smoke-Test ohne User → 401 ✓). Index `reports.orgId_status_idx` available. `harden-permissions.js --confirm`: 2 Nachrichten, 1 Poll, 7 Claims korrigiert (2 Team-Adds für gelöschtes Konto `JGOzfxaYo9bWgz52cknakL2ZPKm2` → 404, harmlos). |
+| 2026-11-14 | 1 | `read_receipts` → `[]`, `polls` → `[create("users")]`. T1–T3 offen. |
+
+Deploy-Hinweis: `appwrite push functions` (CLI 20.1) würde `buildSpecification`/`runtimeSpecification` (live `s-8vcpu-8gb`) und `deploymentRetention` auf Default zurücksetzen und fragt interaktiv nach. Deshalb per SDK deployed (`functions.createDeployment` mit tar.gz des Function-Ordners; Settings nur bei Event-Änderung per `functions.update` mit allen Live-Werten).
+
+Übergangseffekt bis zum App-Release: Alte Clients dekrementieren `pendingReportsCount` beim „geprüft“-Markieren weiterhin selbst, zusätzlich zählt `on-new-report` neu → der Zähler kann kurz um 1 zu niedrig sein und heilt beim nächsten Report-Ereignis.
+
 **Rollback** je Collection sofort möglich: `node fix-permissions.js --only=<col> --rollback --confirm=<projectId>` (setzt den Live-Stand von 2026-11-14 zurück).
 
 Achtung: `appwrite.config.json` enthält bei `tables` leere `$permissions` — **nie** `appwrite push tables` ausführen; Collection-Rechte nur über `fix-permissions.js` pflegen.

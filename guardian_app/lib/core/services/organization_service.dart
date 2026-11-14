@@ -295,13 +295,9 @@ class OrganizationService {
 
   Future<void> updateMemberRole(
       String orgId, String targetUid, OrgRole newRole) async {
-    if (newRole != OrgRole.child) {
-      final userDoc = await _db.getDocument(
-          databaseId: _dbId, collectionId: 'users', documentId: targetUid);
-      if (userDoc.data['isChild'] as bool? ?? false) {
-        throw Exception('child_account_role_locked');
-      }
-    }
+    // Die Kind-Konto-Sperre prüft `admin-member-action` (updateRole)
+    // serverseitig und liefert dann `child_account_role_locked` — der Client
+    // liest dafür keine fremden users-Dokumente mehr.
 
     // Anzeigenamen vor dem CF-Aufruf laden (für Audit-Log)
     String targetName = targetUid;
@@ -374,11 +370,12 @@ class OrganizationService {
     if (result['error'] != null) throw Exception(result['error'] as String);
   }
 
+  /// Guardian lehnt eine ausstehende Kind-Einladung ab. Serverseitig, weil der
+  /// pending Member-Doc per ACL dem Kind gehört (kein Collection-Level-delete).
   Future<void> rejectChildInvite(String orgId, String childUid) async {
-    await _db.deleteDocument(
-        databaseId: _dbId,
-        collectionId: _colMembers,
-        documentId: '${orgId}_$childUid');
+    final result = await _callAdminMemberAction('rejectChild', orgId,
+        targetUid: childUid);
+    if (result['error'] != null) throw Exception(result['error'] as String);
   }
 
   Stream<List<OrgMember>> watchPendingChildInvites(
@@ -762,22 +759,16 @@ class OrganizationService {
         databaseId: _dbId, collectionId: _colAnnouncements, documentId: annId);
   }
 
+  /// Eigene Reaktion auf eine Ankündigung. Serverseitig über `set-reaction`
+  /// (schreibt nur den Eintrag des Aufrufers; [uid] ist immer der eigene).
+  /// Asynchron — die Änderung kommt per Realtime.
   Future<void> reactToAnnouncement(
       String orgId, String annId, String uid, String? emoji) async {
-    final doc = await _db.getDocument(
-        databaseId: _dbId, collectionId: _colAnnouncements, documentId: annId);
-    final ann = Announcement.fromAppwrite({r'$id': doc.$id, ...doc.data});
-    final reactions = Map<String, String>.from(ann.reactions);
-    if (emoji == null) {
-      reactions.remove(uid);
-    } else {
-      reactions[uid] = emoji;
-    }
-    await _db.updateDocument(
-        databaseId: _dbId,
-        collectionId: _colAnnouncements,
-        documentId: annId,
-        data: {'reactionsJson': _encodeJson(reactions)});
+    await _functions.executeRaw(
+      functionId: 'set-reaction',
+      body: jsonEncode({'kind': 'announcement', 'docId': annId, 'value': emoji}),
+      xasync: true,
+    );
   }
 
   // ── Termine (Events) ───────────────────────────────────────────────────────
@@ -839,22 +830,16 @@ class OrganizationService {
         });
   }
 
+  /// Eigene Termin-Zusage. Serverseitig über `set-reaction` (wie
+  /// [reactToAnnouncement]).
   Future<void> respondToEvent(
       String orgId, String annId, String uid, RsvpStatus? status) async {
-    final doc = await _db.getDocument(
-        databaseId: _dbId, collectionId: _colAnnouncements, documentId: annId);
-    final ann = Announcement.fromAppwrite({r'$id': doc.$id, ...doc.data});
-    final rsvp = Map<String, String>.from(ann.rsvp);
-    if (status == null) {
-      rsvp.remove(uid);
-    } else {
-      rsvp[uid] = status.toJson();
-    }
-    await _db.updateDocument(
-        databaseId: _dbId,
-        collectionId: _colAnnouncements,
-        documentId: annId,
-        data: {'rsvpJson': _encodeJson(rsvp)});
+    await _functions.executeRaw(
+      functionId: 'set-reaction',
+      body: jsonEncode(
+          {'kind': 'rsvp', 'docId': annId, 'value': status?.toJson()}),
+      xasync: true,
+    );
   }
 
   // ── Benachrichtigungsintervall (Realtime) ──────────────────────────────────

@@ -6,6 +6,7 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ## 2026-11-14
 
+- **Sicherheit (vorbereitet, noch nicht live): Chat-Daten nur noch für Berechtigte lesbar.** Auf Datenbank-Ebene waren Chats, Nachrichten, Abstimmungen, Meldungen und Lesebestätigungen bisher für jedes angemeldete Konto abrufbar, obwohl die einzelnen Dokumente schon auf Chat-Teilnehmer und Aufsicht beschränkt waren. Diese breiten Rechte werden stufenweise entzogen. Dafür laufen Reaktionen auf fremde Nachrichten und Ankündigungen, Termin-Zusagen, das Löschen eines Chats durch Admins/Moderatoren, das Löschen einer gemeldeten Nachricht und das Ablehnen einer Kind-Einladung jetzt über den Server; der Zähler offener Meldungen wird serverseitig berechnet.
 - **Klarere Benachrichtigungen für Guardians aus überwachten Chats.** Statt „Kassandra hat eine Nachricht gesendet in Kassandra“ heißt es jetzt z. B. „👁 Überwachter Chat: Kassandra – Kassandra hat Max geschrieben“ bzw. „Max hat Kassandra geschrieben“; bei Gruppen wird der Gruppenname genannt.
 
 - **Chats nach Aktualität sortieren.** In der Chat-Übersicht einer Organisation lassen sich die eigenen Chats jetzt wahlweise gruppiert (Gruppen / Einzel-Chats) oder als eine Liste mit der neuesten Nachricht zuerst anzeigen. Die Wahl wird gemerkt. „Überwachte Chats“ bleiben weiterhin eine eigene Gruppe.

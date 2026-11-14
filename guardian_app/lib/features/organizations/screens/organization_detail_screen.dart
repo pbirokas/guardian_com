@@ -3846,7 +3846,7 @@ class _ReportsTabState extends ConsumerState<_ReportsTab> {
     final reportId = report['id'] as String;
 
     if (convId != null && msgId != null) {
-      await ref.read(chatServiceProvider).softDeleteMessage(convId, msgId);
+      await ref.read(chatServiceProvider).moderateSoftDeleteMessage(convId, msgId);
     }
     await ref.read(chatServiceProvider).markReportReviewed(reportId, widget.org.id);
   }

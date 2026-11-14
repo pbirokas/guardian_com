@@ -514,24 +514,24 @@ class ChatService {
     );
   }
 
+  /// Löscht einen Chat samt aller Nachrichten (auch fremder), Polls, geplanten
+  /// Nachrichten, Lesebestätigungen und Mediendateien. Nur Admin/Mod.
+  ///
+  /// Serverseitig (`admin-member-action` / `deleteConversation`): die
+  /// Nachrichten-ACL gibt nur dem Autor `delete`, Collection-Level-Rechte gibt
+  /// es nicht. Asynchron wie `deleteOrg` (viele Nachrichten → kein
+  /// Client-Timeout); der Chat verschwindet per Realtime aus der Liste.
   Future<void> deleteConversation(String convId) async {
-    // Nachrichten löschen (in Batches à 100)
-    while (true) {
-      final msgs = await _db.listDocuments(
-        databaseId: _dbId,
-        collectionId: _colMessages,
-        queries: [Query.equal('convId', convId), Query.limit(100)],
-      );
-      if (msgs.documents.isEmpty) break;
-      for (final doc in msgs.documents) {
-        await _db.deleteDocument(
-            databaseId: _dbId,
-            collectionId: _colMessages,
-            documentId: doc.$id);
-      }
-    }
-    await _db.deleteDocument(
-        databaseId: _dbId, collectionId: _colConvs, documentId: convId);
+    final orgId = await _getOrgId(convId);
+    await _functions.executeRaw(
+      functionId: 'admin-member-action',
+      body: jsonEncode({
+        'action': 'deleteConversation',
+        'orgId': orgId,
+        'payload': {'convId': convId},
+      }),
+      xasync: true,
+    );
   }
 
   Future<void> renameConversation(String convId, String name) async {
@@ -787,6 +787,26 @@ class ChatService {
     );
   }
 
+  /// Markiert eine FREMDE Nachricht als gelöscht (nur Admin/Mod, z. B. aus der
+  /// Report-Ansicht). Serverseitig über `moderate-message`, weil die
+  /// Nachrichten-ACL nur dem Autor Schreibrechte gibt. Synchron, damit die
+  /// Report-Ansicht einen Fehler anzeigen kann.
+  Future<void> moderateSoftDeleteMessage(String convId, String messageId) async {
+    final result = await _functions.executeRaw(
+      functionId: 'moderate-message',
+      body: jsonEncode({
+        'action': 'softDelete',
+        'convId': convId,
+        'msgId': messageId,
+      }),
+    );
+    if (result.statusCode >= 400) {
+      throw Exception('moderate-message failed (${result.statusCode}): ${result.body}');
+    }
+  }
+
+  /// Markiert die EIGENE Nachricht als gelöscht (Autor, per Dokument-ACL).
+  /// Fremde Nachrichten → [moderateSoftDeleteMessage].
   Future<void> softDeleteMessage(String convId, String messageId) async {
     await _db.updateDocument(
         databaseId: _dbId,
@@ -806,22 +826,22 @@ class ChatService {
         data: {'deletedAt': null, 'deletedBy': null});
   }
 
+  /// Setzt/entfernt die eigene Reaktion auf einer (meist fremden) Nachricht.
+  /// Serverseitig über `set-reaction`: Appwrite kennt keine Feld-Rechte, und
+  /// `update team(convId)` auf Nachrichten würde jedem Teilnehmer erlauben,
+  /// fremden Text zu ändern. Asynchron — die Änderung kommt per Realtime.
   Future<void> setReaction(
       String convId, String msgId, String? emoji) async {
-    final doc = await _db.getDocument(
-        databaseId: _dbId, collectionId: _colMessages, documentId: msgId);
-    final msg = Message.fromAppwrite({r'$id': doc.$id, ...doc.data});
-    final reactions = Map<String, String>.from(msg.reactions);
-    if (emoji == null) {
-      reactions.remove(_uid);
-    } else {
-      reactions[_uid] = emoji;
-    }
-    await _db.updateDocument(
-        databaseId: _dbId,
-        collectionId: _colMessages,
-        documentId: msgId,
-        data: {'reactionsJson': jsonEncode(reactions)});
+    await _functions.executeRaw(
+      functionId: 'set-reaction',
+      body: jsonEncode({
+        'kind': 'message',
+        'convId': convId,
+        'docId': msgId,
+        'value': emoji,
+      }),
+      xasync: true,
+    );
   }
 
   // ── Medien (Firebase Storage — TODO: Appwrite Storage nach Vuln-6-Fix) ─────
@@ -1240,24 +1260,16 @@ class ChatService {
         databaseId: _dbId, collectionId: _colMessages, documentId: msgId);
   }
 
+  /// Markiert eine Meldung als geprüft (Report-ACL: Aufsicht darf updaten).
+  /// `organizations.pendingReportsCount` zählt die Function `on-new-report`
+  /// beim Update-Event serverseitig neu — der Client schreibt das Org-Dokument
+  /// nicht (keine Collection-Level-Update-Rechte).
   Future<void> markReportReviewed(String reportId, String orgId) async {
     await _db.updateDocument(
         databaseId: _dbId,
         collectionId: _colReports,
         documentId: reportId,
         data: {'status': 'reviewed'});
-    try {
-      final org = await _db.getDocument(
-          databaseId: _dbId, collectionId: _colOrgs, documentId: orgId);
-      final current = org.data['pendingReportsCount'] as int? ?? 0;
-      if (current > 0) {
-        await _db.updateDocument(
-            databaseId: _dbId,
-            collectionId: _colOrgs,
-            documentId: orgId,
-            data: {'pendingReportsCount': current - 1});
-      }
-    } catch (_) {}
   }
 
   // ── Hilfsmethoden ──────────────────────────────────────────────────────────

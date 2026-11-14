@@ -9,6 +9,14 @@
  *   - Message-ACL:      read = [team(convId), team(sup_orgId), user(sender)]
  *                       update/delete = [user(sender), team(sup_orgId)]
  *   - Scheduled:        read/update/delete = user(sender)  (privater Entwurf)
+ *   - Read-Receipts:    read/update/delete = user(uid)     (wie mark-as-read)
+ *   - Claim-Requests:   read/update/delete = user(from), read/update = user(to)
+ *                       (wie on-claim-request)
+ *
+ * Zusätzlich zählt jede Phase Dokumente mit BREITEN Rechten (`users`/`any`/
+ * `guests`) in der ACL — die müssen vor dem Entzug der Collection-Rechte
+ * (fix-permissions.js) auf 0 stehen, sonst bleiben sie trotzdem offen —
+ * sowie Dokumente OHNE read-Recht (danach für Clients unsichtbar).
  *
  * Reihenfolge im Rollout (WICHTIG):
  *   1. Neue App mit erzwungenem Update veröffentlichen (minVersionCode).
@@ -36,6 +44,8 @@ const COL_MESSAGES = 'chat_messages';
 const COL_SCHEDULED = 'scheduled_messages';
 const COL_POLLS = 'polls';
 const COL_REPORTS = 'reports';
+const COL_RECEIPTS = 'read_receipts';
+const COL_CLAIMS = 'claim_requests';
 
 const projectId = process.env.APPWRITE_PROJECT_ID;
 const confirmArg = process.argv.find((a) => a.startsWith('--confirm='));
@@ -97,6 +107,32 @@ function reportPerms(supervisorUids, reportedByUid) {
   return perms;
 }
 
+function receiptPerms(uid) {
+  if (!uid) return [];
+  const u = Role.user(uid);
+  return [Permission.read(u), Permission.update(u), Permission.delete(u)];
+}
+
+function claimPerms(fromUid, toUid) {
+  if (!fromUid || !toUid) return [];
+  const f = Role.user(fromUid);
+  const t = Role.user(toUid);
+  return [
+    Permission.read(f), Permission.update(f), Permission.delete(f),
+    Permission.read(t), Permission.update(t),
+  ];
+}
+
+// Statistik je Collection (Ist-Zustand VOR der Migration).
+const stats = {};
+function inspect(col, perms) {
+  const s = (stats[col] ??= { total: 0, broad: 0, noRead: 0 });
+  s.total++;
+  const list = perms ?? [];
+  if (list.some((p) => /\("(users|any|guests)(\/[^"]*)?"\)/.test(p))) s.broad++;
+  if (!list.some((p) => p.startsWith('read('))) s.noRead++;
+}
+
 function samePerms(a, b) {
   if ((a?.length ?? 0) !== b.length) return false;
   const sa = [...a].sort();
@@ -117,19 +153,22 @@ async function ensureTeam(teamId, name) {
 
 /** Fügt fehlende Mitglieder hinzu (add-only; entfernt in der Migration nichts). */
 async function addTeamMembers(teamId, uids) {
+  // Auch im Dry-Run lesen (nur lesend) — sonst zählt der Dry-Run jeden
+  // Teilnehmer als „fehlt" und man sieht nicht, ob Teams wirklich lückenhaft
+  // sind (genau das entscheidet, ob nach dem Entzug der Collection-Rechte
+  // jemand den Zugriff verliert).
   let existing = new Set();
-  if (!DRY) {
-    try {
-      const cur = await teams.listMemberships(teamId);
-      for (const m of cur.memberships ?? []) if (m.userId) existing.add(m.userId);
-    } catch {
-      /* Team existiert im Dry-Run evtl. noch nicht */
-    }
+  try {
+    const cur = await teams.listMemberships(teamId, [Query.limit(500)]);
+    for (const m of cur.memberships ?? []) if (m.userId) existing.add(m.userId);
+  } catch {
+    /* Team existiert (im Dry-Run) evtl. noch nicht */
   }
   let added = 0;
   for (const uid of new Set(uids.filter(Boolean))) {
     if (existing.has(uid)) continue;
     added++;
+    if (DRY) console.log(`  + ${teamId}: ${uid} fehlt`);
     if (!DRY) {
       try {
         await teams.createMembership(teamId, ['member'], undefined, uid);
@@ -190,6 +229,7 @@ async function main() {
   let convAclUpdated = 0;
   await eachDocument(COL_CONVERSATIONS, [], async (conv) => {
     convCount++;
+    inspect(COL_CONVERSATIONS, conv.$permissions);
     const orgId = conv.orgId;
     if (!orgId) {
       console.error(`  ✗ Conv ${conv.$id} ohne orgId — übersprungen`);
@@ -225,6 +265,7 @@ async function main() {
   let msgUpdated = 0;
   await eachDocument(COL_MESSAGES, [], async (msg) => {
     msgCount++;
+    inspect(COL_MESSAGES, msg.$permissions);
     const convId = msg.convId;
     if (!convId) {
       console.error(`  ✗ Msg ${msg.$id} ohne convId — übersprungen`);
@@ -250,6 +291,7 @@ async function main() {
   let schedUpdated = 0;
   await eachDocument(COL_SCHEDULED, [], async (sm) => {
     schedCount++;
+    inspect(COL_SCHEDULED, sm.$permissions);
     const desired = scheduledPerms(sm.senderUid);
     if (desired.length === 0 || samePerms(sm.$permissions, desired)) return;
     schedUpdated++;
@@ -269,6 +311,7 @@ async function main() {
   let pollUpdated = 0;
   await eachDocument(COL_POLLS, [], async (poll) => {
     pollCount++;
+    inspect(COL_POLLS, poll.$permissions);
     const convId = poll.convId;
     if (!convId) {
       console.error(`  ✗ Poll ${poll.$id} ohne convId — übersprungen`);
@@ -293,6 +336,7 @@ async function main() {
   let reportUpdated = 0;
   await eachDocument(COL_REPORTS, [], async (report) => {
     reportCount++;
+    inspect(COL_REPORTS, report.$permissions);
     const orgId = report.orgId;
     if (!orgId) {
       console.error(`  ✗ Report ${report.$id} ohne orgId — übersprungen`);
@@ -316,6 +360,63 @@ async function main() {
     }
   });
   console.log(`  Reports: ${reportCount}  ACL geändert: ${reportUpdated}\n`);
+
+  // ── Phase 7: Read-Receipts (nur Eigentümer) ──────────────────────────────
+  console.log('Phase 7: Read-Receipts');
+  let rrCount = 0;
+  let rrUpdated = 0;
+  await eachDocument(COL_RECEIPTS, [], async (rr) => {
+    rrCount++;
+    inspect(COL_RECEIPTS, rr.$permissions);
+    const desired = receiptPerms(rr.uid);
+    if (desired.length === 0) {
+      console.error(`  ✗ Receipt ${rr.$id} ohne uid — übersprungen`);
+      return;
+    }
+    if (samePerms(rr.$permissions, desired)) return;
+    rrUpdated++;
+    if (!DRY) {
+      try {
+        await db.updateDocument(DB_ID, COL_RECEIPTS, rr.$id, {}, desired);
+      } catch (e) {
+        console.error(`  ✗ Receipt-ACL ${rr.$id}: ${e.message}`);
+      }
+    }
+  });
+  console.log(`  Receipts: ${rrCount}  ACL geändert: ${rrUpdated}\n`);
+
+  // ── Phase 8: Claim-Requests (Antragsteller + Kind) ───────────────────────
+  console.log('Phase 8: Claim-Requests');
+  let claimCount = 0;
+  let claimUpdated = 0;
+  await eachDocument(COL_CLAIMS, [], async (claim) => {
+    claimCount++;
+    inspect(COL_CLAIMS, claim.$permissions);
+    const desired = claimPerms(claim.fromUid, claim.toUid);
+    if (desired.length === 0) {
+      console.error(`  ✗ Claim ${claim.$id} ohne fromUid/toUid — übersprungen`);
+      return;
+    }
+    if (samePerms(claim.$permissions, desired)) return;
+    claimUpdated++;
+    if (!DRY) {
+      try {
+        await db.updateDocument(DB_ID, COL_CLAIMS, claim.$id, {}, desired);
+      } catch (e) {
+        console.error(`  ✗ Claim-ACL ${claim.$id}: ${e.message}`);
+      }
+    }
+  });
+  console.log(`  Claims: ${claimCount}  ACL geändert: ${claimUpdated}\n`);
+
+  // ── Zusammenfassung: Ist-Zustand VOR dieser Migration ────────────────────
+  console.log('Ist-Zustand der Dokument-ACLs (vor Migration):');
+  for (const [col, s] of Object.entries(stats)) {
+    console.log(
+      `  ${col.padEnd(20)} gesamt ${String(s.total).padStart(6)}  breit ${String(s.broad).padStart(6)}  ohne read ${String(s.noRead).padStart(6)}`
+    );
+  }
+  console.log('  („breit" = users/any/guests in der Doc-ACL; nach der Migration 0.)\n');
 
   console.log('=== Fertig ===');
   if (DRY) {

@@ -508,7 +508,7 @@ Alle Functions laufen in Appwrite (Node.js 16). Event-getriggerte Functions reag
 | `on-new-conversation-request` | DB Create `conversations` | Push an Approver, Guardian und Angefragten bei Chat-Anfrage |
 | `on-new-invitation` | DB Create `invitations` | Push an Guardians (Kind-Einladung) + E-Mail an nicht registrierte Nutzer |
 | `on-new-announcement` | DB Create `announcements` | Push an alle Org-Mitglieder bei neuer Ankündigung/Termin |
-| `on-new-report` | DB Create `reports` | Push an Admin + Moderatoren bei gemeldeter Nachricht |
+| `on-new-report` | DB Create/Update `reports` | Push an Admin + Moderatoren bei gemeldeter Nachricht; setzt Report-ACL auf die Aufsicht; zählt `pendingReportsCount` neu |
 | `on-poll-vote` | DB Update `polls` | Push an Ersteller bei neuer Abstimmung (nicht-anonym, nicht geschlossen) |
 | `on-claim-request` | DB Create `claim_requests` | Push an Kind: „X möchte dein Elternteil sein" |
 | `on-claim-confirmed` | DB Update `claim_requests` | Aktualisiert `verifiedParentUids` / `verifiedChildUids` beidseitig; Push an Elternteil |
@@ -516,6 +516,9 @@ Alle Functions laufen in Appwrite (Node.js 16). Event-getriggerte Functions reag
 | `on-org-admin-transferred` | DB Update `organizations` | Synchronisiert Berechtigungen nach Admin-Übertragung |
 | `on-child-org-invite` | DB Create `org_invite_consents` | Push an alle verifizierten Eltern bei Org-Einladung des Kindes |
 | `on-parent-consent` | DB Update `org_invite_consents` | Bei Genehmigung: Kind als `pending`-Mitglied hinzufügen; Push an Admin |
+| `set-reaction` | Callable | Eigene Reaktion auf Nachricht/Ankündigung bzw. Termin-Zusage setzen (keine Feld-Rechte in Appwrite) |
+| `moderate-message` | Callable | Admin/Mod archiviert oder löscht eine fremde Nachricht |
+| `admin-member-action` | Callable | Privilegierte Mitglieds-/Org-Aktionen inkl. Chat löschen und Kind-Einladung ablehnen |
 | `process-my-invitations` | Callable | Verarbeitet ausstehende Einladungen beim Login |
 | `get-child-summary` | Callable | Gibt Aktivitätszusammenfassung eines Kindes zurück (24 h / 7 Tage) |
 | `revoke-connection` | Callable | Trennt eine verifizierte Eltern-Kind-Verbindung |

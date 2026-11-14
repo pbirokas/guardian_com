@@ -9,6 +9,9 @@
  *  - updateGuardians: Guardians eines Kindes aktualisieren (Admin/Mod)
  *  - removeMember   : Mitglied entfernen (Admin/Mod)
  *  - leaveOrg       : Organisation verlassen (eigener Aufruf)
+ *  - deleteOrg      : Organisation komplett löschen (nur Admin)
+ *  - deleteConversation: Chat inkl. fremder Nachrichten/Medien löschen (Admin/Mod)
+ *  - rejectChild    : ausstehende Kind-Einladung ablehnen (Guardian oder Admin/Mod)
  *
  * Sicherheit:
  *  - Caller wird über x-appwrite-user-id identifiziert (Appwrite setzt diesen Header)
@@ -149,6 +152,15 @@ module.exports = async ({ req, res, log, error }) => {
       }
       const oldRole = memberDoc.role;
       if (oldRole === newRole) return res.json({ ok: true }); // idempotent
+
+      // Kind-Konten dürfen nie eine andere Rolle als `child` haben. Bisher nur
+      // client-seitig geprüft (las dafür fremde users-Docs) → jetzt hier.
+      if (newRole !== 'child') {
+        try {
+          const targetUser = await db.getDocument(DB_ID, COL_USERS, targetUid);
+          if (targetUser.isChild) return res.json({ error: 'child_account_role_locked' }, 400);
+        } catch (_) { /* kein users-Doc → kein Kind-Konto bekannt */ }
+      }
 
       await db.updateDocument(DB_ID, COL_MEMBERS, memberId, { role: newRole });
 
@@ -361,6 +373,65 @@ module.exports = async ({ req, res, log, error }) => {
       }
 
       log(`deleteOrg: ${orgId} deleted by ${callerId}`);
+      return res.json({ ok: true });
+    }
+
+    // ── deleteConversation ───────────────────────────────────────────────────
+    // Admin/Mod löscht einen Chat samt Nachrichten (auch fremden), Polls,
+    // geplanten Nachrichten, Lesebestätigungen und Mediendateien. Muss
+    // serverseitig laufen: die Nachrichten-ACL gibt nur dem Autor delete, und
+    // Collection-Level-delete("users") gibt es nicht mehr.
+    case 'deleteConversation': {
+      if (!isAdminOrMod) return res.json({ error: 'Forbidden' }, 403);
+      const { convId } = payload;
+      if (!convId) return res.json({ error: 'payload.convId required' }, 400);
+
+      let conv;
+      try {
+        conv = await db.getDocument(DB_ID, COL_CONVS, convId);
+      } catch (_) {
+        return res.json({ ok: true, alreadyGone: true });
+      }
+      if (conv.orgId !== orgId) return res.json({ error: 'convId/orgId mismatch' }, 400);
+
+      try {
+        await Promise.all([
+          deleteMessageBatch(db, storage, [Query.equal('convId', convId)]),
+          deleteBatch(db, COL_POLLS,     [Query.equal('convId', convId)]),
+          deleteBatch(db, COL_SCHEDULED, [Query.equal('convId', convId)]),
+          deleteBatch(db, COL_RECEIPTS,  [Query.equal('convId', convId)]),
+        ]);
+        // Team wird von sync-conversation-permissions beim delete-Event entsorgt.
+        await db.deleteDocument(DB_ID, COL_CONVS, convId);
+      } catch (e) {
+        error(`deleteConversation ${convId} failed: ${e?.message}`);
+        return res.json({ error: 'Internal server error' }, 500);
+      }
+
+      log(`deleteConversation: ${convId} in ${orgId} deleted by ${callerId}`);
+      return res.json({ ok: true });
+    }
+
+    // ── rejectChild ──────────────────────────────────────────────────────────
+    // Guardian (oder Admin/Mod) lehnt eine ausstehende Kind-Einladung ab →
+    // pending Member-Doc des Kindes löschen. Der Member-Doc gehört per ACL dem
+    // Kind; ohne Collection-Level-delete braucht der Guardian diesen Weg.
+    case 'rejectChild': {
+      if (!targetUid) return res.json({ error: 'targetUid required' }, 400);
+      const memberId = `${orgId}_${targetUid}`;
+      let memberDoc;
+      try {
+        memberDoc = await db.getDocument(DB_ID, COL_MEMBERS, memberId);
+      } catch (_) {
+        return res.json({ ok: true, alreadyGone: true });
+      }
+      const isGuardian = (memberDoc.guardianUids ?? []).includes(callerId);
+      if (!isGuardian && !isAdminOrMod) return res.json({ error: 'Forbidden' }, 403);
+      if (memberDoc.status !== 'pending') {
+        return res.json({ error: 'Member is not pending' }, 400);
+      }
+      await db.deleteDocument(DB_ID, COL_MEMBERS, memberId);
+      log(`rejectChild: ${targetUid} rejected in ${orgId} by ${callerId}`);
       return res.json({ ok: true });
     }
 

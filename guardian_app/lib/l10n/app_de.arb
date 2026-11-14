@@ -764,6 +764,8 @@
   "chatTypeDirect": "Direktnachricht",
   "sectionGroups": "Gruppen",
   "sectionDirectChats": "Einzel-Chats",
+  "chatSortGrouped": "Gruppiert",
+  "chatSortRecent": "Neueste zuerst",
   "pollDetailsButton": "Abstimmungs-Details",
   "errorChildAccountRoleLocked": "Dieses Konto ist als Kind-Konto registriert. Bitte wähle die Rolle 'Kind' und weise mindestens einen Guardian zu.",
   "errorRemoveLastGuardianTitle": "Entfernen nicht möglich",

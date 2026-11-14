@@ -4,6 +4,13 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-11-14
+
+- **Chats nach Aktualität sortieren.** In der Chat-Übersicht einer Organisation lassen sich die eigenen Chats jetzt wahlweise gruppiert (Gruppen / Einzel-Chats) oder als eine Liste mit der neuesten Nachricht zuerst anzeigen. Die Wahl wird gemerkt. „Überwachte Chats“ bleiben weiterhin eine eigene Gruppe.
+- **Letzter Chat wird nicht mehr vom „Gruppe erstellen“-Button verdeckt.** Unter der Liste ist jetzt genug Platz, um auch den untersten Eintrag vollständig zu sehen.
+
+---
+
 ## 2026-11-13
 
 - **Mehrere Bilder als eine Nachricht.** Wer mehrere Fotos auswählt (oder aus einer anderen App teilt), verschickt sie jetzt gemeinsam in einer Nachricht — mit nur einer Benachrichtigung statt einer pro Bild. Im Chat erscheinen sie als Raster; in der Vollbildansicht lässt sich durch die Bilder blättern. Bis zu 10 Bilder pro Nachricht. Ältere App-Versionen zeigen von einer solchen Nachricht nur das erste Bild.

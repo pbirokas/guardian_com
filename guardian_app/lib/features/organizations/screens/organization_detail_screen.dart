@@ -26,6 +26,7 @@ import '../../../core/models/notification_settings.dart';
 import '../../../core/models/org_member.dart';
 
 import '../../../core/models/organization.dart';
+import '../../../core/providers/chat_list_sort_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../chat/providers/chat_provider.dart';
 import '../providers/organizations_provider.dart';
@@ -736,6 +737,33 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
     );
   }
 
+  /// Liste eigener (genehmigter) Chats; Admin/Mod dürfen archivieren/löschen.
+  SliverList _buildOwnConvList(
+      List<Conversation> convs, AsyncValue<List<OrgMember>> membersAsync) {
+    final canModerate = isAdmin || isModerator;
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (ctx, i) => membersAsync.maybeWhen(
+          data: (members) => _ConversationTile(
+            conv: convs[i],
+            members: members,
+            currentUid: currentUid,
+            ref: ref,
+            isAdminOrMod: canModerate,
+            onArchive: canModerate
+                ? () => ref.read(chatServiceProvider).archiveConversation(convs[i].id)
+                : null,
+            onDelete: canModerate
+                ? () => ref.read(chatServiceProvider).deleteConversation(convs[i].id)
+                : null,
+          ),
+          orElse: () => const SizedBox(),
+        ),
+        childCount: convs.length,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ref = this.ref;
@@ -757,6 +785,8 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
             (orgId: org.id, adminUid: org.adminUid)))
         : const AsyncData(<Conversation>[]);
     final membersAsync = ref.watch(orgMembersProvider(org.id));
+    final sortMode =
+        ref.watch(chatListSortProvider).value ?? ChatListSortMode.grouped;
 
     return convsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -770,6 +800,14 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                 c.status == ConversationStatus.approved &&
                 c.participantUids.contains(currentUid))
             .toList();
+        // Neueste Nachricht zuerst; Chats ohne Nachricht ans Ende.
+        int byRecent(Conversation a, Conversation b) {
+          final at = a.lastMessageAt ?? a.createdAt;
+          final bt = b.lastMessageAt ?? b.createdAt;
+          if (a.lastMessageAt == null && b.lastMessageAt != null) return 1;
+          if (b.lastMessageAt == null && a.lastMessageAt != null) return -1;
+          return bt.compareTo(at);
+        }
         final approvedGroups =
             approved.where((c) => c.isGroup).toList();
         final approvedDirect =
@@ -814,11 +852,7 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
         final allSupervisorConvs = supervisorMap.values
             .where((c) => !approvedIds.contains(c.id))
             .toList()
-          ..sort((a, b) {
-            if (a.lastMessageAt == null) return 1;
-            if (b.lastMessageAt == null) return -1;
-            return b.lastMessageAt!.compareTo(a.lastMessageAt!);
-          });
+          ..sort(byRecent);
 
         return Stack(
           children: [
@@ -1003,55 +1037,55 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                     ),
                   )
                 else ...[
-                  // Gruppen
-                  if (approvedGroups.isNotEmpty) ...[
-                    _buildSectionLabel(context, l.sectionGroups),
-                    SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (ctx, i) => membersAsync.maybeWhen(
-                          data: (members) => _ConversationTile(
-                            conv: approvedGroups[i],
-                            members: members,
-                            currentUid: currentUid,
-                            ref: ref,
-                            isAdminOrMod: isAdmin || isModerator,
-                            onArchive: (isAdmin || isModerator)
-                                ? () => ref.read(chatServiceProvider).archiveConversation(approvedGroups[i].id)
-                                : null,
-                            onDelete: (isAdmin || isModerator)
-                                ? () => ref.read(chatServiceProvider).deleteConversation(approvedGroups[i].id)
-                                : null,
+                  // Sortier-Umschalter für die eigenen Chats
+                  if (approved.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: SegmentedButton<ChatListSortMode>(
+                            showSelectedIcon: false,
+                            style: const ButtonStyle(
+                              visualDensity: VisualDensity.compact,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            segments: [
+                              ButtonSegment(
+                                value: ChatListSortMode.grouped,
+                                icon: const Icon(Icons.view_agenda_outlined, size: 16),
+                                label: Text(l.chatSortGrouped),
+                              ),
+                              ButtonSegment(
+                                value: ChatListSortMode.recent,
+                                icon: const Icon(Icons.schedule, size: 16),
+                                label: Text(l.chatSortRecent),
+                              ),
+                            ],
+                            selected: {sortMode},
+                            onSelectionChanged: (s) => ref
+                                .read(chatListSortProvider.notifier)
+                                .setMode(s.first),
                           ),
-                          orElse: () => const SizedBox(),
                         ),
-                        childCount: approvedGroups.length,
                       ),
                     ),
+                  // Nach Aktualität: alle eigenen Chats in einer Liste
+                  if (sortMode == ChatListSortMode.recent &&
+                      approved.isNotEmpty)
+                    _buildOwnConvList(
+                        [...approved]..sort(byRecent), membersAsync),
+                  // Gruppen
+                  if (sortMode == ChatListSortMode.grouped &&
+                      approvedGroups.isNotEmpty) ...[
+                    _buildSectionLabel(context, l.sectionGroups),
+                    _buildOwnConvList(approvedGroups, membersAsync),
                   ],
                   // Einzel-Chats
-                  if (approvedDirect.isNotEmpty) ...[
+                  if (sortMode == ChatListSortMode.grouped &&
+                      approvedDirect.isNotEmpty) ...[
                     _buildSectionLabel(context, l.sectionDirectChats),
-                    SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (ctx, i) => membersAsync.maybeWhen(
-                          data: (members) => _ConversationTile(
-                            conv: approvedDirect[i],
-                            members: members,
-                            currentUid: currentUid,
-                            ref: ref,
-                            isAdminOrMod: isAdmin || isModerator,
-                            onArchive: (isAdmin || isModerator)
-                                ? () => ref.read(chatServiceProvider).archiveConversation(approvedDirect[i].id)
-                                : null,
-                            onDelete: (isAdmin || isModerator)
-                                ? () => ref.read(chatServiceProvider).deleteConversation(approvedDirect[i].id)
-                                : null,
-                          ),
-                          orElse: () => const SizedBox(),
-                        ),
-                        childCount: approvedDirect.length,
-                      ),
-                    ),
+                    _buildOwnConvList(approvedDirect, membersAsync),
                   ],
                   // Überwachte Chats (für Moderatoren + Guardians)
                   if (allSupervisorConvs.isNotEmpty) ...[
@@ -1163,6 +1197,13 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                       ),
                     ),
                   ],
+                  // Platz unter dem letzten Eintrag, damit der
+                  // „Gruppe erstellen“-Button ihn nicht überdeckt.
+                  if (isAdmin || isModerator)
+                    SliverToBoxAdapter(
+                      child: SizedBox(
+                          height: 88 + MediaQuery.of(context).padding.bottom),
+                    ),
                 ],
               ],
             ),

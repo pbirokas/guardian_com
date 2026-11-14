@@ -1776,6 +1776,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get sectionDirectChats => 'Einzel-Chats';
 
   @override
+  String get chatSortGrouped => 'Gruppiert';
+
+  @override
+  String get chatSortRecent => 'Neueste zuerst';
+
+  @override
   String get pollDetailsButton => 'Abstimmungs-Details';
 
   @override

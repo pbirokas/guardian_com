@@ -1767,6 +1767,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sectionDirectChats => 'Direct chats';
 
   @override
+  String get chatSortGrouped => 'Grouped';
+
+  @override
+  String get chatSortRecent => 'Most recent';
+
+  @override
   String get pollDetailsButton => 'Poll details';
 
   @override

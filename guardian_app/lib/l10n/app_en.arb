@@ -764,6 +764,8 @@
   "chatTypeDirect": "Direct message",
   "sectionGroups": "Groups",
   "sectionDirectChats": "Direct chats",
+  "chatSortGrouped": "Grouped",
+  "chatSortRecent": "Most recent",
   "pollDetailsButton": "Poll details",
   "errorChildAccountRoleLocked": "This account is registered as a child account. Please select the role \"Child\" and assign at least one guardian.",
   "errorRemoveLastGuardianTitle": "Cannot Remove",

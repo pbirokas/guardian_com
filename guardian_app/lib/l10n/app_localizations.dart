@@ -3224,6 +3224,18 @@ abstract class AppLocalizations {
   /// **'Einzel-Chats'**
   String get sectionDirectChats;
 
+  /// No description provided for @chatSortGrouped.
+  ///
+  /// In de, this message translates to:
+  /// **'Gruppiert'**
+  String get chatSortGrouped;
+
+  /// No description provided for @chatSortRecent.
+  ///
+  /// In de, this message translates to:
+  /// **'Neueste zuerst'**
+  String get chatSortRecent;
+
   /// No description provided for @pollDetailsButton.
   ///
   /// In de, this message translates to:

@@ -88,6 +88,7 @@ Jede Organisation unterstützt beide Chat-Typen gleichzeitig — kein separater 
 - Nach Chat-Löschung kann ebenfalls eine neue Anfrage gestellt werden
 - Genehmigte Chats sind für den Guardian des Kindes sichtbar
 - **Chat-Übersicht:** „Überwachte Chats" blendet Chats aus, in denen man selbst Mitglied ist (keine Doppeleinträge); Sektion ist ein- und ausklappbar
+- **Chat-Sortierung:** Eigene Chats wahlweise gruppiert (Gruppen / Einzel-Chats) oder nach Aktualität (neueste Nachricht zuerst) anzeigen — Einstellung wird gemerkt; „Überwachte Chats" bleiben immer eine eigene Gruppe
 - **Chat-Info (ⓘ):** Guardians, Eltern, Admins und Moderatoren können in der Kachel eines überwachten Chats auf ⓘ tippen, um Teilnehmer und Supervisoren des Chats anzuzeigen
 - **Typ-Indikator:** Jede Kachel in der „Überwachte Chats"-Liste zeigt „Gruppe" oder „Direktnachricht", damit Gruppen- und 1-zu-1-Chats auf einen Blick unterscheidbar sind
 - „Chat Starten" aus der Mitgliederliste öffnet immer einen eigenen 1-zu-1-Chat, auch wenn bereits eine Gruppenkonversation mit derselben Person existiert

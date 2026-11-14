@@ -1,7 +1,10 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:guardian_app/l10n/app_localizations.dart';
+import '../../../core/utils/launch_url.dart';
+import '../../../core/widgets/web_install_hint.dart';
 import '../providers/auth_provider.dart';
 
 enum _Mode { main, otpPending }
@@ -89,6 +92,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                // iPhone/iPad-Browser: Hinweis „Zum Home-Bildschirm“.
+                const WebInstallHint(),
                 const Icon(Icons.chat_bubble_outline, size: 80, color: Colors.blue),
                 const SizedBox(height: 24),
                 Text(l.appTitle,
@@ -103,6 +108,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const CircularProgressIndicator()
                 else
                   _buildBody(l),
+                // Öffentliche Website: Datenschutzerklärung vor dem Login
+                // erreichbar (in der App steht sie unter Einstellungen).
+                if (kIsWeb) ...[
+                  const SizedBox(height: 32),
+                  TextButton(
+                    onPressed: () => openExternalUrl(privacyPolicyUrl),
+                    child: Text(l.privacyPolicy),
+                  ),
+                ],
               ],
             ),
           ),

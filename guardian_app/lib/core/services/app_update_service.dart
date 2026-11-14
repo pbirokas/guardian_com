@@ -1,7 +1,6 @@
-import 'dart:io' show Platform;
-
 import 'package:appwrite/appwrite.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -54,7 +53,7 @@ class AppUpdateService {
 
   Future<AppUpdateStatus> check() async {
     // Nur Android — Windows/Web sind aktuell ausgenommen.
-    if (kIsWeb || !Platform.isAndroid) return AppUpdateStatus.none;
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return AppUpdateStatus.none;
 
     try {
       final info = await PackageInfo.fromPlatform();

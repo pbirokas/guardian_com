@@ -784,5 +784,8 @@
   "emailHidden": "Email hidden",
   "hideEmail": "Hide email address",
   "hideEmailSubtitle": "Your email address won't be shown to other members",
-  "privacySettings": "Privacy settings"
+  "privacySettings": "Privacy settings",
+  "webInstallHintTitle": "Install Guardian Com as an app",
+  "webInstallHintBody": "In Safari, tap “Share” (the square with an arrow), then “Add to Home Screen”. Guardian Com will then open like an app – full screen and with its own icon.",
+  "webInstallHintDismiss": "Got it"
 }

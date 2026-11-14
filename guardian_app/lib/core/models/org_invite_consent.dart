@@ -3,7 +3,7 @@ enum OrgInviteConsentStatus { pending, approved, vetoed, expired }
 /// Represents a pending parental-consent request created when a child
 /// with verified parents is invited to an organisation.
 ///
-/// Firestore collection: /orgInviteConsents/{consentId}
+/// Appwrite-Collection: `org_invite_consents`
 class OrgInviteConsent {
   final String id;
 

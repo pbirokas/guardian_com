@@ -6,6 +6,8 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ## 2026-11-14
 
+- **Firebase-Altlasten entfernt.** Firebase dient nur noch Push (FCM) und Absturzberichten (Crashlytics) auf Android; die alten Firestore-/Storage-Regeln, Firebase-Konfiguration, die früheren Firebase Cloud Functions und die Migrationsskripte sind aus dem Projekt entfernt. Unter Windows wird Firebase nicht mehr gestartet. Datenschutzerklärung und Doku beschreiben jetzt den tatsächlichen Stand (keine Google-Anmeldung, kein Firestore, kein App Check; Web-App ergänzt).
+- **Guardian Com im Browser (Web-App, Stufe 1).** Die App läuft jetzt auch im Browser unter app.guardian-com.de – gedacht vor allem für iPhone- und iPad-Nutzer. Über „Teilen → Zum Home-Bildschirm“ lässt sie sich wie eine App installieren; ein Hinweis erklärt das beim ersten Öffnen. Chats, Bilder, Dateien, Umfragen und Ankündigungen funktionieren wie in der Android-App; Push-Benachrichtigungen und Sprachnachrichten folgen. Einladungs-E-Mails nennen jetzt beide Wege (Play Store und Browser).
 - **Klarere Benachrichtigungen für Guardians aus überwachten Chats.** Statt „Kassandra hat eine Nachricht gesendet in Kassandra“ heißt es jetzt z. B. „👁 Überwachter Chat: Kassandra – Kassandra hat Max geschrieben“ bzw. „Max hat Kassandra geschrieben“; bei Gruppen wird der Gruppenname genannt.
 
 - **Chats nach Aktualität sortieren.** In der Chat-Übersicht einer Organisation lassen sich die eigenen Chats jetzt wahlweise gruppiert (Gruppen / Einzel-Chats) oder als eine Liste mit der neuesten Nachricht zuerst anzeigen. Die Wahl wird gemerkt. „Überwachte Chats“ bleiben weiterhin eine eigene Gruppe.

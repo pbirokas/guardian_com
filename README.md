@@ -4,7 +4,7 @@
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
 [![Appwrite](https://img.shields.io/badge/Appwrite-Backend-FD366E?logo=appwrite)](https://appwrite.io)
 [![Firebase](https://img.shields.io/badge/Firebase-FCM%20%7C%20Crashlytics-FFCA28?logo=firebase)](https://firebase.google.com)
-[![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Windows-green)](#builds)
+[![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Windows%20%7C%20Web-green)](#builds)
 
 Eine Flutter-App für sichere, überwachte Kommunikation zwischen Kindern, Erziehungsberechtigten und Organisationen.
 
@@ -35,11 +35,11 @@ Dazu wurde ClaudeCode verwendet um meine Vorstellungen in eine App zu gießen.
 | Bereich | Stack |
 |---|---|
 | **Frontend** | Flutter 3.x (Dart) |
-| **Authentifizierung & Dateiablage** | Appwrite (self-hosted) |
-| **Datenbank, Push & Fehlerberichte** | Firebase (Firestore, FCM, Crashlytics) |
+| **Backend (Auth, Datenbank, Dateiablage, Realtime, Functions)** | Appwrite (self-hosted, Hetzner DE) |
+| **Push & Fehlerberichte (nur Android)** | Firebase Cloud Messaging, Crashlytics |
 | **State Management** | Riverpod 3.x |
 | **Navigation** | GoRouter |
-| **Anmeldemethoden** | E-Mail-Code/OTP (Android, Windows) |
+| **Anmeldemethoden** | E-Mail-Code/OTP (Android, Windows, Web) |
 | **Cloud Functions** | Node.js 22 (Benachrichtigungen, E-Mail-Einladungen) |
 
 ---
@@ -205,7 +205,7 @@ Erreichbar über **Profil → Meine Verknüpfungen**. Der Screen vereint alle As
   - Max. 1x pro Tag
   - Nie
 
-#### Windows (Firestore-Listener)
+#### Windows (Appwrite-Realtime)
 - Echtzeit-Listener auf alle genehmigten Chats
 - Native Windows Toast-Benachrichtigung bei neuer Nachricht
 - Tap auf Toast navigiert direkt zum Chat
@@ -291,7 +291,7 @@ Die Schritt-für-Schritt-Tour auf der Organisations-Übersicht hebt die wichtigs
 ### Share-Target (Android)
 - Die App erscheint im Teilen-Menü anderer Apps für Text, Bilder und Dateien
 - Ein Bottom Sheet zeigt alle eigenen genehmigten Chats (nur aus aktiven Orgs)
-- Direktchats zeigen den Display-Namen des Partners, nicht die Firestore-ID
+- Direktchats zeigen den Display-Namen des Partners, nicht die Dokument-ID
 - Nach dem Senden wird direkt in den Ziel-Chat navigiert
 
 ### Sonstiges
@@ -313,7 +313,8 @@ Die Schritt-für-Schritt-Tour auf der Organisations-Übersicht hebt die wichtigs
 |---|---|---|
 | **Android** | ✅ | Google Play, FCM, E-Mail-Code |
 | **Windows** | ✅ | System Tray, Taskleisten-Badge, E-Mail-Code (OTP) |
-| **iOS / macOS** | ⏳ nicht konfiguriert | – |
+| **Web / PWA** | 🧪 Stufe 1 | `app.guardian-com.de` über Appwrite Sites; für iPhone/iPad installierbar („Zum Home-Bildschirm“). Noch ohne Push und Sprachnachrichten |
+| **iOS / macOS (nativ)** | ⏳ nicht konfiguriert | Apple-Nutzer verwenden die Web-App |
 
 ### Windows-Build erstellen
 
@@ -333,6 +334,34 @@ build/windows/x64/runner/Release/
 cd guardian_app
 flutter build appbundle --release
 ```
+
+### Web-Build erstellen und ausliefern
+
+Die Web-App wird lokal gebaut und als Deployment der Appwrite-Site hochgeladen
+(kein Git-Autobuild, da `firebase_options.dart` nicht im Repo liegt). Web und
+Android werden zusammen released.
+
+```bash
+cd guardian_app
+flutter build web --release
+appwrite sites create-deployment --site-id guardian-web --code build/web --activate true
+```
+
+Danach in der Console unter Sites → Guardian Web → Deployments prüfen, ob die
+neue Version aktiv ist — beim ersten Deploy (CLI 20.1) griff `--activate` nicht,
+die Version musste per „Activate“ manuell aktiviert werden.
+
+Einmalige Einrichtung auf dem Server:
+- DNS-Eintrag für `app.guardian-com.de` auf den Appwrite-Server
+- In der Appwrite-Console eine Site `guardian-web` (statisch, ohne Build-Befehl) anlegen und die Domain `app.guardian-com.de` verbinden
+- Web-Plattform mit Hostname `app.guardian-com.de` im Projekt registrieren (sonst blockt CORS)
+- `web/pica.min.js` (Bildkomprimierung) liegt selbst gehostet im Repo — bewusst kein CDN
+
+Web-Besonderheiten: Die Session liegt als Cookie von `appwrite.guardian-com.de`
+(gleiche Hauptdomain → kein Third-Party-Cookie). Firebase/FCM/Crashlytics werden
+im Web nicht initialisiert. Share-Target, Akku-Optimierung, Update-Prüfung und
+Sprachaufnahme sind im Web ausgeblendet; Kalender- und CSV-Export laufen als
+Browser-Download.
 
 ---
 
@@ -374,14 +403,15 @@ appwrite/
 │   │                        #   on-child-org-invite, on-parent-consent,
 │   │                        #   on-member-guardians-changed, on-org-admin-transferred,
 │   │                        #   get-child-summary, process-my-invitations,
-│   │                        #   revoke-connection,
+│   │                        #   revoke-connection, mark-as-read, moderate-message,
+│   │                        #   admin-member-action, sync-conversation-permissions,
+│   │                        #   sync-supervisor-team, daily-error-report,
 │   │                        #   cleanup-old-messages, cleanup-expired-polls,
 │   │                        #   cleanup-expired-announcements
 │   └── _shared/             # Geteilte Hilfsfunktionen (FCM, E-Mail, DB-Zugriff)
-└── setup.js                 # Einmalige Initialisierung (Collections, Permissions)
+└── setup.js                 # Initialisierung/Erweiterung (Collections, Attribute, Indexe)
 
-firestore.rules              # Firestore Security Rules (FCM-Hilfsdaten)
-firebase.json                # Firebase-Konfiguration (FCM, Crashlytics)
+privacy_policy.html          # Datenschutzerklärung (über GitHub Pages veröffentlicht)
 ```
 
 ---
@@ -534,7 +564,7 @@ Alle Functions laufen in Appwrite (Node.js 16). Event-getriggerte Functions reag
 - [Flutter SDK](https://docs.flutter.dev/get-started/install) ≥ 3.29 (Appwrite-SDK 26.x)
 - [Appwrite](https://appwrite.io) ≥ 1.9.6 (self-hosted oder Cloud) mit aktiviertem E-Mail-OTP
 - [Appwrite CLI](https://appwrite.io/docs/tooling/command-line/installation) (für Functions-Deployment)
-- [Firebase CLI](https://firebase.google.com/docs/cli) + [FlutterFire CLI](https://firebase.flutter.dev/docs/cli) (nur für FCM / Crashlytics)
+- [FlutterFire CLI](https://firebase.flutter.dev/docs/cli) (nur um `firebase_options.dart` für FCM / Crashlytics auf Android zu erzeugen)
 - Android Studio (für Android-Builds) oder Visual Studio 2022 mit C++-Workload (für Windows-Builds)
 - Node.js 22 (für Appwrite Functions)
 
@@ -555,21 +585,21 @@ cd appwrite
 node setup.js          # legt Collections, Indexes und Permissions an
 
 # 3. Appwrite Functions deployen
-appwrite deploy function --all
+appwrite push functions
 
 # 4. Umgebungsvariablen für Functions setzen (Appwrite Console → Functions → Variables)
 #    APPWRITE_API_KEY   → Server-API-Key mit vollen Datenbankrechten
-#    FCM_SERVER_KEY     → Firebase Cloud Messaging Server Key (für Push)
+#    FCM_SERVICE_ACCOUNT_B64 / FCM_PROJECT_ID → Firebase-Dienstkonto (Base64) + Projekt-ID für FCM-Push (HTTP v1)
 #    GMAIL_USER         → Absender-E-Mail-Adresse (optional, für Einladungs-E-Mails)
 #    GMAIL_APP_PASSWORD → Gmail App-Passwort (optional)
 
 # 5. Firebase-Projekt einrichten (console.firebase.google.com) — nur für FCM & Crashlytics
-#    → Cloud Messaging aktivieren
-#    → Crashlytics aktivieren (Android)
+#    → Android-App registrieren, Cloud Messaging + Crashlytics aktivieren
+#    → Firestore, Firebase Auth und Firebase Storage werden NICHT genutzt
 
 # 6. FlutterFire konfigurieren (erzeugt firebase_options.dart + google-services.json)
 cd ../guardian_app
-flutterfire configure --platforms=android,windows
+flutterfire configure --platforms=android
 
 # 7. Flutter-Abhängigkeiten installieren
 flutter pub get
@@ -586,7 +616,7 @@ Der E-Mail-Code-Login (OTP) auf Windows läuft vollständig über Appwrite — k
 ### Vorlage für firebase_options.dart
 
 Eine Vorlage befindet sich unter [`guardian_app/lib/firebase_options.example.dart`](guardian_app/lib/firebase_options.example.dart).  
-Umbenennen und mit eigenen Firebase-Werten befüllen, oder `flutterfire configure` verwenden (empfohlen).
+Umbenennen und mit den Werten der Android-App befüllen, oder `flutterfire configure --platforms=android` verwenden. Firebase wird nur auf Android initialisiert (FCM + Crashlytics); Windows und Web brauchen keine Firebase-Konfiguration.
 
 ---
 

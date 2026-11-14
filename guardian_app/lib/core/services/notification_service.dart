@@ -64,15 +64,23 @@ class NotificationService {
 
   static bool _initialized = false;
 
-  final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  // Lazy: im Web wird Firebase (noch) nicht initialisiert — ein eager Zugriff
+  // auf FirebaseMessaging.instance würde dort schon beim Konstruieren werfen.
+  late final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+
+  /// Push über FCM: Android (und Desktop über eigene Wege, s. u.). Im Web
+  /// (noch) nicht — Web Push kommt in Stufe 2 (Service Worker + VAPID-Key).
+  static bool get _pushUnsupported =>
+      kIsWeb ||
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.linux;
 
   Future<void> initialize([Databases? db, String? uid]) async {
     if (db != null) _awDb = db;
     if (uid != null) _awUid = uid;
 
-    // FCM wird auf Windows/Linux nicht unterstützt
-    if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.linux)) { return; }
+    // FCM wird auf Windows/Linux (und im Web noch) nicht unterstützt
+    if (_pushUnsupported) return;
 
     if (_initialized) {
       await refreshToken();
@@ -105,8 +113,7 @@ class NotificationService {
   }
 
   Future<void> refreshToken() async {
-    if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.linux)) { return; }
+    if (_pushUnsupported) return;
     final token = await _fcm.getToken();
     if (token != null) await _saveToken(token);
   }

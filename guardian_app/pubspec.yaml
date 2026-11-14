@@ -63,7 +63,10 @@ dependencies:
   # Deep Links
   app_links: ^7.0.0
 
-  # HTTP (für Firebase REST API auf Desktop)
+  # Web (PWA-Erkennung, iOS-Installationshinweis)
+  web: ^1.1.1
+
+  # HTTP (Bilder herunterladen/speichern)
   http: ^1.2.0
 
   # Localization

@@ -3343,6 +3343,24 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Datenschutz-Einstellungen'**
   String get privacySettings;
+
+  /// No description provided for @webInstallHintTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Guardian Com als App installieren'**
+  String get webInstallHintTitle;
+
+  /// No description provided for @webInstallHintBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Tippe in Safari auf „Teilen“ (Quadrat mit Pfeil) und dann auf „Zum Home-Bildschirm“. Danach startet Guardian Com wie eine App – im Vollbild und mit eigenem Symbol.'**
+  String get webInstallHintBody;
+
+  /// No description provided for @webInstallHintDismiss.
+  ///
+  /// In de, this message translates to:
+  /// **'Verstanden'**
+  String get webInstallHintDismiss;
 }
 
 class _AppLocalizationsDelegate

@@ -57,12 +57,23 @@ module.exports = async ({ req, res, log, error }) => {
   <h2 style="color:#1565C0">Einladung zu Guardian Com</h2>
   ${inviterLine}
   <p>Du wurdest als <strong>${roleLabel}</strong> zur Organisation <strong>${orgName ?? ''}</strong> eingeladen.</p>
-  <p>Lade die <strong>Guardian Com</strong>-App herunter und melde dich mit dieser E-Mail-Adresse an, um die Einladung anzunehmen:</p>
-  <p style="margin:24px 0">
+  <p>Melde dich mit dieser E-Mail-Adresse bei <strong>Guardian Com</strong> an, um die Einladung anzunehmen:</p>
+  <p style="margin:24px 0 8px"><strong>Android:</strong> App aus dem Play Store laden</p>
+  <p style="margin:0 0 20px">
     <a href="https://play.google.com/store/apps/details?id=com.guardianapp.guardian_app"
-       style="background:#1565C0;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold">
+       style="background:#1565C0;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">
       App herunterladen
     </a>
+  </p>
+  <p style="margin:0 0 8px"><strong>iPhone, iPad oder Computer:</strong> direkt im Browser nutzen</p>
+  <p style="margin:0 0 8px">
+    <a href="https://app.guardian-com.de"
+       style="background:#1565C0;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">
+      Im Browser öffnen
+    </a>
+  </p>
+  <p style="font-size:0.85rem;color:#666;margin:0 0 24px">
+    Tipp für iPhone/iPad: In Safari auf „Teilen“ und dann „Zum Home-Bildschirm“ tippen – dann startet Guardian Com wie eine App.
   </p>
   <p style="font-size:0.85rem;color:#666">
     Wenn du diese Einladung nicht erwartet hast, kannst du diese E-Mail ignorieren.

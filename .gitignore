@@ -43,14 +43,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Firebase Cloud Functions
-functions/node_modules/
-functions/.runtimeconfig.json
-firebase-debug.log
-firestore-debug.log
-ui-debug.log
-.firebase/
-
 # Secrets & Keystores — niemals committen!
 *.jks
 *.keystore
@@ -68,7 +60,7 @@ appwrite/functions/**/.appwrite/
 # Firebase Admin SDK Service-Account-Keys (privater RSA-Schlüssel, niemals committen!)
 *firebase-adminsdk*.json
 
-# Root node_modules (Firebase Functions or other scripts)
+# Root node_modules (Hilfsskripte)
 node_modules/
 
 # Claude Code

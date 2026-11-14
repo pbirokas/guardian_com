@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:appwrite/appwrite.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../appwrite_client.dart';
 import '../models/conversation.dart';
@@ -43,7 +43,10 @@ class ChatService {
   static const _colReceipts = 'read_receipts';
 
   static bool get _isDesktop =>
-      !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.linux ||
+          defaultTargetPlatform == TargetPlatform.macOS);
 
 
   /// Lese-/Schreibrechte einer Nachricht im Team-Modell (siehe
@@ -824,13 +827,14 @@ class ChatService {
         data: {'reactionsJson': jsonEncode(reactions)});
   }
 
-  // ── Medien (Firebase Storage — TODO: Appwrite Storage nach Vuln-6-Fix) ─────
+  // ── Medien (Appwrite Storage, Media-Bucket) ──────────────────────────────
 
   static const int _maxImageBytes = 2 * 1024 * 1024;
 
   Future<Uint8List> _prepareImageForUpload(Uint8List bytes) async {
     if (bytes.length <= _maxImageBytes) return bytes;
-    if (kIsWeb || _isDesktop) {
+    // Web komprimiert über pica (Script in web/index.html), Desktop gar nicht.
+    if (_isDesktop) {
       throw Exception(
           'Das Bild ist zu groß (max. ${_maxImageBytes ~/ (1024 * 1024)} MB).');
     }

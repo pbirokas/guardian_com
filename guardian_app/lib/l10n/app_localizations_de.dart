@@ -1838,4 +1838,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get privacySettings => 'Datenschutz-Einstellungen';
+
+  @override
+  String get webInstallHintTitle => 'Guardian Com als App installieren';
+
+  @override
+  String get webInstallHintBody =>
+      'Tippe in Safari auf „Teilen“ (Quadrat mit Pfeil) und dann auf „Zum Home-Bildschirm“. Danach startet Guardian Com wie eine App – im Vollbild und mit eigenem Symbol.';
+
+  @override
+  String get webInstallHintDismiss => 'Verstanden';
 }

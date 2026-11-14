@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Guardian Com is a Flutter + Firebase app for supervised communication between children, guardians, and organizations. It targets Android and Windows. The Flutter app lives in `guardian_app/`, backend logic in `functions/` (Node.js Firebase Cloud Functions), and Firebase config at the repo root.
+Guardian Com is a Flutter app for supervised communication between children, guardians, and organizations. It targets Android, Windows and Web (PWA at `app.guardian-com.de`, primarily for iPhone/iPad users). The backend is a **self-hosted Appwrite** server (`appwrite.guardian-com.de`, Hetzner DE): auth (e-mail OTP), database `guardian`, storage, realtime and Functions. The Flutter app lives in `guardian_app/`; Appwrite schema/maintenance scripts and Functions live in `appwrite/` (`appwrite/functions/<id>/src/main.js`). **Firebase is only used for FCM push and Crashlytics on Android** — no Firestore, Firebase Auth or Firebase Storage.
 
 ## Common Commands
 
@@ -32,23 +32,13 @@ flutter gen-l10n
 flutter analyze
 ```
 
-Firebase deploy commands run from the repo root:
+Appwrite (run from `appwrite/`, CLI is logged in against `appwrite.guardian-com.de`):
 
 ```bash
-# Deploy everything
-firebase deploy
-
-# Deploy only specific targets
-firebase deploy --only functions
-firebase deploy --only firestore:rules
-firebase deploy --only firestore:indexes
-firebase deploy --only functions,firestore:rules,firestore:indexes
-```
-
-Cloud Functions (`functions/`):
-
-```bash
-cd functions && npm install
+npm install                                        # deps for the maintenance scripts
+node setup.js                                      # create/extend collections, attributes, indexes (idempotent)
+appwrite push function --function-id <id>          # deploy one Function (e.g. on-new-message)
+node set-function-vars.js                          # set APPWRITE_API_KEY etc. on Functions (redeploy afterwards)
 ```
 
 ## Architecture
@@ -60,7 +50,7 @@ cd functions && npm install
 **Navigation:** GoRouter via `routerProvider` in `core/router/app_router.dart`. Routes: `/login`, `/organizations`, `/org/:orgId`, `/chat/:chatId`, `/profile`, `/relationships`.
 
 **Feature structure** (`features/`):
-- `auth/` — Login screen, `authStateProvider` (wraps `FirebaseAuth.authStateChanges`)
+- `auth/` — Login screen (e-mail OTP), `authStateProvider` (`AuthNotifier`, wraps the Appwrite account/session)
 - `organizations/` — Org list, org detail with member list + chat tabs
 - `chat/` — Full chat screen (messages, polls, scheduled messages, file/image/voice)
 - `profile/` — Settings, notification preferences, privacy
@@ -68,8 +58,8 @@ cd functions && npm install
 - `share/` — Share-Target: `SharePickerSheet` (bottom sheet, shown via `_ShareListener` in `main.dart`)
 
 **Core layer** (`core/`):
-- `models/` — Plain Dart classes with `fromFirestore`/`toFirestore`. No logic beyond serialization.
-- `services/` — All Firestore and FCM calls. Key services: `OrganizationService`, `ChatService`, `NotificationService`, `ParentClaimService`, `ShareService`.
+- `models/` — Plain Dart classes with `fromAppwrite`/`toAppwrite`. No logic beyond serialization.
+- `services/` — All Appwrite (Databases/Storage/Functions/Realtime) and FCM calls. Key services: `OrganizationService`, `ChatService`, `NotificationService`, `ParentClaimService`, `ShareService`.
 - `providers/` — UI-state providers (theme, locale, font size, connectivity, `pendingShareProvider`).
 - `widgets/` — Shared widgets used across features.
 
@@ -85,26 +75,23 @@ cd functions && npm install
 - `isGroup` — group chat vs. 1-on-1
 - `status` — `pending | approved | rejected | archived`
 - `participantUids` — actual chat members
-- `guardianUids` — guardians of child participants (propagated by Cloud Function on member doc change)
-- `canApproveUids` — snapshot of admin/mod UIDs at creation (may be stale; rules also do a live `isAdminOrMod` check)
+- `guardianUids` — guardians of child participants (propagated by the Function `on-member-guardians-changed`)
+- `canApproveUids` — snapshot of admin/mod UIDs at creation (may be stale; supervisors get access via the conversation team, see conventions)
 - `personalNames` — per-user display names for direct chats (`Map<uid, name>`)
 
-**Guardian propagation:** When `members/{memberId}.guardianUids` changes, the Cloud Function `onMemberGuardiansChanged` propagates `guardianUids` into all affected conversations via Admin SDK (not client-side, to avoid Firestore rule issues for moderators).
+**Guardian propagation:** When `members/{memberId}.guardianUids` changes, the Function `on-member-guardians-changed` propagates `guardianUids` into all affected conversations with the API key (not client-side — clients may only write documents their ACL allows).
 
-### Firestore Security Rules (`firestore.rules`)
+### Appwrite Functions (`appwrite/functions/`)
 
-Conversations use a `canAccessConv()` helper that checks `participantUids`, `guardianUids`, `canApproveUids`, and a live `isAdminOrMod(orgId)` call. The live check is necessary because `canApproveUids` can become stale when roles change. Pinning messages has a stricter sub-rule within the update block.
+Node.js Functions, deployed with the Appwrite CLI (`appwrite push function --function-id <id>`), configured in `appwrite/appwrite.config.json`. They use the project API key from `APPWRITE_API_KEY` (set via `set-function-vars.js`) and must rewrite `APPWRITE_FUNCTION_API_ENDPOINT` from `http://` to `https://` (Traefik redirect breaks node-fetch otherwise). Key Functions:
+- `on-new-message` (event: chat_messages.create) — FCM push respecting per-user alert intervals, guardian alerts, keyword alerts
+- `on-member-guardians-changed` (event: members.update) — propagates guardian changes to conversations
+- `sync-conversation-permissions` / `sync-supervisor-team` — conversation team membership (see conventions)
+- `on-new-invitation` (event: invitations.create) — invitation e-mail via Gmail SMTP (`GMAIL_APP_PASSWORD`) + FCM
+- `mark-as-read`, `moderate-message`, `admin-member-action`, `get-child-summary`, `revoke-connection` — callables (from the app only via `executeRaw`)
+- `cleanup-expired-polls` / `cleanup-expired-announcements` / `cleanup-old-messages` (schedules), `daily-error-report` (07:00 e-mail of failed executions)
 
-### Cloud Functions (`functions/index.js`)
-
-All functions deploy to `europe-west3` (same region as Firestore). Key functions:
-- `sendMessage` (onCall) — sends FCM notifications respecting per-user alert intervals
-- `onMemberGuardiansChanged` (onDocumentUpdated) — propagates guardian changes to conversations
-- `sendInvitationEmail` (onCall) — sends email invitations via Gmail SMTP (secret: `GMAIL_APP_PASSWORD`)
-- `cleanupExpiredPolls` (onSchedule, daily 03:05) — closes polls past their expiry date
-- `processClaimRequest` (onDocumentUpdated) — handles parent-child link confirmation
-
-FCM messages always set `android.priority: 'high'` at the message level to bypass Doze mode.
+FCM is called via the HTTP v1 API with a service account (`FCM_SERVICE_ACCOUNT_B64`, `FCM_PROJECT_ID`). FCM messages always set `android.priority: 'high'` at the message level to bypass Doze mode.
 
 ### Share-Target (Android)
 
@@ -120,9 +107,17 @@ Conversations in the picker are filtered to the user's current orgs (`myOrganiza
 
 All Appwrite Realtime subscriptions go through a single shared `RealtimeBroadcaster` instance provided by `appwriteRealtimeBroadcasterProvider` (in `core/appwrite_client.dart`). The broadcaster owns the `Realtime` instance and ref-counts subscriptions per channel: multiple services listening to the same collection share one subscription; when the last listener leaves, the channel is `unsubscribe()`d in the SDK (never `close()` — that sets the SDK's `_reconnect=false`). Services receive a `RealtimeBroadcaster` via constructor injection and call `broadcaster.stream(channel)` instead of creating their own `Realtime` instance. **Since Appwrite SDK v24 one WebSocket stays open permanently** (subscriptions are sent as messages, not encoded in the URL), so a socket opened with a stale/absent session never heals by itself. To refresh the connection (app resume, back online, login/user switch) call `broadcaster.reconnect()` — it swaps in a fresh `Realtime` instance, re-subscribes all active channels and emits an empty `RealtimeMessage` so listeners reload missed data. Do **not** `ref.invalidate` services for this: rebuilding them tears down every stream (and before riverpod 3.3.2 tripped the `pausedActiveSubscriptionCount` assertion), and rebuilding `authStateProvider` bounces the router to `/organizations`. Only logout invalidates `appwriteRealtimeBroadcasterProvider` (its `onDispose` disconnects the old socket). `AuthService` must not depend on the broadcaster (pass it as a parameter instead), because `authStateProvider` depends on `AuthService`. Listeners must tolerate the empty resync event (`events` empty). The Realtime cookie workaround `createPatchedRealtime` relies on SDK internals (`getWebSocket`, `getFallbackCookie`, `cookieJar`) — re-check on every SDK upgrade.
 
+### Web (PWA)
+
+Flutter-Web-Build, gehostet als Appwrite Site unter `app.guardian-com.de`; Auslieferung per `flutter build web` + `appwrite sites create-deployment` (siehe README), zusammen mit jedem Android-Release. Regeln:
+- **Kein `dart:io` in gemeinsam genutztem Code.** Plattform per `kIsWeb` / `defaultTargetPlatform` prüfen — im Browser meldet `defaultTargetPlatform` das Betriebssystem (iOS auf dem iPhone, windows am PC), deshalb **immer zuerst `kIsWeb` ausschließen**. Natives in `*_io.dart`/`*_web.dart` (bzw. `*_stub.dart`) per Conditional Import: `realtime_patch_*` (Realtime-Cookie-Workaround nur nativ), `core/utils/export_file*` (Temp-Datei+OpenFilex vs. Browser-Download), `core/utils/pwa_env*` (iOS-Browser-/PWA-Erkennung).
+- Im Web werden Firebase, Crashlytics und FCM **nicht** initialisiert (Web Push kommt in Stufe 2; dann Web-`firebase_options`, Service Worker, VAPID-Key). Ausgeblendet: Share-Target, Akku-Optimierung, Update-Prüfung, Sprachaufnahme.
+- Bildkomprimierung im Web über `flutter_image_compress` + **selbst gehostetes** `web/pica.min.js` (kein CDN — keine Nutzer-IPs an Dritte).
+- Session = Browser-Cookie von `appwrite.guardian-com.de` (gleiche Hauptdomain wie die App → first-party). Kein Cookie-Jar im Web (`_clearCookieJar` ist dort No-op).
+
 ### Desktop (Windows)
 
-Windows uses Firestore listeners for notifications instead of FCM. `TrayService` manages the system tray icon; `DesktopNotificationService` shows native toasts. Platform-specific code is behind stub files (`*_stub.dart`) to keep Android unaffected.
+Windows uses Appwrite Realtime listeners (`DesktopNotificationService`) for notifications instead of FCM; Firebase is not initialized on Windows. `TrayService` manages the system tray icon; `DesktopNotificationService` shows native toasts. Platform-specific code is behind stub files (`*_stub.dart`) to keep Android unaffected.
 
 ## Important Conventions
 
@@ -141,8 +136,8 @@ Windows uses Firestore listeners for notifications instead of FCM. `TrayService`
 - **Appwrite-Indexe:** Jedes Attribut, auf das eine Query filtert oder sortiert, braucht einen Index in `appwrite/setup.js` (`idx(...)`) — auch Array-Felder (`Query.contains`). Ein Composite-Index deckt nur **führende** Felder ab: `(convId, sentAt)` bedient `sentAt` allein **nicht**. Fehlende Indexe fallen oft spät auf (der Collection-Scan funktioniert, bis die Collection wächst) und äußern sich dann als sporadische 500er/Timeouts in geplanten Functions. Nach dem Ergänzen `node setup.js` ausführen und den Index-Status auf „available" prüfen — Appwrite legt Indexe asynchron an.
 - **Chat aus Benachrichtigung öffnen nur über `openChatFromNotification`** (`core/router/chat_navigation.dart`), nie direkt `router.push('/chat/…')`: sonst stapeln sich Chat-Seiten und „Zurück" braucht mehrere Anläufe. Ob gerade ein Chat offen ist, beantwortet `chatIdFromPath`.
 - **Bilder einer Nachricht:** `imageUrls` (String-Array) enthält alle Bilder einer Mehrfach-Bild-Nachricht und wird nur bei mehr als einem Bild geschrieben; `imageUrl` enthält immer das erste Bild (ältere App-Versionen kennen nur dieses Feld). In Dart `Message.allImageUrls` lesen; serverseitiger Code, der Mediendateien einer Nachricht verarbeitet (z. B. Löschen), muss beide Felder berücksichtigen. Versand immer über `ChatService.sendImages` (max. `maxImagesPerMessage` pro Nachricht).
-- **Firestore rules:** when adding new fields that require write restrictions, update `firestore.rules` accordingly. The existing broad `canAccessConv()` update rule covers most conversation fields.
-- **Cloud Functions and client code must stay in sync:** if a Cloud Function writes a new field, add it to the corresponding Dart model's `fromFirestore`.
-- **`firebase_options.dart` is gitignored** (contains API keys). The example file `firebase_options.example.dart` shows the required structure.
+- **New attributes:** add them to `appwrite/setup.js` (and run `node setup.js`); access is controlled by collection/document permissions, not by rules files.
+- **Functions and client code must stay in sync:** if a Function writes a new field, add it to the corresponding Dart model's `fromAppwrite`.
+- **`firebase_options.dart` is gitignored** (contains API keys, Android only — FCM + Crashlytics). The example file `firebase_options.example.dart` shows the required structure.
 - **Changelog & README:** update both files when adding features or fixing notable bugs.
 - **App-Release → Update-Manifest pflegen:** Bei jedem neuen Android-Release das Appwrite-Dokument `app_config/android` aktualisieren (`latestVersionCode`/`latestVersionName`, ggf. `minVersionCode`). Die In-App-Update-Prüfung vergleicht die Build-Nummer (`versionCode`) dagegen; `minVersionCode` erzwingt ein Update. Erst setzen, wenn der neue Build tatsächlich verfügbar ist, sonst sperrt man Nutzer ohne verfügbares Update aus.

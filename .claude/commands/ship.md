@@ -58,9 +58,6 @@ Falls ARB-Dateien (`app_de.arb`, `app_en.arb`) geändert wurden:
 - Führe `flutter gen-l10n` in `guardian_app/` aus
 - Stelle sicher, dass die generierten `app_localizations*.dart` Dateien im Diff enthalten sind
 
-Falls Riverpod-Annotationen (`@riverpod`) geändert wurden:
-- Führe `dart run build_runner build --delete-conflicting-outputs` in `guardian_app/` aus
-
 ---
 
 ## Schritt 5 — Git Commit & Push

@@ -784,5 +784,8 @@
   "emailHidden": "E-Mail versteckt",
   "hideEmail": "E-Mail-Adresse verstecken",
   "hideEmailSubtitle": "Deine E-Mail-Adresse wird anderen Mitgliedern nicht angezeigt",
-  "privacySettings": "Datenschutz-Einstellungen"
+  "privacySettings": "Datenschutz-Einstellungen",
+  "webInstallHintTitle": "Guardian Com als App installieren",
+  "webInstallHintBody": "Tippe in Safari auf „Teilen“ (Quadrat mit Pfeil) und dann auf „Zum Home-Bildschirm“. Danach startet Guardian Com wie eine App – im Vollbild und mit eigenem Symbol.",
+  "webInstallHintDismiss": "Verstanden"
 }

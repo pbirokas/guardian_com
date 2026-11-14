@@ -1,12 +1,10 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:add_2_calendar/add_2_calendar.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
-import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:guardian_app/l10n/app_localizations.dart';
@@ -18,6 +16,7 @@ import '../../../core/models/app_user.dart';
 import '../../../core/dialogs/edit_group_dialog.dart';
 import '../../../core/widgets/group_avatar.dart';
 import '../../../core/widgets/user_avatar.dart';
+import '../../../core/utils/export_file.dart';
 import '../../../core/utils/initials.dart';
 import '../../../core/widgets/help_sheet.dart';
 import '../../../core/models/conversation.dart';
@@ -472,11 +471,8 @@ class _OrganizationDetailScreenState
       if (keywords.isEmpty) return;
       try {
         final csvContent = keywords.join('\n');
-        final dir = await getTemporaryDirectory();
         final safeName = org.name.replaceAll(RegExp(r'[^\w]'), '_');
-        final file = File('${dir.path}/${safeName}_keywords.csv');
-        await file.writeAsString(csvContent);
-        await OpenFilex.open(file.path);
+        await exportTextFile('${safeName}_keywords.csv', csvContent);
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(l.keywordsExported)),
@@ -4985,13 +4981,12 @@ class _EventDetailSheet extends ConsumerWidget {
     final start = ev.eventDate!;
     final end = ev.eventEndDate ?? start.add(const Duration(hours: 1));
 
-    if (Platform.isWindows) {
+    // Web (u. a. iPhone-Safari: .ics-Download öffnet „Zum Kalender hinzufügen“)
+    // und Windows: .ics-Datei; Android: nativer Kalender-Dialog.
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.windows) {
       final ics = _buildIcs(start, end, ev);
       try {
-        final dir = await getTemporaryDirectory();
-        final file = File('${dir.path}/event_${ev.id}.ics');
-        await file.writeAsString(ics);
-        await OpenFilex.open(file.path);
+        await exportTextFile('event_${ev.id}.ics', ics);
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(l.eventCalendarExportSuccess)));

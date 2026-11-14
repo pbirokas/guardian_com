@@ -1829,4 +1829,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get privacySettings => 'Privacy settings';
+
+  @override
+  String get webInstallHintTitle => 'Install Guardian Com as an app';
+
+  @override
+  String get webInstallHintBody =>
+      'In Safari, tap “Share” (the square with an arrow), then “Add to Home Screen”. Guardian Com will then open like an app – full screen and with its own icon.';
+
+  @override
+  String get webInstallHintDismiss => 'Got it';
 }

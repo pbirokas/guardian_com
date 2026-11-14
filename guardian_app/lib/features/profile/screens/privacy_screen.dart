@@ -72,8 +72,7 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
             title: Text(l.privacyPolicy),
             subtitle: Text(l.openInBrowser),
             trailing: const Icon(Icons.open_in_new, size: 16),
-            onTap: () => openExternalUrl(
-                'https://pbirokas.github.io/guardian_com/privacy_policy.html'),
+            onTap: () => openExternalUrl(privacyPolicyUrl),
           ),
           const Divider(),
           _SectionHeader(l.data),

@@ -5,7 +5,8 @@ Danke für dein Interesse! Hier sind die wichtigsten Hinweise.
 ## Voraussetzungen
 
 Lies zuerst die [Setup-Anleitung im README](README.md#setup) und richte deine eigene
-Firebase-Instanz ein, bevor du Code-Änderungen vornimmst.
+Appwrite-Instanz (und für Push ein Firebase-Projekt mit FCM) ein, bevor du
+Code-Änderungen vornimmst.
 
 ## Ablauf
 
@@ -18,8 +19,8 @@ Firebase-Instanz ein, bevor du Code-Änderungen vornimmst.
 
 | Datei | Grund |
 |---|---|
-| `google-services.json` | Firebase API-Schlüssel |
-| `lib/firebase_options.dart` | Firebase-Konfiguration |
+| `google-services.json` | Firebase-Konfiguration (FCM/Crashlytics, Android) |
+| `lib/firebase_options.dart` | Firebase-Konfiguration (FCM/Crashlytics, Android) |
 | `android/key.properties` | Keystore-Passwörter |
 | `*.jks` / `*.keystore` | Signatur-Zertifikate |
 | `.env` / `.env.*` | Umgebungsvariablen |

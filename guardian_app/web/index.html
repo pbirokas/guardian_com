@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <!-- Wird durch `flutter build web --base-href` ersetzt (Standard "/"). -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Guardian Com – beaufsichtigte Kommunikation für Organisationen, Kinder und Erziehungsberechtigte.">
+  <meta name="theme-color" content="#1565C0">
+
+  <!-- iOS: als App zum Home-Bildschirm hinzufügbar (Vollbild, eigenes Icon) -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Guardian Com">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>Guardian Com</title>
+  <link rel="manifest" href="manifest.json">
+
+  <!-- pica: Bildkomprimierung für flutter_image_compress im Web. Bewusst
+       selbst gehostet (kein CDN), damit keine Nutzer-IPs an Dritte gehen. -->
+  <script src="pica.min.js"></script>
+
+  <style>
+    /* Hintergrund bis Flutter gerendert hat (vermeidet weißes Aufblitzen). */
+    html, body { margin: 0; height: 100%; background: #1565C0; }
+  </style>
+</head>
+<body>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

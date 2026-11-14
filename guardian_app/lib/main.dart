@@ -34,18 +34,25 @@ import 'features/auth/providers/auth_provider.dart';
 import 'firebase_options.dart';
 import 'package:guardian_app/l10n/app_localizations.dart';
 
+// Im Browser meldet defaultTargetPlatform das Betriebssystem (z. B. windows
+// am PC, iOS auf dem iPhone) — deshalb Web immer zuerst ausschließen.
 bool get _isDesktop =>
-    defaultTargetPlatform == TargetPlatform.windows ||
-    defaultTargetPlatform == TargetPlatform.linux;
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   final isDesktop = _isDesktop;
 
-  // Crashlytics und FCM nur auf mobilen Plattformen (nicht Desktop)
-  if (!isDesktop) {
+  // Firebase dient nur noch FCM (Push) und Crashlytics — beides gibt es nur
+  // auf Android. Desktop nutzt Appwrite-Realtime + native Toasts; im Web
+  // kommt Firebase erst mit Web Push (Stufe 2).
+  if (!kIsWeb && !isDesktop) {
+    await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform);
+
     await FirebaseCrashlytics.instance
         .setCrashlyticsCollectionEnabled(!kDebugMode);
     FlutterError.onError =

@@ -90,7 +90,7 @@ class AuthService {
     try {
       await _account.createSession(userId: userId, secret: secret);
     } on AppwriteException catch (e) {
-      // Eine vorhandene Session (z.B. nach fehlgeschlagenem OAuth) ist akzeptabel
+      // Eine bereits vorhandene Session ist akzeptabel
       if (e.type != 'user_session_already_exists') rethrow;
     }
     return _finalizeSession();
@@ -121,6 +121,8 @@ class AuthService {
   /// Nutzt dynamischen Cast auf das interne `cookieJar`-Feld von ClientIO
   /// (geprüft mit Appwrite SDK 26.1.0). Bei SDK-Upgrades prüfen ob das Feld noch existiert.
   Future<void> _clearCookieJar() async {
+    // Im Web verwaltet der Browser die Cookies; ClientBrowser hat keinen Jar.
+    if (kIsWeb) return;
     try {
       final dynamic jar = (_client as dynamic).cookieJar;
       await jar.deleteAll();

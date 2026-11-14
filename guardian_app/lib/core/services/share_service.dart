@@ -1,7 +1,11 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'chat_service.dart';
+
+/// Share-Target gibt es nur in der Android-App (Intent-Filter), nicht im Web.
+bool get _isAndroid =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
 class ShareData {
   final String type; // 'text' | 'image' | 'file' | 'images' | 'files'
@@ -27,7 +31,7 @@ class ShareService {
   static const _channel = MethodChannel('com.guardianapp.guardian_app/share');
 
   Future<ShareData?> getSharedData() async {
-    if (!Platform.isAndroid) return null;
+    if (!_isAndroid) return null;
     try {
       final data = await _channel.invokeMethod<Map<Object?, Object?>>('getSharedData');
       if (data == null) return null;
@@ -44,7 +48,7 @@ class ShareService {
   }
 
   Future<Uint8List?> readUri(String uri) async {
-    if (!Platform.isAndroid) return null;
+    if (!_isAndroid) return null;
     try {
       final bytes = await _channel.invokeMethod<Uint8List>('readUri', {'uri': uri});
       return bytes;

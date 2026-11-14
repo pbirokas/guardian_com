@@ -58,7 +58,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _pickingImage = false;
   int _knownMessageCount = 0;
   bool _atBottom = true;
-  bool _mayHaveMore = true; // false sobald Firestore weniger als _limit zurückgibt
+  bool _mayHaveMore = true; // false sobald Appwrite weniger als _limit zurückgibt
   // Scroll-Position vor dem Batch-Laden gespeichert (in _onScroll)
   double? _batchSavedPixels;
   double? _batchSavedMax;
@@ -2921,14 +2921,17 @@ class _InputBarState extends State<_InputBar> {
                       widget.onSendFile!();
                     },
             ),
-            ListTile(
-              leading: const Icon(Icons.mic_outlined),
-              title: Text(l.voiceRecording),
-              onTap: () {
-                Navigator.pop(context);
-                widget.onStartRecording();
-              },
-            ),
+            // Web: Sprachaufnahme erst in Stufe 2 (Safari nimmt AAC/MP4 statt
+            // Opus/WebM auf — Format/Abspielbarkeit muss erst geklärt werden).
+            if (!kIsWeb)
+              ListTile(
+                leading: const Icon(Icons.mic_outlined),
+                title: Text(l.voiceRecording),
+                onTap: () {
+                  Navigator.pop(context);
+                  widget.onStartRecording();
+                },
+              ),
             if (widget.onCreatePoll != null)
               ListTile(
                 leading: const Icon(Icons.poll_outlined),

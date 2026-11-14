@@ -18,6 +18,7 @@ import '../../../features/chat/providers/chat_provider.dart';
 import '../../../features/relationships/providers/relationships_provider.dart';
 import '../../../features/relationships/widgets/family_tree_sheet.dart';
 import '../providers/organizations_provider.dart';
+import '../../../core/widgets/web_install_hint.dart';
 
 const _kGithubUrl = 'https://github.com/pbirokas/guardian_com';
 
@@ -501,7 +502,11 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
             ),
         ],
       ),
-      body: orgsAsync.when(
+      body: Column(
+        children: [
+          // Nur im iPhone/iPad-Browser sichtbar (sonst SizedBox.shrink).
+          const WebInstallHint(),
+          Expanded(child: orgsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text(l.errorMessage(e.toString()))),
         data: (orgs) {
@@ -735,7 +740,9 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
 ],                    // closes Column children
 );                    // closes Column
         },            // closes data:
-      ),              // closes orgsAsync.when(
+          )),         // closes orgsAsync.when( + Expanded
+        ],
+      ),              // closes body Column
       floatingActionButton: FutureBuilder<PackageInfo>(
         future: PackageInfo.fromPlatform(),
         builder: (context, snap) {

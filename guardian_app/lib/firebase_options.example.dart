@@ -1,13 +1,13 @@
 // VORLAGE — nicht direkt verwenden!
 //
-// Diese Datei zeigt die Struktur von firebase_options.dart.
-// Erstelle deine eigene Konfiguration mit:
-//   flutterfire configure
+// Struktur von lib/firebase_options.dart (gitignored, enthält API-Keys).
+// Firebase wird nur noch für Push (FCM) und Crashlytics auf Android genutzt;
+// Backend, Auth und Storage laufen über Appwrite.
 //
-// Oder kopiere diese Datei nach firebase_options.dart und
-// ersetze alle Platzhalter mit deinen Firebase-Projektwerten.
-// Diese findest du in der Firebase Console unter:
-//   Projekteinstellungen → Allgemein → Deine Apps
+// Kopiere diese Datei nach firebase_options.dart und trage die Werte der
+// Android-App aus der Firebase Console ein:
+//   Projekteinstellungen → Allgemein → Deine Apps → Android
+// (Web-Optionen kommen erst mit Web Push hinzu.)
 
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
@@ -15,42 +15,18 @@ import 'package:flutter/foundation.dart'
 
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
-    if (kIsWeb) return web;
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.android:
-        return android;
-      case TargetPlatform.iOS:
-        return ios;
-      default:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions sind für diese Plattform nicht konfiguriert.',
-        );
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      return android;
     }
+    throw UnsupportedError(
+      'Firebase ist nur für Android konfiguriert (FCM + Crashlytics).',
+    );
   }
-
-  static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'DEIN_WEB_API_KEY',
-    appId: 'DEINE_WEB_APP_ID',
-    messagingSenderId: 'DEINE_SENDER_ID',
-    projectId: 'DEIN_PROJEKT_ID',
-    authDomain: 'DEIN_PROJEKT_ID.firebaseapp.com',
-    storageBucket: 'DEIN_PROJEKT_ID.firebasestorage.app',
-  );
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'DEIN_ANDROID_API_KEY',
     appId: 'DEINE_ANDROID_APP_ID',
     messagingSenderId: 'DEINE_SENDER_ID',
     projectId: 'DEIN_PROJEKT_ID',
-    storageBucket: 'DEIN_PROJEKT_ID.firebasestorage.app',
-  );
-
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'DEIN_IOS_API_KEY',
-    appId: 'DEINE_IOS_APP_ID',
-    messagingSenderId: 'DEINE_SENDER_ID',
-    projectId: 'DEIN_PROJEKT_ID',
-    storageBucket: 'DEIN_PROJEKT_ID.firebasestorage.app',
-    iosBundleId: 'DEINE_IOS_BUNDLE_ID',
   );
 }

@@ -8,6 +8,7 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 - **Chats nach Aktualität sortieren.** In der Chat-Übersicht einer Organisation lassen sich die eigenen Chats jetzt wahlweise gruppiert (Gruppen / Einzel-Chats) oder als eine Liste mit der neuesten Nachricht zuerst anzeigen. Die Wahl wird gemerkt. „Überwachte Chats“ bleiben weiterhin eine eigene Gruppe.
 - **Letzter Chat wird nicht mehr vom „Gruppe erstellen“-Button verdeckt.** Unter der Liste ist jetzt genug Platz, um auch den untersten Eintrag vollständig zu sehen.
+- **Weniger Last und Fehler beim Gelesen-Markieren in aktiven Chats.** Nach einer neuen Nachricht konnte dasselbe Gerät die Gelesen-Markierung mehrfach gleichzeitig an den Server schicken (z. B. wenn der Chat mehrfach geöffnet war), und ein Server-Timeout wurde fälschlich als Erfolg gewertet — dadurch griff die eingebaute Wartezeit vor dem nächsten Versuch nicht. Jetzt läuft pro Chat höchstens ein Aufruf, Fehler lösen wieder die Wartezeit aus, und nur der tatsächlich sichtbare Chat wird als gelesen markiert. Außerdem wird die Gelesen-Markierung jetzt im Hintergrund (asynchron) an den Server übergeben: Der bisher wartende Aufruf konnte den Server-Rückruf der Function blockieren, sodass beide bis zum Timeout hingen (8–10 s, auch andere Functions hingen dabei mit).
 
 ---
 

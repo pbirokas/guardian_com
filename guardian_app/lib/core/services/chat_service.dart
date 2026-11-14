@@ -542,13 +542,44 @@ class ChatService {
         data: {'name': name.trim()});
   }
 
-  Future<void> markAsRead(String convId, {DateTime? readAt}) async {
+  /// Laufende mark-as-read-Aufrufe je `uid:convId`. Statisch, damit auch mehrere
+  /// gleichzeitig offene ChatScreens desselben Chats (oder ein neu gebauter
+  /// Service) nie parallel feuern — sonst vervielfacht sich die Last genau dann,
+  /// wenn der Server nach einer neuen Nachricht ohnehin ausgelastet ist.
+  static final Map<String, Future<void>> _markAsReadInFlight = {};
+
+  /// Markiert [convId] als gelesen. Läuft für diesen Chat bereits ein Aufruf,
+  /// wird dessen Future zurückgegeben statt einen zweiten zu starten.
+  ///
+  /// **Asynchron** (`xasync: true`): Eine synchrone Execution hält auf dem
+  /// Server einen API-Worker fest, bis die Function fertig ist — und der
+  /// Rückruf der Function in dieselbe API (`getDocument`/`updateDocument`)
+  /// landet gelegentlich genau auf diesem blockierten Worker. Dann hängt beides,
+  /// bis das Function-Timeout greift (503 nach 8–10 s; Analyse 2026-11-14).
+  /// Das Ergebnis brauchen wir nicht: der neue Lesestatus kommt per Realtime
+  /// über `watchMyReadReceipts` zurück.
+  ///
+  /// Wirft nur, wenn das Einreihen der Execution scheitert (Netzwerk/API-
+  /// Fehler → `AppwriteException`); darauf reagiert das Backoff im ChatScreen.
+  Future<void> markAsRead(String convId, {DateTime? readAt}) {
+    final key = '$_uid:$convId';
+    final running = _markAsReadInFlight[key];
+    if (running != null) return running;
+    final future = _doMarkAsRead(convId, readAt).whenComplete(() {
+      _markAsReadInFlight.remove(key);
+    });
+    _markAsReadInFlight[key] = future;
+    return future;
+  }
+
+  Future<void> _doMarkAsRead(String convId, DateTime? readAt) async {
     await _functions.executeRaw(
       functionId: 'mark-as-read',
       body: jsonEncode({
         'convId': convId,
         if (readAt != null) 'readAt': readAt.toUtc().toIso8601String(),
       }),
+      xasync: true,
     );
   }
 

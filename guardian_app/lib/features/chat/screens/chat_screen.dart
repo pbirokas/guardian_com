@@ -12,6 +12,7 @@ import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, KeyboardInsertedContent;
 import 'package:guardian_app/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -28,6 +29,8 @@ import '../../../core/models/scheduled_message.dart';
 import '../../../core/dialogs/edit_group_dialog.dart';
 import '../../../core/providers/share_provider.dart';
 import '../../../core/appwrite_client.dart';
+import '../../../core/router/app_router.dart';
+import '../../../core/router/chat_navigation.dart';
 import '../../../core/widgets/group_avatar.dart';
 import '../../../core/widgets/user_avatar.dart';
 import '../../../core/utils/initials.dart';
@@ -76,6 +79,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   int _markReadFailures = 0;
   DateTime? _markReadRetryAfter;
 
+  // Router merken, um zu erkennen, ob dieser Chat die oberste Seite ist —
+  // eine verdeckte Chat-Seite darf nichts als gelesen markieren.
+  late final GoRouter _router;
+
   // ── Tipp-Indikator ────────────────────────────────────────────────────────
   Timer? _typingTimer;
   bool _isTyping = false;
@@ -99,6 +106,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void initState() {
     super.initState();
     _chatService = ref.read(chatServiceProvider);
+    _router = ref.read(routerProvider);
+    _router.routerDelegate.addListener(_onRouteChanged);
     _markRead();
     _scrollController.addListener(_onScroll);
     _controller.addListener(_onTextChanged);
@@ -210,6 +219,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return conv != null && conv.participantUids.contains(uid);
   }
 
+  /// Ist dieser Chat gerade die oberste Seite? Liegt ein anderer Chat oder ein
+  /// anderer Screen darüber, ist der Nutzer nicht hier — dann nicht als gelesen
+  /// markieren. (Dialoge/Bottom-Sheets ändern die Location nicht und zählen
+  /// daher nicht als „verdeckt".)
+  bool get _isTopChat {
+    try {
+      final path = _router.routerDelegate.currentConfiguration.uri.path;
+      return chatIdFromPath(path) == widget.chatId;
+    } catch (_) {
+      return true; // Router noch nicht bereit → wie bisher verhalten.
+    }
+  }
+
+  // Wird dieser Chat wieder die oberste Seite (z. B. Zurück aus dem Profil),
+  // das zwischenzeitlich Verpasste als gelesen markieren.
+  void _onRouteChanged() {
+    if (!mounted || !_isTopChat) return;
+    final uid = ref.read(authStateProvider).value?.uid;
+    final conv = ref.read(conversationProvider(widget.chatId)).value;
+    final receipts = ref.read(myReadReceiptsProvider).value ?? {};
+    if (uid != null && conv != null && conv.hasUnreadWith(uid, receipts)) {
+      _markRead();
+    }
+  }
+
   void _markRead() {
     _markReadTimer?.cancel();
     _markReadTimer = Timer(const Duration(milliseconds: 500), _doMarkRead);
@@ -217,7 +251,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _doMarkRead() async {
     // In-Flight-Guard: keinen zweiten Aufruf starten während einer läuft.
-    if (!mounted || _markReadInFlight) return;
+    if (!mounted || _markReadInFlight || !_isTopChat) return;
     // Backoff: nach wiederholtem Fehlschlag pausieren, statt bei jedem
     // Realtime-Event neu nachzufeuern (verhindert mark-as-read-Stürme).
     if (_markReadRetryAfter != null &&
@@ -302,6 +336,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _scheduleTimer?.cancel();
     _recordingTimer?.cancel();
     _markReadTimer?.cancel();
+    _router.routerDelegate.removeListener(_onRouteChanged);
     _refreshTimer?.cancel();
     _recorder.dispose();
     super.dispose();

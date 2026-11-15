@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
 
 import 'package:appwrite/appwrite.dart';
 // HttpMethod wird vom SDK nicht öffentlich exportiert (nur für executeRaw).

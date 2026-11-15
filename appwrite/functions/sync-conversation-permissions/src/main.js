@@ -140,7 +140,10 @@ async function validateClientCreate(db, conv, creator, members, supervisorUids, 
   const creatorMember = await getMember(db, conv.orgId, creator);
   if (!creatorMember || (creatorMember.status ?? 'active') !== 'active') return 'delete';
   if (!participantUids.includes(creator)) return 'delete';
-  if (participantUids.some((u) => members[u]?.status !== 'active')) return 'delete';
+  // Nur Org-Zugehörigkeit prüfen (nicht `active`): die eingereichte App kann
+  // ausstehende Kinder in Gruppen aufnehmen — die Gruppe soll dann nicht
+  // komplett verschwinden. conversation-action ist strenger.
+  if (participantUids.some((u) => !members[u])) return 'delete';
 
   const isSup = supervisorUids.includes(creator);
   if (conv.isGroup && !isSup) return 'delete';

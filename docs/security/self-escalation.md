@@ -1,6 +1,6 @@
 # Selbst-Eskalation auf Dokument-Ebene schließen
 
-Stand: 2026-11-14 · baut auf Branch `security/collection-acls` (6cba376) auf · **Nichts davon ist live** — jeder Server-Schritt braucht das OK des Owners.
+Stand: 2026-11-15 · Branch `claude/happy-cohen-c97eb1`, rebased auf `main` (a5811af, nach PR #3/#4) · **Nichts davon ist live** — jeder Server-Schritt braucht das OK des Owners.
 
 Behebt die Zusatzbefunde **A** und **B** aus [`collection-acl-hardening.md`](collection-acl-hardening.md) §4 sowie zwei dabei gefundene, gleichwertige Lücken (**D**, **E**).
 
@@ -88,7 +88,7 @@ Reihenfolge so gewählt, dass die kritischen Lücken (A1, D, E) **vor** dem App-
 
 | Stufe | Aktion | Alte App (< N) danach |
 |---|---|---|
-| 0 | Functions deployen: **neu** `self-service`, `conversation-action` (Execute `users`, Vars via `node set-function-vars.js`; API-Key braucht zusätzlich Scope `users.read` für `ensureUserDoc`), **geändert** `admin-member-action`, `sync-supervisor-team`, `sync-conversation-permissions`, `on-new-message`, `on-claim-request`, `on-claim-confirmed`, `process-my-invitations`. Auf `sync-conversation-permissions` Variable **`CONV_LEGACY_TEAM_WRITE=true`** setzen (sonst sind auch neu angelegte Chats sofort nur-lesbar und alte Apps zeigen darin beim Senden Fehler). Smoke-Test S1–S3 (§5). | unverändert; Selbst-Genehmigung/Guardian-Entfernen/fremdes Member-Doc werden schon serverseitig zurückgedreht |
+| 0 | Functions deployen: **neu** `self-service`, `conversation-action` (per `node deploy-functions.js`, Reihenfolge §4a; Execute `users`, Vars via `node set-function-vars.js`; API-Key braucht zusätzlich Scope `users.read` für `ensureUserDoc`), **geändert** `admin-member-action`, `sync-supervisor-team`, `sync-conversation-permissions`, `on-new-message`, `on-claim-request`, `on-claim-confirmed`, `process-my-invitations`. Auf `sync-conversation-permissions` Variable **`CONV_LEGACY_TEAM_WRITE=true`** setzen (sonst sind auch neu angelegte Chats sofort nur-lesbar und alte Apps zeigen darin beim Senden Fehler). Smoke-Test S1–S3 (§5). | fast unverändert (Details §4a); Selbst-Genehmigung/Guardian-Entfernen/fremdes Member-Doc werden schon serverseitig zurückgedreht |
 | 1 | `cd appwrite && node lock-own-docs.js` (Dry-Run, **Audit-Liste prüfen**) → `node lock-own-docs.js --only=members,claims --confirm=<projectId>` | verliert: Benachrichtigungs-Intervalle je Org ändern (Fehlermeldung), Anzeigename/„E-Mail verbergen“ in Member-Docs (still), Eltern-Anfrage zurückziehen (Fehlermeldung). **Bewusst vor dem Release** — A1/E sind kritisch. |
 | 2 | App-Release N (Android **und** Windows; `feature/web-app` rebasen) | – |
 | 3 | `app_config/android`: erst `latestVersionCode=N`; nach Verfügbarkeit + Adoptionsphase `minVersionCode=N` | – |
@@ -97,6 +97,55 @@ Reihenfolge so gewählt, dass die kritischen Lücken (A1, D, E) **vor** dem App-
 **Rollback:** Functions per Appwrite-Console auf die vorige Deployment aktivieren. Collection-Rechte: `node fix-permissions.js --after-app-n --only=<col> --rollback --confirm=<projectId>`. Doc-ACLs haben kein automatisches Rollback (bewusst — sie wieder zu öffnen hieße, die Lücke zu öffnen); einzelne Docs notfalls per Console.
 
 **Achtung:** `harden-permissions.js` akzeptiert ab jetzt bei Conversations beide Stände (rw-Team und read-only) und öffnet gehärtete Chats nie wieder; den Schritt auf read-only macht nur `lock-own-docs.js`.
+
+### 4a. Runbook Stufe 0 + 1 (ohne App-Release)
+
+Ziel: A1 (Rolle selbst setzen), D (fremdes Member-Doc) und E (Eltern-Selbstbestätigung) schließen, **solange** das eingereichte Release (Stand `main` a5811af, kennt `self-service`/`conversation-action` noch nicht) im Umlauf ist. Alle Befehle aus `appwrite/` mit der `.env` von `setup.js`.
+
+**Live-Ist (Dry-Runs vom 2026-11-15, nur lesend):**
+
+- `node deploy-functions.js --only=<9 Functions>`: `self-service`, `conversation-action` fehlen → werden angelegt (Runtime `node-16.0`, Spezifikation `s-8vcpu-8gb` wie `sync-conversation-permissions`, Execute `users`, Timeout 15). Die 7 bestehenden: Events/Execute/Timeout = `appwrite.config.json`, `APPWRITE_API_KEY`/`APPWRITE_ENDPOINT` vorhanden. Aktive Deployments (= Rollback-Ziele):
+
+  | Function | aktives Deployment vor Stufe 0 |
+  |---|---|
+  | admin-member-action | `6af8717d8dd485a420e0` |
+  | process-my-invitations | `6a61cdb219cc37b3d732` |
+  | on-claim-request | `6a61cdb3176862c35e59` |
+  | on-claim-confirmed | `6a61cdb1844c7ba94310` |
+  | on-new-message | `6af855e78d8591139392` |
+  | sync-conversation-permissions | `6a61cdb0b84e21fcf33d` |
+  | sync-supervisor-team | `6a61cdb20fafa2a41d70` |
+
+- `node lock-own-docs.js`: members 32/32, users 27/27, conversations 34/34, claims 9/9 würden geändert (überall nur `update`/`delete` entzogen; alle 32 Member-Docs tragen heute `read("users") update/delete user(uid)`). Claims: 8 `confirmed`, 1 `cancelled`, **keine offene** → die neue Prüfung in `on-claim-confirmed` betrifft keine laufende Anfrage. Audit: 1 Auffälligkeit — `members/oQoj3jVVvJQfK18YYMfg_tskOdibk2EemgspU48j5g7eoXE72` ist ein **aktives Kind ohne Guardians** (keine Spur von Eskalation, aber Datenfehler: in der App Guardians setzen). Keine fremden/zweiten Admins, keine Kind-Konten mit Erwachsenen-Rolle, kein `isChild=false` mit Eltern-Links.
+- `node lock-own-docs.js --only=members,claims --rollback`: 0 Änderungen — der Rollback stellt also exakt den heutigen Stand her.
+
+**Stufe 0 — Functions (Reihenfolge wichtig):**
+
+1. `node deploy-functions.js --only=admin-member-action,process-my-invitations --confirm=<projectId>` — **zuerst**: ab jetzt legen Server-Functions Member-Docs ohne `update("user:…")` an. Würde der neue Guard vorher laufen, löschte er Member-Docs, die die alte Function-Version noch mit dieser Rolle anlegt.
+2. Build-Status beider in der Console „ready“ prüfen.
+3. `node deploy-functions.js --only=on-claim-request,on-claim-confirmed,on-new-message,sync-supervisor-team --confirm=<projectId>`
+4. Auf `sync-conversation-permissions` die Variable `CONV_LEGACY_TEAM_WRITE=true` anlegen (Console → Function → Settings → Variables), **dann** `node deploy-functions.js --only=sync-conversation-permissions --confirm=<projectId>`. Ohne die Variable würden neue Chats sofort nur-lesbar und die eingereichte App zeigt darin beim Senden einen Fehler.
+5. `node deploy-functions.js --only=self-service,conversation-action --confirm=<projectId>` (legt sie an), dann `node set-function-vars.js --dry-run` → `node set-function-vars.js`. Dem API-Key Scope `users.read` geben (für `ensureUserDoc`; wird erst von App N genutzt).
+6. Tests S1–S3 (§5), Functions-Logs von `sync-*` und `on-new-message` 15 min beobachten.
+
+**Stufe 1 — Doc-ACLs members + claims:** `node lock-own-docs.js --only=members,claims` (Dry-Run, Zahlen wie oben?) → `node lock-own-docs.js --only=members,claims --confirm=<projectId>` → Tests S4–S6.
+
+**Was das eingereichte Release danach nicht mehr kann** (alles andere geprüft unverändert: Login, Chats lesen/senden/anfragen/genehmigen, Gruppen, Pin, Mitglieder verwalten, Einladungen, Claims bestätigen/ablehnen, Reaktionen):
+
+| ab | Funktion (alte App) | Verhalten |
+|---|---|---|
+| 0 | Eltern-Anfrage zurückziehen | Fehlermeldung (Anfragender hat kein `update` mehr) |
+| 0 | Moderator lädt jemanden als **Moderator** ein (bereits registriert) | Fehlermeldung „Only admin can grant…“ (als Mitglied/Kind geht weiter) |
+| 0 | Moderator ändert Rolle eines Admins/Moderators | Fehlermeldung |
+| 0 | Guardians eines Kindes auf Nicht-Mitglieder/Kinder setzen | Fehlermeldung (UI bietet das ohnehin nicht an) |
+| 0 | Nach dem Gründen einer **neuen** Org: Push-/Kind-Alarm-Intervall dieser Org ändern | Fehlermeldung (Guard entzieht dem Gründer-Doc die Schreibrechte — wie Stufe 1, nur früher) |
+| 1 | Push-Intervall je Org, Kind-Alarm-Intervall | Fehlermeldung |
+| 1 | „E-Mail verbergen“, Profilname/-foto | users-Doc wird gespeichert, Member-Docs still nicht (Mitgliederliste zeigt alten Stand) |
+
+Windows-Alt-Clients verhalten sich genauso; die Web-App kann nach Stufe 2 sofort neu ausgerollt werden (kein Store).
+
+**Rollback Stufe 0:** in der Console je Function das Deployment aus der Tabelle oben aktivieren; `self-service`/`conversation-action` deaktivieren (werden von der alten App nicht genutzt). `CONV_LEGACY_TEAM_WRITE` kann bleiben.
+**Rollback Stufe 1 (öffnet die Lücke wieder!):** `node lock-own-docs.js --only=members,claims --rollback --confirm=<projectId>`.
 
 ## 5. Testanleitung
 

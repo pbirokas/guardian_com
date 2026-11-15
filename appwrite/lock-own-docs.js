@@ -20,6 +20,7 @@
  *   node lock-own-docs.js                                   (Dry-Run, alle Teile)
  *   node lock-own-docs.js --only=members,claims             (Dry-Run, Auswahl)
  *   node lock-own-docs.js --only=members --confirm=<projectId>
+ *   node lock-own-docs.js --only=members,claims --rollback [--confirm=…]   Notfall: alte ACL zurück
  *   Teile: members, users, conversations, claims
  *
  * Reihenfolge: siehe docs/security/self-escalation.md §4 (members/claims nach
@@ -45,10 +46,18 @@ const confirmArg = process.argv.find((a) => a.startsWith('--confirm='));
 const CONFIRMED = confirmArg && confirmArg.split('=')[1] === projectId;
 const DRY = !CONFIRMED;
 const onlyArg = process.argv.find((a) => a.startsWith('--only='));
+// Notfall-Rollback: alte (unsichere!) ACL wiederherstellen — öffnet die Lücke
+// wieder. Nur members/claims (users/conversations: alte App braucht dort nichts
+// vor Stufe 4, und nach Stufe 4 ist die alte App ohnehin gesperrt).
+const ROLLBACK = process.argv.includes('--rollback');
 const ONLY = onlyArg ? onlyArg.split('=')[1].split(',').map((s) => s.trim()).filter(Boolean) : PARTS;
 
 if (confirmArg && !CONFIRMED) {
   console.error(`✗ --confirm stimmt nicht mit APPWRITE_PROJECT_ID (${projectId}) überein. Abbruch.`);
+  process.exit(1);
+}
+if (ROLLBACK && ONLY.some((p) => !['members', 'claims'].includes(p))) {
+  console.error('✗ --rollback nur mit --only=members und/oder claims.');
   process.exit(1);
 }
 const unknown = ONLY.filter((p) => !PARTS.includes(p));
@@ -66,11 +75,19 @@ const teams = new Teams(client);
 
 // ── Soll-ACLs ─────────────────────────────────────────────────────────────────
 
-const memberPerms = () => [Permission.read(Role.users())];
+const memberPerms = (uid) => ROLLBACK
+  ? [Permission.read(Role.users()), Permission.update(Role.user(uid)), Permission.delete(Role.user(uid))]
+  : [Permission.read(Role.users())];
 const userPerms = (uid) => [Permission.read(Role.user(uid))];
 const convPerms = (convId) => [Permission.read(Role.team(convId))];
 function claimPerms(fromUid, toUid) {
   if (!fromUid || !toUid) return [];
+  if (ROLLBACK) {
+    return [
+      Permission.read(Role.user(fromUid)), Permission.update(Role.user(fromUid)), Permission.delete(Role.user(fromUid)),
+      Permission.read(Role.user(toUid)), Permission.update(Role.user(toUid)),
+    ];
+  }
   return [
     Permission.read(Role.user(fromUid)), Permission.delete(Role.user(fromUid)),
     Permission.read(Role.user(toUid)), Permission.update(Role.user(toUid)),
@@ -103,7 +120,8 @@ async function setPerms(col, doc, desired, label) {
   if (samePerms(doc.$permissions, desired)) return false;
   if (DRY) {
     const w = writable(doc.$permissions);
-    if (w.length > 0) console.log(`  ~ ${label}: entziehe ${w.join(' ')}`);
+    if (ROLLBACK) console.log(`  ~ ${label}: setze ${desired.join(' ')}`);
+    else if (w.length > 0) console.log(`  ~ ${label}: entziehe ${w.join(' ')}`);
   } else {
     try {
       await db.updateDocument(DB_ID, col, doc.$id, {}, desired);
@@ -138,7 +156,7 @@ async function lockMembers(orgAdmins, childUids) {
     if (m.$id !== `${m.orgId}_${m.uid}`) {
       finding(`members/${m.$id}: Doc-ID passt nicht zu orgId/uid (${m.orgId}/${m.uid})`);
     }
-    if (await setPerms(COL_MEMBERS, m, memberPerms(), `members/${m.$id}`)) changed++;
+    if (await setPerms(COL_MEMBERS, m, memberPerms(m.uid), `members/${m.$id}`)) changed++;
   });
   console.log(`  Member-Docs: ${total}  ACL geändert: ${changed}\n`);
 }
@@ -201,7 +219,8 @@ async function main() {
   console.log('=== lock-own-docs ===');
   console.log(`Projekt: ${projectId}`);
   console.log(`Modus:   ${DRY ? 'DRY RUN (keine Änderungen)' : 'LIVE'}`);
-  console.log(`Teile:   ${ONLY.join(', ')}\n`);
+  console.log(`Teile:   ${ONLY.join(', ')}${ROLLBACK ? '  — ROLLBACK (alte, unsichere ACL)' : ''}
+`);
 
   // Audit-Grundlagen (nur lesend)
   const orgAdmins = new Map();

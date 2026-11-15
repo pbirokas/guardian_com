@@ -1934,6 +1934,40 @@
             "vars": {}
         },
         {
+            "$id": "self-service",
+            "name": "self-service",
+            "runtime": "node-16.0",
+            "execute": [
+                "users"
+            ],
+            "events": [],
+            "schedule": "",
+            "timeout": 15,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/self-service",
+            "vars": {}
+        },
+        {
+            "$id": "conversation-action",
+            "name": "conversation-action",
+            "runtime": "node-16.0",
+            "execute": [
+                "users"
+            ],
+            "events": [],
+            "schedule": "",
+            "timeout": 15,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/conversation-action",
+            "vars": {}
+        },
+        {
             "$id": "set-reaction",
             "name": "set-reaction",
             "runtime": "node-16.0",

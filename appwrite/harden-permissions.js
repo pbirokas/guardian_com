@@ -10,7 +10,7 @@
  *                       update/delete = [user(sender), team(sup_orgId)]
  *   - Scheduled:        read/update/delete = user(sender)  (privater Entwurf)
  *   - Read-Receipts:    read/update/delete = user(uid)     (wie mark-as-read)
- *   - Claim-Requests:   read/update/delete = user(from), read/update = user(to)
+ *   - Claim-Requests:   read/delete = user(from), read/update = user(to)
  *                       (wie on-claim-request)
  *
  * Zusätzlich zählt jede Phase Dokumente mit BREITEN Rechten (`users`/`any`/
@@ -69,10 +69,16 @@ const teams = new Teams(client);
 
 const supTeamId = (orgId) => `sup_${orgId}`;
 
+// Seit der Selbst-Eskalations-Härtung (lock-own-docs.js) ist die Conv-ACL nur
+// noch `read team(convId)`. Diese Migration akzeptiert beide Stände und
+// setzt bei Abweichung die alte rw-Variante (alte Apps schreiben noch direkt);
+// den Schritt auf read-only macht ausschließlich lock-own-docs.js — so kann ein
+// erneuter Lauf hier gehärtete Chats nie wieder öffnen.
 function convPerms(convId) {
   const c = Role.team(convId);
   return [Permission.read(c), Permission.update(c), Permission.delete(c)];
 }
+const convPermsReadOnly = (convId) => [Permission.read(Role.team(convId))];
 
 function msgPerms(convId, senderUid) {
   const perms = [Permission.read(Role.team(convId))];
@@ -117,8 +123,10 @@ function claimPerms(fromUid, toUid) {
   if (!fromUid || !toUid) return [];
   const f = Role.user(fromUid);
   const t = Role.user(toUid);
+  // Kein update für den Anfragenden (sonst Selbst-Bestätigung, siehe
+  // on-claim-request / on-claim-confirmed).
   return [
-    Permission.read(f), Permission.update(f), Permission.delete(f),
+    Permission.read(f), Permission.delete(f),
     Permission.read(t), Permission.update(t),
   ];
 }
@@ -244,7 +252,8 @@ async function main() {
     convMembersAdded += await addTeamMembers(conv.$id, members);
 
     const desired = convPerms(conv.$id);
-    if (!samePerms(conv.$permissions, desired)) {
+    if (!samePerms(conv.$permissions, desired) &&
+        !samePerms(conv.$permissions, convPermsReadOnly(conv.$id))) {
       convAclUpdated++;
       if (!DRY) {
         try {

@@ -24,6 +24,8 @@
  *   node fix-permissions.js --only=polls --confirm=<projectId>   umstellen
  *   node fix-permissions.js --only=polls --rollback --confirm=<projectId>
  *        → Notfall: alte (breite) Rechte aus LEGACY_BEFORE wiederherstellen
+ *   node fix-permissions.js --after-app-n --only=conversations,members,users [--confirm=…]
+ *        → Collection-`create` entziehen (erst nach App N + minVersionCode)
  *   node fix-permissions.js --bootstrap --confirm=<projectId>
  *        → einmalige Alt-Schritte (Media-Bucket, pendingReportsCount-Attribut)
  *
@@ -89,6 +91,22 @@ const TARGET = {
   // Nur mark-as-read (API-Key) schreibt; Doc-ACL read/update/delete user(uid).
   read_receipts: { name: 'ReadReceipts', permissions: [] },
 };
+
+// ── Selbst-Eskalations-Härtung: erst NACH App-Release N + minVersionCode ────
+// (`--after-app-n`, siehe docs/security/self-escalation.md). Die neue App legt
+// Conversations, Member- und users-Docs nur noch über Functions an
+// (conversation-action, self-service). Mit Collection-`create` könnte jeder
+// `members/{fremdeOrg}_{self}` mit `role: "admin"` anlegen (bis dahin fängt
+// das der Guard in sync-supervisor-team ab). `read` auf users/members bleibt
+// bis Phase 2/3 der Collection-Härtung.
+const AFTER_APP_N = args.includes('--after-app-n');
+if (AFTER_APP_N) {
+  Object.assign(TARGET, {
+    conversations: { name: 'Conversations', permissions: [] },
+    members: { name: 'Members', permissions: [R] },
+    users: { name: 'Users', permissions: [R] },
+  });
+}
 
 // ── Noch NICHT gehärtet (Phase 2/3) — wird von diesem Skript nicht angefasst ──
 // Werte = Live-Stand 2026-11-14 (auch Rollback-Ziel für TARGET-Collections).
@@ -158,7 +176,7 @@ async function applyCollections() {
   console.log(`\n${changes} Collection(s) ${DRY ? 'würden geändert' : 'geändert'}.`);
   if (DRY && changes) {
     const only = ONLY ? ` --only=${ONLY.join(',')}` : '';
-    console.log(`Ausführen: node fix-permissions.js${only}${ROLLBACK ? ' --rollback' : ''} --confirm=${projectId}`);
+    console.log(`Ausführen: node fix-permissions.js${only}${AFTER_APP_N ? ' --after-app-n' : ''}${ROLLBACK ? ' --rollback' : ''} --confirm=${projectId}`);
   }
 }
 

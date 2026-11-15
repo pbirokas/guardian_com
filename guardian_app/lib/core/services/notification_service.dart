@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+import '../appwrite_client.dart' show FunctionsRawExecution;
 import '../router/chat_navigation.dart';
 
 /// Muss top-level sein (außerhalb jeder Klasse) für Background-Handler.
@@ -123,12 +124,11 @@ class NotificationService {
     final uid = _awUid;
     if (uid == null || db == null) return;
     try {
-      await db.updateDocument(
-        databaseId: 'guardian',
-        collectionId: 'users',
-        documentId: uid,
-        data: {'fcmToken': token},
-      );
+      // users-Doc ist nicht mehr client-schreibbar → `self-service`.
+      // Asynchron: wird bei jedem Start/Token-Refresh aufgerufen, das
+      // Ergebnis braucht niemand.
+      await Functions(db.client)
+          .callAsync('self-service', {'action': 'setFcmToken', 'token': token});
     } on AppwriteException catch (e) {
       if (kDebugMode) debugPrint('FCM token save failed: ${e.message}');
     }

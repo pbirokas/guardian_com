@@ -30,6 +30,7 @@ class AuthService {
 
   static const _dbId = 'guardian';
   static const _colUsers = 'users';
+  static const _selfServiceId = 'self-service';
 
   Future<AppUser?> getCurrentAppUser() async {
     // Ohne Netz sofort scheitern, statt ~60s auf den SDK-Timeout zu warten.
@@ -66,14 +67,16 @@ class AuthService {
   Future<AppUser> updateProfile(String uid, String displayName,
       {String? photoUrl}) async {
     await _account.updateName(name: displayName);
-    final updates = <String, dynamic>{'displayName': displayName};
-    if (photoUrl != null) updates['photoUrl'] = photoUrl;
-    final doc = await _db.updateDocument(
-      databaseId: _dbId,
-      collectionId: _colUsers,
-      documentId: uid,
-      data: updates,
-    );
+    // users- und Member-Docs sind nicht mehr client-schreibbar (Selbst-
+    // Eskalation über role/isChild) → `self-service` schreibt die Whitelist-
+    // Felder in users/{uid} und alle eigenen Member-Docs.
+    await _functions.callJson(_selfServiceId, {
+      'action': 'updateProfile',
+      'displayName': displayName,
+      'photoUrl': ?photoUrl,
+    });
+    final doc = await _db.getDocument(
+        databaseId: _dbId, collectionId: _colUsers, documentId: uid);
     return AppUser.fromAppwrite({r'$id': doc.$id, ...doc.data});
   }
 
@@ -146,25 +149,12 @@ class AuthService {
       return AppUser.fromAppwrite({r'$id': doc.$id, ...doc.data});
     } on AppwriteException catch (e) {
       if (e.code != 404) rethrow;
-      final newUser = AppUser(
-        uid: account.$id,
-        email: account.email.toLowerCase(),
-        displayName: account.name.isNotEmpty ? account.name : account.email,
-        memberships: const [],
-        createdAt: DateTime.now(),
-      );
-      final doc = await _db.createDocument(
-        databaseId: _dbId,
-        collectionId: _colUsers,
-        documentId: account.$id,
-        data: newUser.toAppwrite(),
-        permissions: [
-          Permission.read(Role.user(account.$id)),
-          Permission.update(Role.user(account.$id)),
-          Permission.delete(Role.user(account.$id)),
-        ],
-      );
-      return AppUser.fromAppwrite({r'$id': doc.$id, ...doc.data});
+      // Neues Konto: users-Doc legt `self-service` an (Felder wie isChild/
+      // verifiedParentUids setzt nur der Server; ACL nur read user(self)).
+      final result =
+          await _functions.callJson(_selfServiceId, {'action': 'ensureUserDoc'});
+      final user = Map<String, dynamic>.from(result['user'] as Map);
+      return AppUser.fromAppwrite(user);
     }
   }
 
@@ -204,12 +194,10 @@ class AuthService {
 
   Future<void> saveNotificationSettings(
       String uid, NotificationSettings settings) async {
-    await _db.updateDocument(
-      databaseId: _dbId,
-      collectionId: _colUsers,
-      documentId: uid,
-      data: {'notificationSettingsJson': jsonEncode(settings.toMap())},
-    );
+    await _functions.callJson(_selfServiceId, {
+      'action': 'setNotificationSettings',
+      'settings': settings.toMap(),
+    });
   }
 
   Future<void> _callProcessMyInvitations() async {

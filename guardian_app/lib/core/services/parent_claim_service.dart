@@ -126,13 +126,19 @@ class ParentClaimService {
     );
   }
 
-  Future<void> cancelClaimRequest(String requestId) async {
-    await _db.updateDocument(
-      databaseId: _dbId,
-      collectionId: _colClaims,
-      documentId: requestId,
-      data: {'status': ClaimRequestStatus.cancelled.name},
-    );
+  Future<void> cancelClaimRequest(String requestId) =>
+      _respondClaim(requestId, 'cancelled');
+
+  /// Status einer Verknüpfungsanfrage ändern — nur über `self-service`:
+  /// bestätigen/ablehnen darf nur das Kind, zurückziehen nur der Anfragende
+  /// (die Claim-ACL gibt dem Anfragenden kein `update`, sonst könnte er sich
+  /// selbst bestätigen).
+  Future<void> _respondClaim(String requestId, String response) async {
+    await _functions.callJson('self-service', {
+      'action': 'respondClaim',
+      'requestId': requestId,
+      'response': response,
+    });
   }
 
   Stream<List<ClaimRequest>> watchOutgoingClaims() {
@@ -159,23 +165,11 @@ class ParentClaimService {
     );
   }
 
-  Future<void> confirmClaimRequest(String requestId) async {
-    await _db.updateDocument(
-      databaseId: _dbId,
-      collectionId: _colClaims,
-      documentId: requestId,
-      data: {'status': ClaimRequestStatus.confirmed.name},
-    );
-  }
+  Future<void> confirmClaimRequest(String requestId) =>
+      _respondClaim(requestId, 'confirmed');
 
-  Future<void> rejectClaimRequest(String requestId) async {
-    await _db.updateDocument(
-      databaseId: _dbId,
-      collectionId: _colClaims,
-      documentId: requestId,
-      data: {'status': ClaimRequestStatus.rejected.name},
-    );
-  }
+  Future<void> rejectClaimRequest(String requestId) =>
+      _respondClaim(requestId, 'rejected');
 
   // ──────────────────────────────────────────────────────────────────────────
   // Verified relationships

@@ -79,7 +79,7 @@ Lösung: Callable für E-Mail-Lookup bzw. Einladen/Claim-Anlegen komplett server
 
 ## 4. Kritische Zusatzbefunde (Dokument-Ebene, nicht durch Collection-Rechte verursacht)
 
-Diese Lücken bleiben auch nach Phase 1–3 bestehen und sollten **zeitnah separat** behoben werden:
+Diese Lücken bleiben auch nach Phase 1–3 bestehen und sollten **zeitnah separat** behoben werden. **A und B (plus Eltern-Anfragen und fremde Member-Docs): Fix vorbereitet, siehe [`self-escalation.md`](self-escalation.md).**
 
 - **A – Selbst-Eskalation über eigene Docs.** `members/{orgId}_{uid}` trägt `update user(uid)`, `users/{uid}` trägt `update user(uid)`. Appwrite kennt keine Feld-Rechte → jedes Mitglied kann per API `role: "admin"` in sein eigenes Member-Doc schreiben. `admin-member-action`, `moderate-message` und `sync-supervisor-team` vertrauen genau diesem Feld → der Nutzer wird Aufsicht, landet in **allen** Conv-Teams der Org und liest alle Chats. Ein Kind kann außerdem `guardianUids` aus dem eigenen Member-Doc entfernen bzw. `isChild`/`verifiedParentUids` im users-Doc ändern. Fix: diese Docs nicht mehr client-schreibbar machen; selbst-editierbare Felder (Anzeigename, Foto, `hideEmail`, Benachrichtigungs-Intervalle) über eine Callable-Function.
 - **B – Conversation-Felder.** `update team(convId)` erlaubt jedem Teilnehmer (auch Kindern), `status` (Selbst-Genehmigung), `participantUids` und `guardianUids` zu ändern; `sync-conversation-permissions` übernimmt das ins Team → ein Kind kann Guardians aus dem Chat entfernen. `delete team(convId)` erlaubt jedem Teilnehmer, den Chat zu löschen. Fix: Status-/Mitglieder-Änderungen über eine Function mit Rollenprüfung; Team-ACL nur noch für unkritische Felder bzw. Sync-Function validiert und setzt geschützte Felder zurück.

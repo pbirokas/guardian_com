@@ -109,7 +109,7 @@ All Appwrite Realtime subscriptions go through a single shared `RealtimeBroadcas
 
 ### Web (PWA)
 
-Flutter-Web-Build, gehostet als Appwrite Site unter `app.guardian-com.de`; Auslieferung per `flutter build web` + `appwrite sites create-deployment` (siehe README), zusammen mit jedem Android-Release. Regeln:
+Flutter-Web-Build, gehostet als Appwrite Site unter `app.guardian-com.de`; Auslieferung per `npm run deploy-web` in `appwrite/` (`deploy-web.js`: Build-Nummer = `git rev-list --count HEAD` wie der Android-versionCode, Upload über die Sites-API mit `APPWRITE_DEPLOY_KEY`, explizites Aktivieren), zusammen mit jedem Android-Release. Nie `flutter build web` ohne `--build-number` ausliefern — sonst zeigt „Über die App“ Build 1. Regeln:
 - **Kein `dart:io` in gemeinsam genutztem Code.** Plattform per `kIsWeb` / `defaultTargetPlatform` prüfen — im Browser meldet `defaultTargetPlatform` das Betriebssystem (iOS auf dem iPhone, windows am PC), deshalb **immer zuerst `kIsWeb` ausschließen**. Natives in `*_io.dart`/`*_web.dart` (bzw. `*_stub.dart`) per Conditional Import: `realtime_patch_*` (Realtime-Cookie-Workaround nur nativ), `core/utils/export_file*` (Temp-Datei+OpenFilex vs. Browser-Download), `core/utils/pwa_env*` (iOS-Browser-/PWA-Erkennung).
 - Im Web werden Firebase, Crashlytics und FCM **nicht** initialisiert (Web Push kommt in Stufe 2; dann Web-`firebase_options`, Service Worker, VAPID-Key). Ausgeblendet: Share-Target, Akku-Optimierung, Update-Prüfung, Sprachaufnahme.
 - Bildkomprimierung im Web über `flutter_image_compress` + **selbst gehostetes** `web/pica.min.js` (kein CDN — keine Nutzer-IPs an Dritte).

@@ -342,14 +342,18 @@ Die Web-App wird lokal gebaut und als Deployment der Appwrite-Site hochgeladen
 Android werden zusammen released.
 
 ```bash
-cd guardian_app
-flutter build web --release
-appwrite sites create-deployment --site-id guardian-web --code build/web --activate true
+cd appwrite
+npm run deploy-web              # bauen, hochladen, aktivieren, live prüfen
+node deploy-web.js --dry-run    # nur bauen + packen (Test)
 ```
 
-Danach in der Console unter Sites → Guardian Web → Deployments prüfen, ob die
-neue Version aktiv ist — beim ersten Deploy (CLI 20.1) griff `--activate` nicht,
-die Version musste per „Activate“ manuell aktiviert werden.
+`deploy-web.js` setzt die Build-Nummer wie Android auf die Anzahl der
+Git-Commits (`git rev-list --count HEAD`), baut `build/web` sauber neu, lädt das
+Archiv über die Sites-API hoch, wartet auf „ready“, aktiviert das Deployment
+ausdrücklich und prüft anschließend `https://app.guardian-com.de/version.json`.
+Benötigt in `appwrite/.env` einen eigenen API-Key `APPWRITE_DEPLOY_KEY` nur mit
+den Scopes `sites.read` + `sites.write`. Rollback: in der Console unter Sites →
+Guardian Web → Deployments das vorherige Deployment aktivieren.
 
 Einmalige Einrichtung auf dem Server:
 - DNS-Eintrag für `app.guardian-com.de` auf den Appwrite-Server

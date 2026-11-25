@@ -223,13 +223,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// anderer Screen darüber, ist der Nutzer nicht hier — dann nicht als gelesen
   /// markieren. (Dialoge/Bottom-Sheets ändern die Location nicht und zählen
   /// daher nicht als „verdeckt".)
+  ///
+  /// Nicht `routerDelegate.currentConfiguration.uri` verwenden: das bleibt bei
+  /// per `context.push` geöffneten Chats auf `/org/…` stehen → der Chat galt nie
+  /// als oberste Seite und mark-as-read lief nie (App 2.0.0, Fix 2026-11-25).
   bool get _isTopChat {
-    try {
-      final path = _router.routerDelegate.currentConfiguration.uri.path;
-      return chatIdFromPath(path) == widget.chatId;
-    } catch (_) {
-      return true; // Router noch nicht bereit → wie bisher verhalten.
-    }
+    final path = currentTopPath(_router);
+    if (path.isEmpty) return true; // Router noch nicht bereit.
+    return chatIdFromPath(path) == widget.chatId;
   }
 
   // Wird dieser Chat wieder die oberste Seite (z. B. Zurück aus dem Profil),

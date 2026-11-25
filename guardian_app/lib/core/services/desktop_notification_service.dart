@@ -248,7 +248,12 @@ class DesktopNotificationService {
         .listen((_) => recalculate(), onError: (_) {});
     _receiptSub = _broadcaster!
         .stream('databases.guardian.collections.read_receipts.documents')
-        .listen((_) => recalculate(), onError: (_) {});
+        .listen((msg) {
+      // Fremde Receipts (team-lesbar für die Lesestatus-Häkchen) ändern den
+      // eigenen Ungelesen-Zähler nicht.
+      if (msg.events.isNotEmpty && msg.payload['uid'] != uid) return;
+      recalculate();
+    }, onError: (_) {});
     recalculate();
   }
 

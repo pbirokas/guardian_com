@@ -468,7 +468,8 @@ conversations/{$id}
 read_receipts/{$id}             ← $id = sha256(convId:uid)[:36], deterministisch (genau 1 Doc pro Paar)
   convId, uid
   readAt                        ← ISO-8601-Timestamp (ersetzt lastReadAtJson)
-  (Document-Permission: read+update+delete per User-UID)
+  (Document-Permission: read user(uid); bei Teilnehmern zusätzlich read team(convId)
+   für die Lesestatus-Häkchen — Guardians/Aufsicht bleiben privat; schreiben nur mark-as-read)
 
 chat_messages/{$id}
   convId, orgId

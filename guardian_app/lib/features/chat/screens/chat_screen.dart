@@ -1055,6 +1055,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final currentUid = authUser.uid;
 
     final myReceipts = ref.watch(myReadReceiptsProvider).value ?? {};
+    final otherReceipts =
+        ref.watch(conversationReadReceiptsProvider(widget.chatId)).value ??
+            const <String, DateTime>{};
     ref.listen(conversationProvider(widget.chatId), (_, next) {
       final c = next.value;
       if (c == null) return;
@@ -1413,7 +1416,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           isModerating: isModeratorOrAdmin && !isMe,
                           isAdminOrMod: isModeratorOrAdmin,
                           readStatus: isMe && conv != null
-                              ? _readStatus(conv, msg)
+                              ? _readStatus(
+                                  conv, msg, otherReceipts, currentUid)
                               : null,
                           onReport: isMe || conv == null || msg.pollId != null || msg.isDeleted
                               ? null
@@ -1526,16 +1530,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 0     = gesendet (noch kein anderer hat gelesen)
   /// 1     = mindestens einer hat gelesen
   /// 2     = alle haben gelesen
-  int _readStatus(Conversation conv, Message msg) {
-    final others = conv.participantUids
-        .where((uid) => uid != ref.read(authStateProvider).value?.uid)
-        .toList();
+  ///
+  /// Gezählt werden nur die anderen **Teilnehmer** ([otherReceipts] aus
+  /// `conversationReadReceiptsProvider`); Guardians und Aufsicht nie.
+  int _readStatus(Conversation conv, Message msg,
+      Map<String, DateTime> otherReceipts, String currentUid) {
+    final others =
+        conv.participantUids.where((uid) => uid != currentUid).toList();
     if (others.isEmpty) return 2;
-    final readCount = others
-        .where((uid) =>
-            conv.lastReadAt[uid]?.isAfter(msg.sentAt) == true ||
-            conv.lastReadAt[uid] == msg.sentAt)
-        .length;
+    final readCount = others.where((uid) {
+      final readAt = otherReceipts[uid];
+      return readAt != null && !readAt.isBefore(msg.sentAt);
+    }).length;
     if (readCount == 0) return 0;
     if (readCount < others.length) return 1;
     return 2;

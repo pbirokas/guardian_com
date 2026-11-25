@@ -4,6 +4,12 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-11-25
+
+- **Lesestatus-Häkchen funktionieren wieder (Server-Teil live, App-Update folgt).** An eigenen Nachrichten stand seit längerem immer nur „gesendet“, auch wenn der andere längst gelesen hatte: Die App las die Lesezeitpunkte noch aus einem Feld, das es nicht mehr gibt, und seit der Rechte-Härtung durfte ohnehin jeder nur seinen eigenen Lesezeitpunkt sehen. Jetzt sehen die Teilnehmer eines Chats gegenseitig, bis wann sie gelesen haben, und die Häkchen springen live um („einer hat gelesen“ / „alle haben gelesen“). Wann Eltern (Guardians) oder Admins/Moderatoren einen Chat mitlesen, bleibt privat und zählt nicht als „gelesen“; für Kinder gilt dasselbe wie für alle anderen Teilnehmer. Konten außerhalb des Chats sehen weiterhin nichts.
+
+---
+
 ## 2026-11-15
 
 - **Sicherheit (vorbereitet, noch nicht live): Niemand kann sich mehr selbst Rechte verschaffen.** Bisher konnte ein Mitglied über die Programmierschnittstelle seine eigene Rolle auf „Admin“ setzen (und damit alle Chats der Organisation lesen), sich als Admin in eine fremde Organisation eintragen, ein Kind seine Guardians entfernen oder seine Eltern-Verknüpfung lösen, ein Chat-Teilnehmer eine Chat-Anfrage selbst genehmigen, Mitglieder ändern oder den Chat löschen, und ein Elternteil seine eigene Verknüpfungsanfrage bestätigen. Profil, Benachrichtigungs-Einstellungen, Organisation gründen und alle Chat-Verwaltungsaktionen laufen jetzt über den Server, der Rolle und Berechtigung jedes Mal prüft; die Chat-Vorschau in der Liste setzt ebenfalls der Server. Moderatoren können Mitglieder nicht mehr direkt als Moderator anlegen und den Admin nicht mehr herabstufen.

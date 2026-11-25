@@ -138,7 +138,7 @@ Negativ-Test per API (für jede umgestellte Collection): mit Session von X `GET 
 
 Wenn T1/T2 fehlschlagen (kein Live-Update, erst nach Neuladen): sofort Rollback der beiden Collections und prüfen, ob Realtime die Team-Mitgliedschaft erst nach Reconnect kennt (dann `broadcaster.reconnect()` nach Chat-Erstellung).
 
-## 7. Lesestatus-Häkchen: Receipts im Chat-Team lesbar (2026-11-25, nicht live)
+## 7. Lesestatus-Häkchen: Receipts im Chat-Team lesbar (2026-11-25, Server live)
 
 **Problem:** `_readStatus` (Chat-Screen) las `conv.lastReadAt`, das seit dem Entfernen von `lastReadAtJson` immer leer war → immer „gesendet“. Die echten Lesezeiten liegen in `read_receipts`, die seit Stufe 1 nur der Eigentümer lesen darf.
 
@@ -160,6 +160,8 @@ Wenn T1/T2 fehlschlagen (kein Live-Update, erst nach Neuladen): sofort Rollback 
 | 1 | `node deploy-functions.js --only=mark-as-read` (Dry-Run) → mit Bestätigung | nein |
 | 2 | `node share-read-receipts.js` (Dry-Run, zählt Teilnehmer/privat/verwaist) → `--confirm=<projectId>` | nein |
 | 3 | App-Release mit `watchConversationReadReceipts` (Android, Windows, Web) | ja |
+
+**Live-Stand:** 2026-11-25 Schritt 1 (`mark-as-read` deployt, Owner) und Schritt 2 erledigt: 126 Receipts, 94 Teilnehmer → team-lesbar, 26 Guardian/Aufsicht → privat, 6 ohne Conversation ignoriert; 120 ACLs geändert, Kontroll-Dry-Run 0 Abweichungen. Schritt 3 (App-Release) und Tests T11–T15 offen.
 
 Alte Apps sind unbetroffen (sie lesen nur eigene Receipts). Rollback: `mark-as-read` auf den Vorstand deployen, dann `node share-read-receipts.js --rollback --confirm=<projectId>`.
 

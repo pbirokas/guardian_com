@@ -6,7 +6,7 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ## 2026-11-25
 
-- **Lesestatus-Häkchen funktionieren wieder (vorbereitet, Server-Teil noch nicht live).** An eigenen Nachrichten stand seit längerem immer nur „gesendet“, auch wenn der andere längst gelesen hatte: Die App las die Lesezeitpunkte noch aus einem Feld, das es nicht mehr gibt, und seit der Rechte-Härtung durfte ohnehin jeder nur seinen eigenen Lesezeitpunkt sehen. Jetzt sehen die Teilnehmer eines Chats gegenseitig, bis wann sie gelesen haben, und die Häkchen springen live um („einer hat gelesen“ / „alle haben gelesen“). Wann Eltern (Guardians) oder Admins/Moderatoren einen Chat mitlesen, bleibt privat und zählt nicht als „gelesen“; für Kinder gilt dasselbe wie für alle anderen Teilnehmer. Konten außerhalb des Chats sehen weiterhin nichts.
+- **Lesestatus-Häkchen funktionieren wieder (Server-Teil live, App-Update folgt).** An eigenen Nachrichten stand seit längerem immer nur „gesendet“, auch wenn der andere längst gelesen hatte: Die App las die Lesezeitpunkte noch aus einem Feld, das es nicht mehr gibt, und seit der Rechte-Härtung durfte ohnehin jeder nur seinen eigenen Lesezeitpunkt sehen. Jetzt sehen die Teilnehmer eines Chats gegenseitig, bis wann sie gelesen haben, und die Häkchen springen live um („einer hat gelesen“ / „alle haben gelesen“). Wann Eltern (Guardians) oder Admins/Moderatoren einen Chat mitlesen, bleibt privat und zählt nicht als „gelesen“; für Kinder gilt dasselbe wie für alle anderen Teilnehmer. Konten außerhalb des Chats sehen weiterhin nichts.
 
 ---
 

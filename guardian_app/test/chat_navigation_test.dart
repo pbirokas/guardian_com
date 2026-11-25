@@ -1,4 +1,6 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:guardian_app/core/models/message.dart';
 import 'package:guardian_app/core/router/chat_navigation.dart';
 
@@ -16,6 +18,41 @@ void main() {
 
     test('anderer Chat offen → ersetzen statt stapeln', () {
       expect(chatOpenActionFor('/chat/b', 'a'), ChatOpenAction.replace);
+    });
+  });
+
+  group('openChatId (oberste Seite)', () {
+    testWidgets('per push geöffneter Chat gilt als oberste Seite', (tester) async {
+      Widget page(GoRouterState s) => Text(s.uri.path);
+      final router = GoRouter(
+        initialLocation: '/org/1',
+        routes: [
+          GoRoute(path: '/org/:orgId', builder: (_, s) => page(s)),
+          GoRoute(path: '/chat/:chatId', builder: (_, s) => page(s)),
+          GoRoute(path: '/profile', builder: (_, s) => page(s)),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      expect(openChatId(router), isNull);
+
+      router.push('/chat/a');
+      await tester.pumpAndSettle();
+      expect(openChatId(router), 'a');
+      // Die Falle, die mark-as-read in App 2.0.0 lahmgelegt hat:
+      expect(router.routerDelegate.currentConfiguration.uri.path, '/org/1');
+
+      router.push('/profile');
+      await tester.pumpAndSettle();
+      expect(openChatId(router), isNull);
+
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(openChatId(router), 'a');
+
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(openChatId(router), isNull);
     });
   });
 

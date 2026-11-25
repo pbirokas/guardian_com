@@ -52,10 +52,30 @@ async function withRetry(fn, label, attempts = 2) {
 // Reihenfolge: Update versuchen → bei 404 anlegen → bei 409 (paralleler Create
 // hat das Dokument zwischenzeitlich erzeugt) erneut Update. So bleibt der Vorgang
 // auch bei nebenläufigen Requests für dasselbe (convId, uid) korrekt (last-write-wins).
-async function upsertReceipt(db, receiptId, convId, uid, readAt) {
+// ACL eines Receipts:
+//   - read user(uid)        — der Eigentümer (Ungelesen-Badges, watchMyReadReceipts)
+//   - read team(convId)     — NUR wenn uid Teilnehmer ist: die anderen Chat-Mitglieder
+//                             sehen die Lesestatus-Häkchen an ihren Nachrichten.
+// Lesezeiten von Guardians und Aufsicht (im Conv-Team, aber keine Teilnehmer)
+// bleiben bewusst privat — ein Kind soll nicht sehen, wann Eltern/Admins mitlesen.
+// Kein update/delete für den Client: schreiben darf nur diese Function (sonst
+// könnte ein Teilnehmer per uid-Feld einen fremden Lesezeitpunkt vortäuschen,
+// sobald das Receipt team-lesbar ist).
+//
+// WICHTIG: Muss deckungsgleich mit receiptPerms in appwrite/share-read-receipts.js
+// bleiben (Migration der Bestandsdokumente).
+function receiptPerms(convId, uid, isParticipant) {
+  const perms = [Permission.read(Role.user(uid))];
+  if (isParticipant) perms.push(Permission.read(Role.team(convId)));
+  return perms;
+}
+
+async function upsertReceipt(db, receiptId, convId, uid, readAt, perms) {
+  // Die ACL wird bei jedem Update mitgeschrieben — so heilt sie sich selbst,
+  // wenn jemand nachträglich Teilnehmer wird (oder Altbestand noch privat ist).
   try {
     return await withTimeout(
-      db.updateDocument(DB_ID, COL_RECEIPTS, receiptId, { readAt }),
+      db.updateDocument(DB_ID, COL_RECEIPTS, receiptId, { readAt }, perms),
       'updateDocument(receipt)',
       UPDATE_TIMEOUT_MS,
     );
@@ -65,11 +85,7 @@ async function upsertReceipt(db, receiptId, convId, uid, readAt) {
   }
   try {
     return await withTimeout(
-      db.createDocument(DB_ID, COL_RECEIPTS, receiptId, { convId, uid, readAt }, [
-        Permission.read(Role.user(uid)),
-        Permission.update(Role.user(uid)),
-        Permission.delete(Role.user(uid)),
-      ]),
+      db.createDocument(DB_ID, COL_RECEIPTS, receiptId, { convId, uid, readAt }, perms),
       'createDocument(receipt)',
       UPDATE_TIMEOUT_MS,
     );
@@ -78,7 +94,7 @@ async function upsertReceipt(db, receiptId, convId, uid, readAt) {
     if (e.isTimeout || code !== 409) throw e;
     // Race: parallel angelegt → jetzt nur noch den Timestamp aktualisieren.
     return await withTimeout(
-      db.updateDocument(DB_ID, COL_RECEIPTS, receiptId, { readAt }),
+      db.updateDocument(DB_ID, COL_RECEIPTS, receiptId, { readAt }, perms),
       'updateDocument(receipt-after-409)',
       UPDATE_TIMEOUT_MS,
     );
@@ -160,10 +176,11 @@ module.exports = async ({ req, res, log, error }) => {
   // Kein listDocuments mehr → kein Full-Collection-Scan, keine doppelten Receipts.
   // withRetry fängt transiente 500/503-Fehler ab (max. 2 Versuche).
   const receiptId = receiptIdFor(convId, uid);
+  const perms = receiptPerms(convId, uid, (conv.participantUids ?? []).includes(uid));
   const upsertStart = Date.now();
   log(`[upsert-start] receiptId=${receiptId}`);
   try {
-    await withRetry(() => upsertReceipt(db, receiptId, convId, uid, effectiveReadAt), 'upsert(receipt)');
+    await withRetry(() => upsertReceipt(db, receiptId, convId, uid, effectiveReadAt, perms), 'upsert(receipt)');
     log(`[upsert-ok] elapsed=${Date.now() - upsertStart}ms`);
   } catch (e) {
     if (e.isTimeout) {

@@ -21,6 +21,12 @@
  *  - createOrganization    { name, tag }           → Org + eigenes Admin-Member-Doc + membershipsJson
  *  - respondClaim      { requestId, response }     → Eltern-Kind-Anfrage: confirmed/rejected (Kind),
  *                                                    cancelled (Elternteil)
+ *  - sendClaim         { email }                   → Eltern-Kind-Anfrage per E-Mail anlegen (Lookup serverseitig)
+ *  - listRelatives                                 → verifizierte Eltern/Kinder (+ Mit-Eltern) als Profil-Auszug
+ *
+ * Phase 3 der Collection-Härtung: Clients lesen keine fremden users-Docs mehr
+ * (E-Mail, isChild, fcmToken, membershipsJson …). Was die App von Verwandten
+ * braucht, liefern sendClaim/listRelatives als Whitelist-Auszug.
  *
  * Sicherheit: Aufrufer über x-appwrite-user-id; geschrieben werden nur Docs
  * des Aufrufers (bzw. Claims, an denen er beteiligt ist).
@@ -38,6 +44,8 @@ const INTERVALS = new Set(['always', 'hourly', 'daily', 'never']);
 const ORG_TAGS = new Set(['familie', 'freunde', 'schule', 'vereine', 'sonstiges']);
 const PHOTO_URL_RE = /^https:\/\/[^\s"]+\/storage\/buckets\/[^/\s]+\/files\/[^/\s]+\/view(\?[^\s"]*)?$/;
 const RETENTION_DEFAULT = 90;
+const CLAIM_TTL_MS = 7 * 24 * 3600 * 1000;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -246,6 +254,65 @@ const ACTIONS = {
     log(`respondClaim: ${requestId} → ${response} by ${callerId}`);
     return {};
   },
+  async sendClaim({ db, callerId, body, log }) {
+    const email = String(body.email ?? '').toLowerCase().trim();
+    if (!email || email.length > 254 || !EMAIL_RE.test(email)) throw new HttpError(400, 'invalid_email');
+
+    const me = await db.getDocument(DB_ID, COL_USERS, callerId);
+    const { documents } = await db.listDocuments(DB_ID, COL_USERS, [
+      Query.equal('email', email),
+      Query.limit(1),
+    ]);
+    const target = documents[0];
+    if (!target) throw new HttpError(404, 'user_not_found');
+    if (target.$id === callerId) throw new HttpError(400, 'cannot_claim_self');
+
+    const { documents: open } = await db.listDocuments(DB_ID, COL_CLAIMS, [
+      Query.equal('fromUid', callerId),
+      Query.equal('status', 'pending'),
+      Query.limit(100),
+    ]);
+    if (open.some((c) => c.toUid === target.$id)) throw new HttpError(409, 'already_exists');
+
+    const now = new Date();
+    const claim = await db.createDocument(DB_ID, COL_CLAIMS, ID.unique(), {
+      fromUid: callerId,
+      fromName: me.displayName ?? '',
+      fromEmail: me.email ?? '',
+      toUid: target.$id,
+      toEmail: email,
+      status: 'pending',
+      createdAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + CLAIM_TTL_MS).toISOString(),
+    }, claimPerms(callerId, target.$id));
+    log(`sendClaim: ${claim.$id} ${callerId} → ${target.$id}`);
+    // Nur die Claim-ID zurück — keine Daten des Ziels.
+    return { requestId: claim.$id };
+  },
+
+  async listRelatives({ db, callerId }) {
+    const me = await db.getDocument(DB_ID, COL_USERS, callerId);
+    // Nur gegenseitig bestätigte Verknüpfungen: solange users-Docs noch
+    // client-schreibbar sind (bis Stufe 4), könnte jemand fremde UIDs in die
+    // eigenen verified*Uids schreiben und so Profile auslesen.
+    const children = (await loadUsers(db, me.verifiedChildUids))
+      .filter((c) => (c.verifiedParentUids ?? []).includes(callerId));
+    const parents = (await loadUsers(db, me.verifiedParentUids))
+      .filter((p) => (p.verifiedChildUids ?? []).includes(callerId));
+
+    const coParentIds = children.flatMap((c) => (c.verifiedParentUids ?? []).filter((u) => u !== callerId));
+    const coParents = new Map((await loadUsers(db, coParentIds)).map((u) => [u.$id, u]));
+
+    return {
+      children: children.map((c) => ({
+        ...publicProfile(c),
+        coParents: (c.verifiedParentUids ?? [])
+          .filter((u) => u !== callerId && (coParents.get(u)?.verifiedChildUids ?? []).includes(c.$id))
+          .map((u) => ({ uid: u, displayName: coParents.get(u).displayName ?? '' })),
+      })),
+      parents: parents.map(publicProfile),
+    };
+  },
 };
 
 // ── Hilfsfunktionen ─────────────────────────────────────────────────────────
@@ -261,6 +328,34 @@ function userDocPerms(uid) {
  */
 function memberDocPerms() {
   return [Permission.read(Role.users())];
+}
+
+/** Wie on-claim-request: Anfragender liest/zieht zurück, Ziel liest/antwortet. */
+function claimPerms(fromUid, toUid) {
+  return [
+    Permission.read(Role.user(fromUid)),
+    Permission.delete(Role.user(fromUid)),
+    Permission.read(Role.user(toUid)),
+    Permission.update(Role.user(toUid)),
+  ];
+}
+
+/** users-Docs zu UIDs laden (dedupliziert, max. 20, fehlende übersprungen). */
+async function loadUsers(db, uids) {
+  const ids = [...new Set((Array.isArray(uids) ? uids : [])
+    .filter((u) => typeof u === 'string' && u.length > 0))].slice(0, 20);
+  const docs = await Promise.all(ids.map((u) => db.getDocument(DB_ID, COL_USERS, u).catch(() => null)));
+  return docs.filter(Boolean);
+}
+
+/** Was Verwandte voneinander sehen dürfen — nie fcmToken/membershipsJson/Settings. */
+function publicProfile(u) {
+  return {
+    uid: u.$id,
+    displayName: u.displayName ?? '',
+    email: u.email ?? '',
+    photoUrl: u.photoUrl ?? null,
+  };
 }
 
 function cleanName(raw) {

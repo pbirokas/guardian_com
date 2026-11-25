@@ -4,7 +4,8 @@
  * zurücksetzt — siehe docs/security/collection-acl-hardening.md §5).
  *
  * - Bestehende Function: neues Deployment (tar.gz des Ordners functions/<id>),
- *   aktiviert. Einstellungen bleiben unverändert; weichen events/execute/
+ *   nach erfolgreichem Build explizit aktiviert (activate beim Upload greift
+ *   auf Server 1.9 nicht zuverlässig). Einstellungen bleiben unverändert; weichen events/execute/
  *   timeout von appwrite.config.json ab, wird das nur ANGEZEIGT.
  * - Fehlende Function: wird mit den Werten aus appwrite.config.json angelegt;
  *   Spezifikation/Runtime übernimmt sie von --like=<functionId> (Default
@@ -121,8 +122,48 @@ async function main() {
     }
     const dep = await functions.createDeployment(id, InputFile.fromPath(file, `${id}.tar.gz`), true,
       want.entrypoint, want.commands);
-    console.log(`    ✓ Deployment ${dep.$id} (Build läuft; Status in der Console prüfen, Rollback = vorige Deployment ${live?.deploymentId ?? live?.deployment ?? '–'} aktivieren)`);
+    const prev = live?.deploymentId ?? live?.deployment ?? '–';
+    console.log(`    ✓ Deployment ${dep.$id} hochgeladen (Rollback = vorige Deployment ${prev} aktivieren)`);
+    await activateWhenReady(id, dep.$id);
   }
+}
+
+// `activate: true` beim Upload greift auf Server 1.9.x nicht zuverlässig
+// (2026-11-25: beide Builds `ready`, aber die alte Version blieb aktiv — wie
+// bei deploy-web.js). Deshalb auf den Build warten und explizit aktivieren.
+// Per fetch mit Timeout: SDK 14 kennt `PATCH /functions/{id}/deployment` nicht.
+async function activateWhenReady(id, depId) {
+  const ep = process.env.APPWRITE_ENDPOINT.replace(/\/$/, '');
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Appwrite-Project': projectId,
+    'X-Appwrite-Key': process.env.APPWRITE_API_KEY,
+  };
+  const call = async (method, path, body) => {
+    const r = await fetch(ep + path, {
+      method, headers, body: body && JSON.stringify(body), signal: AbortSignal.timeout(30000),
+    });
+    const json = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(`${method} ${path}: ${r.status} ${json.message ?? ''}`);
+    return json;
+  };
+  const deadline = Date.now() + 10 * 60 * 1000;
+  let status = '';
+  while (Date.now() < deadline) {
+    status = (await call('GET', `/functions/${id}/deployments/${depId}`)).status;
+    if (status === 'ready' || status === 'failed') break;
+    await new Promise((r) => setTimeout(r, 5000));
+  }
+  if (status !== 'ready') {
+    console.error(`    ✗ Build ${status || 'unbekannt'} — NICHT aktiviert (alte Version bleibt aktiv)`);
+    return;
+  }
+  const fn = await call('GET', `/functions/${id}`);
+  if (fn.deploymentId !== depId) await call('PATCH', `/functions/${id}/deployment`, { deploymentId: depId });
+  const after = await call('GET', `/functions/${id}`);
+  console.log(after.deploymentId === depId
+    ? `    ✓ aktiv: ${depId}`
+    : `    ✗ Aktivieren fehlgeschlagen (aktiv: ${after.deploymentId}) — in der Console aktivieren`);
 }
 
 main().catch((e) => {

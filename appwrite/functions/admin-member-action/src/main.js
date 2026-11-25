@@ -3,6 +3,7 @@
  *
  * Aktionen (body.action):
  *  - addMember      : Neues Mitglied direkt hinzufügen (Admin/Mod)
+ *  - inviteByEmail  : Einladen per E-Mail inkl. Lookup (Admin/Mod) — Client liest keine fremden users-Docs
  *  - updateRole     : Rolle eines Mitglieds ändern (Admin/Mod)
  *  - transferAdmin  : Admin-Rolle übertragen (nur Admin)
  *  - approveChild   : Kind-Einladung bestätigen (Admin/Mod)
@@ -19,7 +20,7 @@
  *  - DB-Operationen laufen mit API-Key (umgeht collection-level Permissions)
  */
 
-const { Client, Databases, Storage, Query, Permission, Role } = require('node-appwrite');
+const { Client, Databases, Storage, Query, ID, Permission, Role } = require('node-appwrite');
 
 const DB_ID          = 'guardian';
 const BUCKET_MEDIA   = '6a02e524000954c9f1de';
@@ -84,94 +85,20 @@ module.exports = async ({ req, res, log, error }) => {
     // ── addMember ────────────────────────────────────────────────────────────
     case 'addMember': {
       if (!isAdminOrMod) return res.json({ error: 'Forbidden' }, 403);
-      // memberData vom Client wird NICHT mehr übernommen (sonst könnte ein
-      // Moderator jemanden direkt als Admin anlegen) — nur role/guardianUids
-      // als Wunsch, der Rest kommt aus dem users-Doc des Ziels.
-      const requested = payload.memberData ?? {};
-      if (!targetUid) return res.json({ error: 'targetUid required' }, 400);
-      const memberId = `${orgId}_${targetUid}`;
+      const [result, status] = await addMemberCore(
+        db, { orgId, targetUid, requested: payload.memberData ?? {}, isAdmin, log, error });
+      return res.json(result, status);
+    }
 
-      // Bereits Mitglied?
-      try {
-        await db.getDocument(DB_ID, COL_MEMBERS, memberId);
-        return res.json({ error: 'already_member' }, 409);
-      } catch (e) {
-        if ((e?.code ?? 0) !== 404) {
-          error(`addMember getDocument error: ${e?.message}`);
-          return res.json({ error: 'Internal server error' }, 500);
-        }
-      }
-
-      let targetUser;
-      try {
-        targetUser = await db.getDocument(DB_ID, COL_USERS, targetUid);
-      } catch (_) {
-        return res.json({ error: 'User not found' }, 404);
-      }
-
-      let role = requested.role ?? 'member';
-      if (!['admin', 'moderator', 'member', 'child'].includes(role)) {
-        return res.json({ error: 'Invalid role' }, 400);
-      }
-      if (role === 'admin') return res.json({ error: 'Use transferAdmin' }, 400);
-      if (!isAdmin && role === 'moderator') {
-        return res.json({ error: 'Only admin can grant admin/moderator role' }, 403);
-      }
-      if (targetUser.isChild && role !== 'child') {
-        return res.json({ error: 'child_account_role_locked' }, 400);
-      }
-      const isChild = role === 'child';
-
-      let guardianUids = [];
-      if (isChild) {
-        const check = await validGuardians(db, orgId, requested.guardianUids);
-        if (check.error) return res.json({ error: check.error }, 400);
-        guardianUids = check.guardianUids;
-      }
-
-      const memberData = {
-        orgId,
-        uid: targetUid,
-        displayName: targetUser.displayName ?? targetUser.email ?? targetUid,
-        // Email nur für Nicht-Kinder (DSGVO, siehe inviteMember im Client).
-        email: isChild ? '' : (targetUser.email ?? ''),
-        ...(targetUser.photoUrl ? { photoUrl: targetUser.photoUrl } : {}),
-        role,
-        joinedAt: new Date().toISOString(),
-        guardianUids,
-        status: isChild ? 'pending' : 'active',
-        childAlertInterval: 'hourly',
-        notificationsEnabled: true,
-        messageAlertInterval: 'always',
-        hideEmail: targetUser.hideEmail ?? false,
-        lastChildAlertAtJson: '{}',
-      };
-
-      try {
-        // Nur lesbar — Member-Docs schreiben ausschließlich Server-Functions
-        // (Selbst-Eskalation über `role`, siehe self-service).
-        await db.createDocument(DB_ID, COL_MEMBERS, memberId, memberData, [
-          Permission.read(Role.users()),
-        ]);
-      } catch (e) {
-        if ((e?.code ?? 0) === 409) return res.json({ error: 'already_member' }, 409);
-        error(`addMember createDocument error: ${e?.message}`);
-        return res.json({ error: 'Internal server error' }, 500);
-      }
-
-      if (!isChild) {
-        // org.memberUids aktualisieren
-        const orgDoc = await db.getDocument(DB_ID, COL_ORGS, orgId);
-        const memberUids = [...(orgDoc.memberUids ?? [])];
-        if (!memberUids.includes(targetUid)) {
-          memberUids.push(targetUid);
-          await db.updateDocument(DB_ID, COL_ORGS, orgId, { memberUids });
-        }
-        // membershipsJson aktualisieren
-        await addMembership(db, targetUid, orgId, role, log);
-      }
-
-      return res.json({ ok: true, role });
+    // ── inviteByEmail ────────────────────────────────────────────────────────
+    // Phase 3 der Collection-Härtung: der Client darf fremde users-Docs nicht
+    // mehr lesen → E-Mail-Lookup, Einladung, Eltern-Zustimmung und direktes
+    // Hinzufügen laufen komplett hier.
+    case 'inviteByEmail': {
+      if (!isAdminOrMod) return res.json({ error: 'Forbidden' }, 403);
+      const [result, status] = await inviteByEmail(
+        db, { orgId, callerId, callerMember, payload, isAdmin, log, error });
+      return res.json(result, status);
     }
 
     // ── updateRole ───────────────────────────────────────────────────────────
@@ -492,6 +419,232 @@ module.exports = async ({ req, res, log, error }) => {
 };
 
 // ── Hilfsfunktionen ────────────────────────────────────────────────────────────
+
+// ── addMember / inviteByEmail ───────────────────────────────────────────────
+
+/**
+ * Mitglied direkt anlegen (Ziel ist registriert). Gibt [body, status] zurück.
+ * memberData vom Client wird NICHT übernommen (sonst könnte ein Moderator
+ * jemanden direkt als Admin anlegen) — nur role/guardianUids als Wunsch, der
+ * Rest kommt aus dem users-Doc des Ziels.
+ */
+async function addMemberCore(db, { orgId, targetUid, requested, isAdmin, log, error }) {
+  if (!targetUid) return [{ error: 'targetUid required' }, 400];
+  const memberId = `${orgId}_${targetUid}`;
+
+  // Bereits Mitglied?
+  try {
+    await db.getDocument(DB_ID, COL_MEMBERS, memberId);
+    return [{ error: 'already_member' }, 409];
+  } catch (e) {
+    if ((e?.code ?? 0) !== 404) {
+      error(`addMember getDocument error: ${e?.message}`);
+      return [{ error: 'Internal server error' }, 500];
+    }
+  }
+
+  let targetUser;
+  try {
+    targetUser = await db.getDocument(DB_ID, COL_USERS, targetUid);
+  } catch (_) {
+    return [{ error: 'User not found' }, 404];
+  }
+
+  let role = requested.role ?? 'member';
+  if (!['admin', 'moderator', 'member', 'child'].includes(role)) {
+    return [{ error: 'Invalid role' }, 400];
+  }
+  if (role === 'admin') return [{ error: 'Use transferAdmin' }, 400];
+  if (!isAdmin && role === 'moderator') {
+    return [{ error: 'Only admin can grant admin/moderator role' }, 403];
+  }
+  if (targetUser.isChild && role !== 'child') {
+    return [{ error: 'child_account_role_locked' }, 400];
+  }
+  const isChild = role === 'child';
+
+  let guardianUids = [];
+  if (isChild) {
+    const check = await validGuardians(db, orgId, requested.guardianUids);
+    if (check.error) return [{ error: check.error }, 400];
+    guardianUids = check.guardianUids;
+  }
+
+  const memberData = {
+    orgId,
+    uid: targetUid,
+    displayName: targetUser.displayName ?? targetUser.email ?? targetUid,
+    // Email nur für Nicht-Kinder (DSGVO, siehe inviteMember im Client).
+    email: isChild ? '' : (targetUser.email ?? ''),
+    ...(targetUser.photoUrl ? { photoUrl: targetUser.photoUrl } : {}),
+    role,
+    joinedAt: new Date().toISOString(),
+    guardianUids,
+    status: isChild ? 'pending' : 'active',
+    childAlertInterval: 'hourly',
+    notificationsEnabled: true,
+    messageAlertInterval: 'always',
+    hideEmail: targetUser.hideEmail ?? false,
+    lastChildAlertAtJson: '{}',
+  };
+
+  try {
+    // Nur lesbar — Member-Docs schreiben ausschließlich Server-Functions
+    // (Selbst-Eskalation über `role`, siehe self-service).
+    await db.createDocument(DB_ID, COL_MEMBERS, memberId, memberData, [
+      Permission.read(Role.users()),
+    ]);
+  } catch (e) {
+    if ((e?.code ?? 0) === 409) return [{ error: 'already_member' }, 409];
+    error(`addMember createDocument error: ${e?.message}`);
+    return [{ error: 'Internal server error' }, 500];
+  }
+
+  if (!isChild) {
+    // org.memberUids aktualisieren
+    const orgDoc = await db.getDocument(DB_ID, COL_ORGS, orgId);
+    const memberUids = [...(orgDoc.memberUids ?? [])];
+    if (!memberUids.includes(targetUid)) {
+      memberUids.push(targetUid);
+      await db.updateDocument(DB_ID, COL_ORGS, orgId, { memberUids });
+    }
+    // membershipsJson aktualisieren
+    await addMembership(db, targetUid, orgId, role, log);
+  }
+
+  return [{ ok: true, role, targetName: memberData.displayName }, 200];
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Einladen per E-Mail (Admin/Mod). Ergebnis `result`:
+ *  - 'invited'          : nicht registriert → invitations-Doc (on-new-invitation mailt)
+ *  - 'consentRequested' : registriert mit verifizierten Eltern → org_invite_consents-Doc
+ *  - 'added'            : registriert → Member-Doc direkt (wie addMember)
+ * Der Client erfährt vom Ziel nur, was er bisher auch sah (Ergebnis + Name bei
+ * 'added'); E-Mail-Lookup und users-Doc bleiben serverseitig.
+ */
+async function inviteByEmail(db, { orgId, callerId, callerMember, payload, isAdmin, log, error }) {
+  const email = String(payload.email ?? '').toLowerCase().trim();
+  if (email.length > 254 || !EMAIL_RE.test(email)) return [{ error: 'invalid_email' }, 400];
+
+  let role = payload.role ?? 'member';
+  if (!['moderator', 'member', 'child'].includes(role)) return [{ error: 'Invalid role' }, 400];
+  if (!isAdmin && role === 'moderator') {
+    return [{ error: 'Only admin can grant admin/moderator role' }, 403];
+  }
+
+  let org;
+  try {
+    org = await db.getDocument(DB_ID, COL_ORGS, orgId);
+  } catch (_) {
+    return [{ error: 'Organization not found' }, 404];
+  }
+  const inviterName = callerMember?.displayName ?? '';
+  const now = new Date();
+
+  const { documents: found } = await db.listDocuments(DB_ID, COL_USERS, [
+    Query.equal('email', email),
+    Query.limit(1),
+  ]);
+  const target = found[0];
+
+  // ── Noch nicht registriert → Einladung ────────────────────────────────────
+  if (!target) {
+    let guardianUids = [];
+    if (role === 'child') {
+      const check = await validGuardians(db, orgId, payload.guardianUids);
+      if (check.error) return [{ error: check.error }, 400];
+      guardianUids = check.guardianUids;
+    }
+    const { documents: pending } = await db.listDocuments(DB_ID, COL_INVITATIONS, [
+      Query.equal('email', email),
+      Query.equal('orgId', orgId),
+      Query.equal('status', 'pending'),
+      Query.limit(1),
+    ]);
+    if (pending.length > 0) return [{ error: 'invitation_exists' }, 409];
+
+    await db.createDocument(DB_ID, COL_INVITATIONS, ID.unique(), {
+      email,
+      orgId,
+      orgName: org.name ?? '',
+      role,
+      guardianUids,
+      inviterName,
+      invitedByUid: callerId,
+      status: 'pending',
+      createdAt: now.toISOString(),
+    }, [
+      // wie bisher beim Client-Anlegen (Default-ACL des Erstellers)
+      Permission.read(Role.user(callerId)),
+      Permission.update(Role.user(callerId)),
+      Permission.delete(Role.user(callerId)),
+    ]);
+    log(`inviteByEmail: invitation for org ${orgId} by ${callerId}`);
+    return [{ ok: true, result: 'invited' }, 200];
+  }
+
+  // ── Registriert ───────────────────────────────────────────────────────────
+  const targetUid = target.$id;
+  if (target.isChild && role !== 'child') return [{ error: 'child_account_role_locked' }, 400];
+
+  try {
+    await db.getDocument(DB_ID, COL_MEMBERS, `${orgId}_${targetUid}`);
+    return [{ error: 'already_member' }, 409];
+  } catch (e) {
+    if ((e?.code ?? 0) !== 404) throw e;
+  }
+
+  let guardianUids = [];
+  if (role === 'child') {
+    const check = await validGuardians(db, orgId, payload.guardianUids);
+    if (check.error) return [{ error: check.error }, 400];
+    guardianUids = check.guardianUids;
+  }
+
+  // Verifizierte Eltern → deren Zustimmung einholen (on-child-org-invite
+  // benachrichtigt, on-parent-consent legt das Mitglied an).
+  const parentUids = (target.verifiedParentUids ?? []).filter((u) => typeof u === 'string' && u);
+  if (parentUids.length > 0) {
+    const { documents: open } = await db.listDocuments(DB_ID, COL_CONSENTS, [
+      Query.equal('childUid', targetUid),
+      Query.equal('orgId', orgId),
+      Query.equal('status', 'pending'),
+      Query.limit(1),
+    ]).catch(() => ({ documents: [] }));
+    if (open.length > 0) return [{ error: 'consent_pending' }, 409];
+
+    await db.createDocument(DB_ID, COL_CONSENTS, ID.unique(), {
+      childUid: targetUid,
+      childName: target.displayName ?? '',
+      orgId,
+      orgName: org.name ?? '',
+      invitedByUid: callerId,
+      invitedByName: inviterName,
+      proposedGuardianUids: guardianUids,
+      parentUids,
+      status: 'pending',
+      createdAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + 7 * 24 * 3600 * 1000).toISOString(),
+    }, [
+      Permission.read(Role.user(callerId)),
+      Permission.update(Role.user(callerId)),
+      Permission.delete(Role.user(callerId)),
+      // Eltern stimmen direkt am Doc zu bzw. legen ein Veto ein
+      ...parentUids.flatMap((u) => [Permission.read(Role.user(u)), Permission.update(Role.user(u))]),
+    ]);
+    log(`inviteByEmail: consent for ${targetUid} in org ${orgId}`);
+    return [{ ok: true, result: 'consentRequested' }, 200];
+  }
+
+  const [result, status] = await addMemberCore(db, {
+    orgId, targetUid, requested: { role, guardianUids }, isAdmin, log, error,
+  });
+  if (status !== 200) return [result, status];
+  return [{ ...result, result: 'added', targetUid }, 200];
+}
 
 // Guardians eines Kindes: mindestens einer, alle aktive Nicht-Kind-Mitglieder
 // der Org (sonst könnte man beliebige Konten zu Mitlesern eines Kindes machen).

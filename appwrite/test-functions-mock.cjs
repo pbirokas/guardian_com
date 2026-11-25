@@ -149,5 +149,46 @@ const call = async (fn, caller, body, event) => {
   assert.equal(r.s, 200); assert.equal(store.members.o1_Q.uid, 'Q'); assert.deepEqual(store.members.o1_Q.$permissions, ['read("users")']);
   assert.equal((await call(ama, 'M', { action: 'updateRole', orgId: 'o1', targetUid: 'A', payload: { newRole: 'member' } })).s, 403);
   assert.equal((await call(ama, 'M', { action: 'updateGuardians', orgId: 'o1', targetUid: 'C', payload: { guardianUids: ['stranger'] } })).s, 400);
+  // inviteByEmail (Phase 3): Lookup serverseitig
+  store.users.R = { $id: 'R', displayName: 'Rita', email: 'r@x.de' };
+  store.users.K = { $id: 'K', displayName: 'Kim', email: 'k@x.de', isChild: true, verifiedParentUids: ['P'] };
+  assert.equal((await call(ama, 'F', { action: 'inviteByEmail', orgId: 'o1', payload: { email: 'r@x.de' } })).s, 403);
+  assert.equal((await call(ama, 'M', { action: 'inviteByEmail', orgId: 'o1', payload: { email: 'r@x.de', role: 'moderator' } })).s, 403);
+  assert.equal((await call(ama, 'M', { action: 'inviteByEmail', orgId: 'o1', payload: { email: 'kein-mail' } })).s, 400);
+  r = await call(ama, 'M', { action: 'inviteByEmail', orgId: 'o1', payload: { email: ' R@X.de ', role: 'member' } });
+  assert.equal(r.s, 200); assert.equal(r.b.result, 'added'); assert.equal(r.b.targetName, 'Rita');
+  assert.equal(r.b.email, undefined); assert.equal(store.members.o1_R.role, 'member');
+  assert.equal((await call(ama, 'M', { action: 'inviteByEmail', orgId: 'o1', payload: { email: 'r@x.de' } })).s, 409);
+  r = await call(ama, 'M', { action: 'inviteByEmail', orgId: 'o1', payload: { email: 'neu@x.de' } });
+  assert.equal(r.b.result, 'invited'); const inv = Object.values(store.invitations)[0];
+  assert.equal(inv.email, 'neu@x.de'); assert.equal(inv.invitedByUid, 'M'); assert.ok(inv.$permissions.includes('update("user:M")'));
+  assert.equal((await call(ama, 'M', { action: 'inviteByEmail', orgId: 'o1', payload: { email: 'neu@x.de' } })).s, 409);
+  assert.equal((await call(ama, 'M', { action: 'inviteByEmail', orgId: 'o1', payload: { email: 'k@x.de', role: 'member' } })).b.error, 'child_account_role_locked');
+  assert.equal((await call(ama, 'M', { action: 'inviteByEmail', orgId: 'o1', payload: { email: 'k@x.de', role: 'child', guardianUids: ['stranger'] } })).s, 400);
+  r = await call(ama, 'M', { action: 'inviteByEmail', orgId: 'o1', payload: { email: 'k@x.de', role: 'child', guardianUids: ['P'] } });
+  assert.equal(r.b.result, 'consentRequested'); const cons = Object.values(store.org_invite_consents)[0];
+  assert.deepEqual(cons.parentUids, ['P']); assert.ok(cons.$permissions.includes('update("user:P")'));
+  assert.equal(store.members.o1_K, undefined);
   console.log('admin-member-action OK');
+
+  // self-service sendClaim / listRelatives (Phase 3)
+  store.users.P = { $id: 'P', displayName: 'Paula', email: 'p@x.de', verifiedChildUids: ['C', 'S'], fcmToken: 'tok' };
+  store.users.C = { $id: 'C', isChild: true, displayName: 'C', email: 'c@x.de', verifiedParentUids: ['P', 'P2'], fcmToken: 'secret', membershipsJson: '[]' };
+  store.users.P2 = { $id: 'P2', displayName: 'Pit', email: 'p2@x.de', verifiedChildUids: ['C'] };
+  store.users.S = { $id: 'S', displayName: 'Spoof', email: 's@x.de', verifiedParentUids: [] }; // einseitig → unsichtbar
+  r = await call(ss, 'P', { action: 'listRelatives' });
+  assert.equal(r.s, 200); assert.deepEqual(r.b.children.map((c) => c.uid), ['C']);
+  assert.equal(r.b.children[0].fcmToken, undefined); assert.equal(r.b.children[0].membershipsJson, undefined);
+  assert.deepEqual(r.b.children[0].coParents, [{ uid: 'P2', displayName: 'Pit' }]);
+  r = await call(ss, 'C', { action: 'listRelatives' }); assert.deepEqual(r.b.parents.map((p) => p.uid).sort(), ['P', 'P2']);
+  store.claim_requests = {};
+  assert.equal((await call(ss, 'P', { action: 'sendClaim', email: 'nobody@x.de' })).b.error, 'user_not_found');
+  assert.equal((await call(ss, 'P', { action: 'sendClaim', email: 'P@x.de' })).b.error, 'cannot_claim_self');
+  r = await call(ss, 'P', { action: 'sendClaim', email: 'R@x.de ' }); assert.equal(r.s, 200);
+  const cl = store.claim_requests[r.b.requestId];
+  assert.equal(cl.toUid, 'R'); assert.equal(cl.fromName, 'Paula'); assert.equal(cl.status, 'pending');
+  assert.ok(!cl.$permissions.includes('update("user:P")') && cl.$permissions.includes('update("user:R")'));
+  assert.equal(Object.keys(r.b).includes('toUid'), false);
+  assert.equal((await call(ss, 'P', { action: 'sendClaim', email: 'r@x.de' })).b.error, 'already_exists');
+  console.log('self-service Phase 3 OK');
 })().catch((e) => { console.error('FAIL', e); process.exit(1); });

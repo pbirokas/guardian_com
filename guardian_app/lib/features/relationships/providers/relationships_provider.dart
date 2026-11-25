@@ -12,8 +12,6 @@ final parentClaimServiceProvider = Provider<ParentClaimService>((ref) {
     client: client,
     broadcaster: ref.watch(appwriteRealtimeBroadcasterProvider),
     uid: user?.uid ?? '',
-    displayName: user?.displayName ?? '',
-    email: user?.email ?? '',
   );
 });
 

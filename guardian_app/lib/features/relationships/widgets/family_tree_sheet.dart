@@ -240,10 +240,12 @@ class _ChildWithCoParentsTile extends StatelessWidget {
     final name = child['displayName'] as String? ?? '';
     final email = child['email'] as String? ?? '';
     final photoUrl = child['photoUrl'] as String?;
-    final allParentUids =
-        List<String>.from(child['verifiedParentUids'] as List? ?? []);
-    final coParentUids =
-        allParentUids.where((uid) => uid != currentUid).toList();
+    // Mit-Eltern liefert self-service/listRelatives (uid + displayName).
+    final coParentNames = (child['coParents'] as List? ?? [])
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .where((p) => p['uid'] != currentUid)
+        .map((p) => (p['displayName'] as String?) ?? '')
+        .toList();
 
     final initials =
         initialsFor(name, email);
@@ -251,7 +253,7 @@ class _ChildWithCoParentsTile extends StatelessWidget {
     return ListTile(
       leading: UserAvatar(photoUrl: photoUrl, fallbackText: initials),
       title: Text(name.isNotEmpty ? name : email),
-      subtitle: coParentUids.isEmpty
+      subtitle: coParentNames.isEmpty
           ? Row(
               children: [
                 Icon(Icons.person_outlined,
@@ -262,51 +264,34 @@ class _ChildWithCoParentsTile extends StatelessWidget {
                         fontSize: 12, color: Colors.grey[600])),
               ],
             )
-          : _CoParentsSubtitle(uids: coParentUids, l: l),
+          : _CoParentsSubtitle(names: coParentNames, l: l),
     );
   }
 }
 
-// ─── Co-parents subtitle row (async) ─────────────────────────────────────────
+// ─── Co-parents subtitle row ─────────────────────────────────────────────────
 
-class _CoParentsSubtitle extends ConsumerWidget {
-  final List<String> uids;
+class _CoParentsSubtitle extends StatelessWidget {
+  final List<String> names;
   final AppLocalizations l;
 
-  const _CoParentsSubtitle({required this.uids, required this.l});
-
-  Future<List<String>> _loadNames(WidgetRef ref) {
-    final service = ref.read(organizationServiceProvider);
-    return Future.wait(uids.map((u) => service.getUserDisplayName(u)));
-  }
+  const _CoParentsSubtitle({required this.names, required this.l});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return FutureBuilder<List<String>>(
-      future: _loadNames(ref),
-      builder: (ctx, snap) {
-        final names = snap.data;
-        final text = names == null
-            ? '…'
-            : '${l.coParentsLabel}: ${names.join(', ')}';
-        return Row(
-          children: [
-            Icon(Icons.people_outline,
-                size: 12,
-                color: Theme.of(context).colorScheme.secondary),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Text(
-                text,
-                style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.secondary),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        );
-      },
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.secondary;
+    return Row(
+      children: [
+        Icon(Icons.people_outline, size: 12, color: color),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            '${l.coParentsLabel}: ${names.join(', ')}',
+            style: TextStyle(fontSize: 12, color: color),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }

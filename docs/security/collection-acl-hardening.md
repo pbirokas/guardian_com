@@ -73,10 +73,9 @@ Legende: ✅ durch Doc-ACL abgedeckt · 🔧 auf diesem Branch geschlossen · �
 
 Voraussetzung Phase 2: `sup_<orgId>` wird **ACL-Team** (heute nur Cache). Es ist bereits für alle 11 Orgs vorhanden und synchron (Dry-Run Phase 1: 0 fehlend); CLAUDE.md muss dann angepasst werden.
 
-### Phase 3 – users (⏳ geplant)
+### Phase 3 – users (🔧 vorbereitet für App N, siehe §8)
 
-Fremde users-Docs liest der Client heute für: E-Mail-Lookup in `inviteMember` und `sendClaimRequest`; `getUserDisplayName` (Direktchat-Titel, Familienbaum); `_watchRelatives` (verifizierte Eltern/Kinder); `updateMemberRole` (isChild-Check — 🔧 jetzt serverseitig in `admin-member-action/updateRole`, Client-Read entfernt).
-Lösung: Callable für E-Mail-Lookup bzw. Einladen/Claim-Anlegen komplett serverseitig; Anzeigenamen aus Member-Docs; `on-claim-confirmed` gibt Eltern/Kind gegenseitig `read` auf ihr users-Doc. Danach users-Doc nur `user(self)`.
+Fremde users-Docs las der Client für: E-Mail-Lookup in `inviteMember` und `sendClaimRequest`; `getUserDisplayName` (Direktchat-Titel im Share-Picker, Mit-Eltern im Familienbaum); `_watchRelatives` (verifizierte Eltern/Kinder); `updateMemberRole` (isChild-Check — schon serverseitig in `admin-member-action/updateRole`). Alle Pfade laufen jetzt über Functions bzw. Member-Docs; danach users-Collection **ohne** Rechte, Doc-ACL nur `read user(self)`.
 
 ## 4. Kritische Zusatzbefunde (Dokument-Ebene, nicht durch Collection-Rechte verursacht)
 
@@ -176,3 +175,67 @@ Alte Apps sind unbetroffen (sie lesen nur eigene Receipts). Rollback: `mark-as-r
 | T13 | M (Aufsicht, kein Teilnehmer) bzw. Guardian öffnet den Chat | Häkchen bei A ändern sich **nicht**; M sieht in List `read_receipts` (`convId`) die Teilnehmer-Receipts, A/B sehen das Receipt von M nicht |
 | T14 | X (andere Org): List `read_receipts` mit `convId`, Get per bekannter Receipt-ID | leer bzw. 404 |
 | T15 | B: `PATCH` auf eigenes Receipt (`uid` ändern) | 401 (kein `update` mehr) |
+
+## 8. Phase 3 – users: nur noch das eigene Profil lesbar (vorbereitet 2026-11-25, Branch `security/users-acl-phase3`)
+
+**Problem:** Collection `users` hat live `read("users")` (+ `create("users")`). Jedes Konto — Selbstregistrierung per E-Mail-OTP ist offen — liest damit die users-Docs **aller** Nutzer: E-Mail (auch bei `hideEmail`), `isChild`, `verifiedParentUids`/`verifiedChildUids`, `membershipsJson` (welche Orgs, welche Rolle), `notificationSettingsJson`, `fcmToken`. Die Doc-ACL ist schon eng (Dry-Run 2026-11-25: 27 Docs, **0** mit fremdem read; alle 27 tragen noch `update/delete user(self)` → Selbst-Eskalations-Stufe 4).
+
+**Entscheidung (Abweichung vom ursprünglichen Plan):** Statt Eltern/Kind über `on-claim-confirmed` gegenseitig `read` auf das users-Doc zu geben, liefert eine Callable einen **Whitelist-Auszug**. Gründe: ein Doc-read gäbe auch `fcmToken`, `membershipsJson` und Einstellungen preis (Appwrite kennt keine Feld-Rechte); Mit-Eltern (Elternteil sieht den anderen Elternteil seines Kindes) wären damit nicht abgedeckt; jede Verknüpfungs-Änderung (`revoke-connection`) müsste ACLs nachziehen. Invariante jetzt schlicht: **users-Doc = `read user(uid)`, sonst nichts.** `on-claim-confirmed` bleibt unverändert.
+
+### Client-Pfade (alt → neu)
+
+| Pfad | vorher | jetzt |
+|---|---|---|
+| `OrganizationService.inviteMember` (Einladen-Dialog, Adressbuch, CSV-Import) | List `users` per E-Mail, dann Einladung/Consent/`addMember` vom Client | **`admin-member-action/inviteByEmail`** {email, role, guardianUids} — nur Admin/Mod. Ergebnis `invited` (invitations-Doc, ACL wie bisher `rud user(Einladender)`), `consentRequested` (org_invite_consents-Doc mit `read/update user(parentUids)` + `rud user(Einladender)`) oder `added` (wie `addMember`; liefert nur `targetUid`/`targetName` fürs Audit-Log). Fehler: `already_member`, `invitation_exists`, `consent_pending`, `child_account_role_locked`, `invalid_guardians…`, `invalid_email` |
+| `ParentClaimService.sendClaimRequest` | List `users` per E-Mail, Claim vom Client anlegen | **`self-service/sendClaim`** {email} — legt den Claim mit der finalen ACL an (`on-claim-request` läuft weiter für den Push und setzt dieselbe ACL). Fehler wie bisher: `user_not_found`, `cannot_claim_self`, `already_exists`. Antwort nur `requestId` |
+| `ParentClaimService.watchMyChildren/-Parents` | eigenes users-Doc + `getDocument` je Verwandtem | **`self-service/listRelatives`** → `{children: [{uid, displayName, email, photoUrl, coParents: [{uid, displayName}]}], parents: […]}`; nur **gegenseitig** bestätigte Links (sonst könnte man bis Stufe 4 fremde UIDs in die eigenen `verified*Uids` schreiben und deren Profil abfragen). Neu geladen per Realtime auf das **eigene** users-Doc — nur, wenn sich das jeweilige Feld ändert — und beim Resync |
+| Familienbaum: Mit-Eltern | `getUserDisplayName(uid)` je Mit-Elternteil | `coParents` aus `listRelatives` |
+| Share-Picker: Direktchat-Titel | `userDisplayNameProvider(uid)` → users-Doc | `memberDisplayNameProvider((orgId:, uid:))` → Member-Doc `{orgId}_{uid}` (der Partner ist immer Mitglied der Chat-Org) |
+| eigenes users-Doc (Login, Profil, Einstellungen, Adressbuch, Realtime) | `read user(self)` | unverändert |
+
+Server-Functions lesen users-Docs weiter mit API-Key (unberührt). Kein `dart:io`, alles über `callJson`/`executeRaw` → Android, Windows und Web identisch.
+
+**Bleibt offen:** Member-Docs enthalten weiter `email` (außer bei Kindern), `displayName`, `photoUrl` und sind bis Phase 2 für alle Konten lesbar. `sendClaim` verrät weiterhin, ob eine E-Mail registriert ist (`user_not_found`) — wie bisher, aber ohne weitere Daten; bei Bedarf später ein Rate-Limit.
+
+### Rollout (gemeinsam mit Selbst-Eskalation Stufe 2–4 → ein erzwungenes Update)
+
+| Stufe | Aktion | App nötig? |
+|---|---|---|
+| P3-0 | Functions deployen: `self-service` (neu: `sendClaim`, `listRelatives`), `admin-member-action` (neu: `inviteByEmail`) per `node deploy-functions.js --only=self-service,admin-member-action` (Dry-Run → `--confirm`). Rein additiv — alte Apps rufen die neuen Aktionen nicht auf. Smoke-Test U0. Jederzeit vor dem Release | nein |
+| P3-1 | App-Release N (Android + Windows + Web via `npm run deploy-web`) — derselbe Release wie Selbst-Eskalation Stufe 2 | – |
+| P3-2 | Nach `minVersionCode=N` (Selbst-Eskalation Stufe 3), **zusammen mit** Selbst-Eskalation Stufe 4: `node harden-users.js` (Dry-Run, Audit prüfen) → `--confirm=<projectId>` (sichert die alten ACLs nach `appwrite/backups/`; deckungsgleich mit `lock-own-docs.js --only=users` — eins von beiden genügt) | ja (N) |
+| P3-3 | `node fix-permissions.js --after-app-n --phase3 --only=users` (Dry-Run: `[R, C]` → `[]`) → `--confirm=<projectId>` → Tests U1–U8, U1–U3 mit Wegwerf-Konto | ja (N) |
+
+**Live-Stand**
+
+| Datum | Stufe | Was |
+|---|---|---|
+| 2026-11-25 | P3-0 | Deployed (Branch `security/users-acl-phase3`): `self-service` → `6b071619ac8c01c76e6b` (vorher `6af965dee9c083b96c69`), `admin-member-action` → `6b07161a3ff9005c30a0` (vorher `6af965aab7fe9d504de1`). `activate` beim Upload griff nicht (Builds `ready`, alte Version blieb aktiv) → per `PATCH /functions/{id}/deployment` aktiviert; `deploy-functions.js` aktiviert seitdem selbst nach dem Build. U0 ✓ (beide 401 ohne User, auf den neuen Deployments). Kontrolle: alle übrigen Functions laufen auf ihrem neuesten `ready`-Deployment. |
+
+**Windows-Alt-Clients nach P3-3** (keine Update-Pflicht): Einladen eines **registrierten** Kontos legt stattdessen eine Einladung an (übernimmt `process-my-invitations` beim nächsten Login des Eingeladenen); Eltern-Anfrage meldet „nicht gefunden“; Familienbaum leer bzw. Mit-Eltern als UID. Kein Datenverlust.
+
+**Rollback:** Collection `node fix-permissions.js --phase3 --only=users --rollback --confirm=<projectId>` (→ `[R, C]`, Stand 2026-11-14). Doc-ACLs `node harden-users.js --rollback=backups/users-acl-<ts>.json --confirm=<projectId>` (öffnet `update/delete` wieder — nur im Notfall). Functions: vorige Deployments in der Console aktivieren (die neue App braucht die neuen Aktionen — deshalb erst nach erfolgreichem P3-0-Smoke-Test releasen).
+
+### Dry-Run (2026-11-25, nur lesend)
+
+- `harden-users.js`: 27 users-Docs, 27 abweichend — **alle nur** wegen `update/delete user(self)`; 0 mit fremdem read; 0 ohne eigenes read. Audit: 0 Auffälligkeiten (keine doppelten/fehlenden/nicht normalisierten E-Mails, keine einseitigen Eltern-Kind-Links).
+- `fix-permissions.js --after-app-n --phase3 --only=users`: ist `[read("users"), create("users")]` → soll `[]`.
+- Mock-Test `node test-functions-mock.cjs`: `inviteByEmail` (nur Admin/Mod, Moderator darf keinen Moderator einladen, Einladung/Consent/Direkt, Duplikate, Kind-Sperre) und `sendClaim`/`listRelatives` (kein `fcmToken`/`membershipsJson` im Ergebnis, einseitige Links unsichtbar, Claim-ACL ohne `update` für den Anfragenden) ✓.
+
+### Testanleitung
+
+Konten wie §6: A (Admin), M (Moderator), B (registriert, noch nicht in der Org), Elternteil P mit verifiziertem Kind C und Mit-Elternteil P2, **X = Wegwerf-Konto ohne Org** (nach dem Test löschen). Android, Windows und Web.
+
+| # | Stufe | Test | Erwartung |
+|---|---|---|---|
+| U0 | P3-0 | `self-service` mit `{action:"listRelatives"}` ohne Session (Console → Execute ohne User) | 401 |
+| U1 | P3-3 | X per API: `GET …/collections/users/documents` | **nur das eigene Doc** (total 1) |
+| U2 | P3-3 | X: `GET …/collections/users/documents/<uid von A>`; List mit `equal("email", <A>)` | 404 bzw. leer |
+| U3 | P3-3 | X abonniert Realtime `databases.guardian.collections.users.documents`, A ändert sein Profil | kein Event bei X |
+| U4 | P3-0+N | A lädt B ein / eine unregistrierte Adresse / Kind C (mit Guardian) | B sofort Mitglied (Audit-Log mit Namen); Einladungs-Mail; Zustimmungsanfrage bei P und P2 (Push), nach Zustimmung ist C Mitglied |
+| U5 | P3-0+N | M lädt jemanden als Moderator ein; A lädt C als Mitglied ein; dieselbe unregistrierte Adresse zweimal | „Only admin…“; „child_account_role_locked“-Meldung; „bereits ausstehende Einladung“ |
+| U6 | P3-0+N | P sendet Anfrage an unbekannte Adresse / eigene Adresse / zweimal an dieselbe; C bestätigt | „nicht gefunden“ / Fehler / „existiert bereits“; nach Bestätigung erscheinen C bei P und P bei C **live** (Familienbaum + Verknüpfungen) |
+| U7 | P3-0+N | Familienbaum bei P: Kind C mit Mit-Elternteil P2; dann Verknüpfung lösen | Name von P2 sichtbar; nach dem Lösen verschwindet C live |
+| U8 | N | Android: Bild in einen Direktchat teilen | Share-Picker zeigt den Namen des Gegenübers (nicht die UID) |
+
+Schlagen U4–U8 nach P3-3 fehl: sofort Collection-Rollback (oben), dann Function-Logs prüfen.

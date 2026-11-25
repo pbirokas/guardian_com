@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:appwrite/appwrite.dart';
-import '../appwrite_client.dart' show RealtimeBroadcaster, FunctionsRawExecution;
+import '../appwrite_client.dart'
+    show RealtimeBroadcaster, FunctionsRawExecution, FunctionCallException;
 import '../models/child_summary.dart';
 import '../models/claim_request.dart';
 import '../models/org_invite_consent.dart';
@@ -20,21 +21,15 @@ class ParentClaimService {
     required Client client,
     required RealtimeBroadcaster broadcaster,
     required String uid,
-    required String displayName,
-    required String email,
   })  : _db = Databases(client),
         _broadcaster = broadcaster,
         _functions = Functions(client),
-        _uid = uid,
-        _displayName = displayName,
-        _email = email;
+        _uid = uid;
 
   final Databases _db;
   final RealtimeBroadcaster _broadcaster;
   final Functions _functions;
   final String _uid;
-  final String _displayName;
-  final String _email;
 
   static const _dbId = 'guardian';
   static const _colUsers = 'users';
@@ -85,45 +80,21 @@ class ParentClaimService {
   // Outgoing claim requests (parent perspective)
   // ──────────────────────────────────────────────────────────────────────────
 
+  /// Anfrage per E-Mail des Kindes — Lookup und Anlegen serverseitig
+  /// (`self-service/sendClaim`); fremde users-Docs sind nicht lesbar.
   Future<void> sendClaimRequest(String childEmail) async {
-    final normalized = childEmail.toLowerCase().trim();
-
-    final res = await _db.listDocuments(
-      databaseId: _dbId,
-      collectionId: _colUsers,
-      queries: [Query.equal('email', normalized), Query.limit(1)],
-    );
-    if (res.documents.isEmpty) throw const _ClaimException('user_not_found');
-
-    final childUid = res.documents.first.$id;
-    if (childUid == _uid) throw const _ClaimException('cannot_claim_self');
-
-    // Duplicate check client-side (OR-query not supported in Appwrite)
-    final existing = await _db.listDocuments(
-      databaseId: _dbId,
-      collectionId: _colClaims,
-      queries: [Query.equal('fromUid', _uid), Query.equal('status', 'pending')],
-    );
-    if (existing.documents.any((d) => d.data['toUid'] == childUid)) {
-      throw const _ClaimException('already_exists');
+    try {
+      await _functions.callJson('self-service', {
+        'action': 'sendClaim',
+        'email': childEmail.toLowerCase().trim(),
+      });
+    } on FunctionCallException catch (e) {
+      if (const {'user_not_found', 'cannot_claim_self', 'already_exists'}
+          .contains(e.message)) {
+        throw _ClaimException(e.message);
+      }
+      rethrow;
     }
-
-    final now = DateTime.now().toUtc();
-    await _db.createDocument(
-      databaseId: _dbId,
-      collectionId: _colClaims,
-      documentId: ID.unique(),
-      data: {
-        'fromUid': _uid,
-        'fromName': _displayName,
-        'fromEmail': _email,
-        'toUid': childUid,
-        'toEmail': normalized,
-        'status': 'pending',
-        'createdAt': now.toIso8601String(),
-        'expiresAt': now.add(const Duration(days: 7)).toIso8601String(),
-      },
-    );
   }
 
   Future<void> cancelClaimRequest(String requestId) =>
@@ -176,34 +147,29 @@ class ParentClaimService {
   // ──────────────────────────────────────────────────────────────────────────
 
   Stream<List<Map<String, dynamic>>> watchMyChildren() =>
-      _watchRelatives('verifiedChildUids');
+      _watchRelatives('children', 'verifiedChildUids');
 
   Stream<List<Map<String, dynamic>>> watchMyParents() =>
-      _watchRelatives('verifiedParentUids');
+      _watchRelatives('parents', 'verifiedParentUids');
 
-  /// Watches [field] on the current user doc and fetches each referenced user.
-  Stream<List<Map<String, dynamic>>> _watchRelatives(String field) {
+  /// Verifizierte Verwandte über `self-service/listRelatives` (Profil-Auszug
+  /// uid/displayName/email/photoUrl, bei Kindern zusätzlich `coParents`) —
+  /// fremde users-Docs sind nicht lesbar. Neu geladen wird, wenn sich
+  /// [field] im eigenen users-Doc ändert (Realtime) oder beim Resync.
+  Stream<List<Map<String, dynamic>>> _watchRelatives(String key, String field) {
     late StreamController<List<Map<String, dynamic>>> ctrl;
     StreamSubscription? realtimeSub;
+    String? lastUids;
 
     Future<void> reload() async {
       if (ctrl.isClosed) return;
       try {
-        final doc = await _db.getDocument(
-            databaseId: _dbId, collectionId: _colUsers, documentId: _uid);
-        final uids =
-            List<String>.from(doc.data[field] as List? ?? []);
-        if (uids.isEmpty) {
-          if (!ctrl.isClosed) ctrl.add([]);
-          return;
-        }
-        final docs = await Future.wait(
-          uids.map((u) => _db.getDocument(
-              databaseId: _dbId, collectionId: _colUsers, documentId: u)),
-        );
-        if (!ctrl.isClosed) {
-          ctrl.add(docs.map((d) => {'uid': d.$id, ...d.data}).toList());
-        }
+        final result =
+            await _functions.callJson('self-service', {'action': 'listRelatives'});
+        final list = (result[key] as List? ?? [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+        if (!ctrl.isClosed) ctrl.add(list);
       } catch (e) {
         if (!ctrl.isClosed) ctrl.addError(e);
       }
@@ -217,7 +183,18 @@ class ParentClaimService {
     ctrl = StreamController(onCancel: dispose);
     realtimeSub = _broadcaster
         .stream('databases.$_dbId.collections.$_colUsers.documents.$_uid')
-        .listen((_) => reload(), onDone: dispose, onError: (_) {});
+        .listen((msg) {
+      // Das eigene users-Doc ändert sich oft (fcmToken, Einstellungen) —
+      // nur neu laden, wenn sich die Verknüpfungen geändert haben.
+      // Leeres Resync-Event (events leer) lädt immer.
+      final uids = msg.events.isEmpty ? null : msg.payload[field];
+      if (uids is List) {
+        final joined = uids.join(',');
+        if (joined == lastUids) return;
+        lastUids = joined;
+      }
+      reload();
+    }, onDone: dispose, onError: (_) {});
     reload();
     return ctrl.stream;
   }

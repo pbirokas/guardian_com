@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:appwrite/appwrite.dart' hide Organization;
-import 'package:appwrite/models.dart' as aw;
 import '../appwrite_client.dart' show RealtimeBroadcaster, FunctionsRawExecution;
 import '../models/announcement.dart';
 import '../models/app_user.dart';
@@ -11,7 +10,6 @@ import '../models/member_suggestion.dart';
 import '../models/notification_settings.dart';
 import '../models/organization.dart';
 import '../models/org_member.dart';
-import '../models/org_invite_consent.dart';
 import '../models/org_audit_entry.dart';
 
 class OrganizationService {
@@ -43,7 +41,6 @@ class OrganizationService {
   static const _colMembers = 'members';
   static const _colInvitations = 'invitations';
   static const _colAnnouncements = 'announcements';
-  static const _colOrgConsents = 'org_invite_consents';
   static const _colAuditLog = 'audit_log';
 
   // ── Realtime helper ────────────────────────────────────────────────────────
@@ -356,148 +353,47 @@ class OrganizationService {
 
   // ── Einladungen ────────────────────────────────────────────────────────────
 
+  /// Einladen per E-Mail. Lookup des Kontos, Einladung (nicht registriert),
+  /// Eltern-Zustimmung (verifizierte Eltern) bzw. direktes Hinzufügen laufen
+  /// komplett in `admin-member-action/inviteByEmail` — der Client darf fremde
+  /// users-Docs nicht lesen (Phase 3 der Collection-Härtung).
   Future<void> inviteMember(String orgId, String email, OrgRole role,
       {List<String> guardianUids = const []}) async {
-    final normalizedEmail = email.toLowerCase().trim();
-    var isChild = role == OrgRole.child;
-    if (isChild && guardianUids.isEmpty) {
+    if (role == OrgRole.child && guardianUids.isEmpty) {
       throw Exception(
           'Für ein Kind muss mindestens ein Guardian ausgewählt werden.');
     }
 
-    // Org-Name laden
-    final orgDoc = await _db.getDocument(
-        databaseId: _dbId, collectionId: _colOrgs, documentId: orgId);
-    final orgName = orgDoc.data['name'] as String? ?? '';
-
-    // Prüfen ob User bereits in Appwrite registriert ist
-    final usersResult = await _db.listDocuments(
-      databaseId: _dbId,
-      collectionId: 'users',
-      queries: [Query.equal('email', normalizedEmail), Query.limit(1)],
-    );
-
-    if (usersResult.documents.isEmpty) {
-      // Noch nicht registriert → Einladung anlegen
-      final existing = await _db.listDocuments(
-        databaseId: _dbId,
-        collectionId: _colInvitations,
-        queries: [
-          Query.equal('email', normalizedEmail),
-          Query.equal('orgId', orgId),
-          Query.equal('status', 'pending'),
-          Query.limit(1),
-        ],
-      );
-      if (existing.documents.isNotEmpty) {
-        throw Exception(
-            'Für diese E-Mail gibt es bereits eine ausstehende Einladung.');
-      }
-      await _db.createDocument(
-        databaseId: _dbId,
-        collectionId: _colInvitations,
-        documentId: ID.unique(),
-        data: {
-          'email': normalizedEmail,
-          'orgId': orgId,
-          'orgName': orgName,
+    final result = await _callAdminMemberAction('inviteByEmail', orgId,
+        payload: {
+          'email': email.toLowerCase().trim(),
           'role': role.name,
           'guardianUids': guardianUids,
-          'inviterName': _displayName,
-          'invitedByUid': _uid,
-          'status': 'pending',
-          'createdAt': DateTime.now().toUtc().toIso8601String(),
-        },
-      );
-      return;
+        });
+    switch (result['error']) {
+      case null:
+        break;
+      case 'already_member':
+        throw Exception('Dieser Benutzer ist bereits Mitglied.');
+      case 'invitation_exists':
+        throw Exception(
+            'Für diese E-Mail gibt es bereits eine ausstehende Einladung.');
+      case 'consent_pending':
+        throw Exception(
+            'Die Eltern dieses Kindes wurden bereits um Zustimmung gebeten.');
+      case 'child_account_role_locked':
+        throw Exception('child_account_role_locked');
+      default:
+        throw Exception(result['error'] as String);
     }
 
-    // Bereits registriert → direkt hinzufügen
-    final userDoc = usersResult.documents.first;
-    final userData = userDoc.data;
-    final targetUid = userDoc.$id;
-
-    final isChildAccount = userData['isChild'] as bool? ?? false;
-    if (isChildAccount && role != OrgRole.child) {
-      throw Exception('child_account_role_locked');
+    if (result['result'] == 'added') {
+      unawaited(_logAuditEvent(orgId, AuditAction.memberConfirmed, {
+        'targetUid': result['targetUid'],
+        'targetName': result['targetName'] ?? email,
+        'role': result['role'] ?? role.name,
+      }));
     }
-    final effectiveRole = isChildAccount ? OrgRole.child : role;
-    isChild = effectiveRole == OrgRole.child;
-    if (isChild && guardianUids.isEmpty) {
-      throw Exception(
-          'Für ein Kind muss mindestens ein Guardian ausgewählt werden.');
-    }
-
-    final memberId = '${orgId}_$targetUid';
-    final existing = await _safeGetDocument(_colMembers, memberId);
-    if (existing != null) {
-      throw Exception('Dieser Benutzer ist bereits Mitglied.');
-    }
-
-    // Eltern des Kindes → OrgInviteConsent einholen
-    final parentUids =
-        List<String>.from(userData['verifiedParentUids'] as List? ?? []);
-    if (parentUids.isNotEmpty) {
-      final now = DateTime.now().toUtc();
-      await _db.createDocument(
-        databaseId: _dbId,
-        collectionId: _colOrgConsents,
-        documentId: ID.unique(),
-        data: OrgInviteConsent(
-          id: '',
-          childUid: targetUid,
-          childName: userData['displayName'] as String? ?? '',
-          orgId: orgId,
-          orgName: orgName,
-          invitedByUid: _uid,
-          invitedByName: _displayName,
-          proposedGuardianUids: guardianUids,
-          parentUids: parentUids,
-          status: OrgInviteConsentStatus.pending,
-          createdAt: now,
-          expiresAt: now.add(const Duration(days: 7)),
-        ).toAppwrite(),
-      );
-      return;
-    }
-
-    final memberStatus = isChild ? MemberStatus.pending : MemberStatus.active;
-
-    final memberData = {
-      ...OrgMember(
-        uid: targetUid,
-        displayName: userData['displayName'] as String? ??
-            userData['email'] as String,
-        // Email nur für Nicht-Kinder speichern — Minderjährigendaten werden nicht
-        // in für alle Org-Mitglieder lesbaren Docs persistiert (HIGH #3 / DSGVO).
-        email: isChild ? '' : (userData['email'] as String? ?? ''),
-        photoUrl: userData['photoUrl'] as String?,
-        role: effectiveRole,
-        joinedAt: DateTime.now().toUtc(),
-        guardianUids: isChild ? guardianUids : [],
-        status: memberStatus,
-      ).toAppwrite(),
-      'orgId': orgId,
-    };
-
-    // Cloud Function erstellt den Member-Doc mit korrekten per-user Permissions
-    // (admin-member-action mit API-Key). Client kann keine user:targetUid Permissions
-    // für fremde UIDs setzen (Appwrite-Einschränkung).
-    final result = await _callAdminMemberAction('addMember', orgId,
-        targetUid: targetUid, payload: {'memberData': memberData, 'isChild': isChild});
-    if (result['error'] == 'already_member') {
-      throw Exception('Dieser Benutzer ist bereits Mitglied.');
-    }
-    if (result['error'] != null) {
-      throw Exception(result['error'] as String);
-    }
-
-    final targetName = userData['displayName'] as String? ?? normalizedEmail;
-    unawaited(_logAuditEvent(orgId, AuditAction.memberConfirmed, {
-      'targetUid': targetUid,
-      'targetName': targetName,
-      'role': effectiveRole.name,
-    }));
   }
 
   Future<void> cancelInvitation(String inviteId) async {
@@ -797,13 +693,18 @@ class OrganizationService {
     return ctrl.stream;
   }
 
-  // ── User Display Name ──────────────────────────────────────────────────────
+  // ── Anzeigename eines Org-Mitglieds ────────────────────────────────────────
 
-  Future<String> getUserDisplayName(String uid) async {
+  /// Anzeigename aus dem Member-Doc `{orgId}_{uid}` — fremde users-Docs sind
+  /// für Clients nicht lesbar (Phase 3 der Collection-Härtung).
+  Future<String> getMemberDisplayName(String orgId, String uid) async {
     try {
       final doc = await _db.getDocument(
-          databaseId: _dbId, collectionId: 'users', documentId: uid);
-      return doc.data['displayName'] as String? ?? uid;
+          databaseId: _dbId,
+          collectionId: _colMembers,
+          documentId: '${orgId}_$uid');
+      final name = doc.data['displayName'] as String?;
+      return (name == null || name.isEmpty) ? uid : name;
     } catch (_) {
       return uid;
     }
@@ -834,16 +735,6 @@ class OrganizationService {
       return Map<String, dynamic>.from(jsonDecode(body) as Map);
     } catch (e) {
       return {'error': e.toString()};
-    }
-  }
-
-  Future<aw.Document?> _safeGetDocument(String col, String docId) async {
-    try {
-      return await _db.getDocument(
-          databaseId: _dbId, collectionId: col, documentId: docId);
-    } on AppwriteException catch (e) {
-      if (e.code == 404) return null;
-      rethrow;
     }
   }
 

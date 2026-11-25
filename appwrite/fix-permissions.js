@@ -26,6 +26,8 @@
  *        → Notfall: alte (breite) Rechte aus LEGACY_BEFORE wiederherstellen
  *   node fix-permissions.js --after-app-n --only=conversations,members,users [--confirm=…]
  *        → Collection-`create` entziehen (erst nach App N + minVersionCode)
+ *   node fix-permissions.js --phase3 --only=users [--confirm=…]
+ *        → Phase 3: users ohne Collection-Rechte (nach App N, mit/nach --after-app-n)
  *   node fix-permissions.js --bootstrap --confirm=<projectId>
  *        → einmalige Alt-Schritte (Media-Bucket, pendingReportsCount-Attribut)
  *
@@ -108,6 +110,16 @@ if (AFTER_APP_N) {
   });
 }
 
+// ── Phase 3 (users): Collection-read entziehen — mit derselben App N wie die
+// Selbst-Eskalations-Stufe 4 (`--phase3`, siehe collection-acl-hardening.md
+// §8). Die App liest fremde users-Docs dann nicht mehr (Functions
+// self-service/listRelatives+sendClaim, admin-member-action/inviteByEmail,
+// Anzeigenamen aus Member-Docs). Doc-ACLs vorher mit harden-users.js prüfen.
+const PHASE3 = args.includes('--phase3');
+if (PHASE3) {
+  TARGET.users = { name: 'Users', permissions: [] };
+}
+
 // ── Noch NICHT gehärtet (Phase 2/3) — wird von diesem Skript nicht angefasst ──
 // Werte = Live-Stand 2026-11-14 (auch Rollback-Ziel für TARGET-Collections).
 const LEGACY_BEFORE = {
@@ -176,7 +188,7 @@ async function applyCollections() {
   console.log(`\n${changes} Collection(s) ${DRY ? 'würden geändert' : 'geändert'}.`);
   if (DRY && changes) {
     const only = ONLY ? ` --only=${ONLY.join(',')}` : '';
-    console.log(`Ausführen: node fix-permissions.js${only}${AFTER_APP_N ? ' --after-app-n' : ''}${ROLLBACK ? ' --rollback' : ''} --confirm=${projectId}`);
+    console.log(`Ausführen: node fix-permissions.js${only}${AFTER_APP_N ? ' --after-app-n' : ''}${PHASE3 ? ' --phase3' : ''}${ROLLBACK ? ' --rollback' : ''} --confirm=${projectId}`);
   }
 }
 

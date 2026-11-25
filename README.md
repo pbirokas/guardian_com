@@ -116,7 +116,7 @@ Eltern und Kinder können eine **globale, organisationsunabhängige** Verknüpfu
 
 | Schritt | Wer | Was passiert |
 |---|---|---|
-| **1. Anfrage senden** | Elternteil | Öffnet *Profil → Meine Verknüpfungen*, gibt E-Mail des Kindes ein → `ClaimRequest` wird erstellt (7 Tage gültig), Kind erhält Push-Benachrichtigung |
+| **1. Anfrage senden** | Elternteil | Öffnet *Profil → Meine Verknüpfungen*, gibt E-Mail des Kindes ein → der Server sucht das Konto und legt die `ClaimRequest` an (7 Tage gültig), Kind erhält Push-Benachrichtigung |
 | **2. Anfrage bestätigen** | Kind | Sieht eingehende Anfrage in *Meine Verknüpfungen*, bestätigt oder lehnt ab |
 | **3. Verknüpfung aktiv** | System | Cloud Function aktualisiert beide Konten (`verifiedParentUids` / `verifiedChildUids`), Elternteil erhält Bestätigungs-Push |
 | **4. Verknüpfung aufheben** | Elternteil | Nur Elternteile können die Verbindung trennen — Kinder haben kein Recht zur Aufhebung |
@@ -426,7 +426,7 @@ Datenbank-ID: `guardian`
 Alle Collections sind flach (keine Subcollections). Verweise erfolgen über IDs.
 
 ```
-users/{$id}
+users/{$id}                     ← nur für den Eigentümer lesbar; fremde Profile nur über Functions
   email, displayName, photoUrl
   isChild                       ← Kind-Konto (sperrt nicht-Kind-Rollen)
   verifiedParentUids[]          ← Verifizierte Eltern (konto-übergreifend)
@@ -551,11 +551,11 @@ Alle Functions laufen in Appwrite (Node.js 16). Event-getriggerte Functions reag
 | `on-org-admin-transferred` | DB Update `organizations` | Synchronisiert Berechtigungen nach Admin-Übertragung |
 | `on-child-org-invite` | DB Create `org_invite_consents` | Push an alle verifizierten Eltern bei Org-Einladung des Kindes |
 | `on-parent-consent` | DB Update `org_invite_consents` | Bei Genehmigung: Kind als `pending`-Mitglied hinzufügen; Push an Admin |
-| `self-service` | Callable | Eigene Daten ändern (Profil, Benachrichtigungen, FCM-Token, Intervalle, Org gründen, users-Doc anlegen, Eltern-Anfrage beantworten) — users-/Member-Docs sind für Clients nur lesbar |
+| `self-service` | Callable | Eigene Daten ändern (Profil, Benachrichtigungen, FCM-Token, Intervalle, Org gründen, users-Doc anlegen, Eltern-Anfrage senden/beantworten) und verifizierte Verwandte abrufen (`listRelatives`) — users-/Member-Docs sind für Clients nur lesbar, fremde users-Docs gar nicht |
 | `conversation-action` | Callable | Alle Chat-Schreibaktionen (anlegen, genehmigen/ablehnen, archivieren, Gruppe bearbeiten, Mitglieder, Pin) mit Rollenprüfung — Conversations sind für Clients nur lesbar |
 | `set-reaction` | Callable | Eigene Reaktion auf Nachricht/Ankündigung bzw. Termin-Zusage setzen (keine Feld-Rechte in Appwrite) |
 | `moderate-message` | Callable | Admin/Mod archiviert oder löscht eine fremde Nachricht |
-| `admin-member-action` | Callable | Privilegierte Mitglieds-/Org-Aktionen inkl. Chat löschen und Kind-Einladung ablehnen |
+| `admin-member-action` | Callable | Privilegierte Mitglieds-/Org-Aktionen inkl. Einladen per E-Mail (`inviteByEmail`, Lookup serverseitig), Chat löschen und Kind-Einladung ablehnen |
 | `process-my-invitations` | Callable | Verarbeitet ausstehende Einladungen beim Login |
 | `get-child-summary` | Callable | Gibt Aktivitätszusammenfassung eines Kindes zurück (24 h / 7 Tage) |
 | `revoke-connection` | Callable | Trennt eine verifizierte Eltern-Kind-Verbindung |

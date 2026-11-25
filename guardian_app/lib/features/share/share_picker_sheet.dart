@@ -206,7 +206,8 @@ class _ShareConvTile extends ConsumerWidget {
     if (personal != null && personal.isNotEmpty) return personal;
     if (conv.isGroup) return conv.name ?? '';
     if (partnerUid != null) {
-      final nameAsync = ref.watch(userDisplayNameProvider(partnerUid!));
+      final nameAsync = ref.watch(
+          memberDisplayNameProvider((orgId: conv.orgId, uid: partnerUid!)));
       return nameAsync.value ?? conv.name ?? partnerUid!;
     }
     return conv.name ?? conv.id;

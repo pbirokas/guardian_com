@@ -95,8 +95,11 @@ final announcementsProvider =
   return ref.watch(organizationServiceProvider).watchAnnouncements(orgId);
 });
 
-/// Display-Name eines beliebigen Nutzers (gecacht pro UID durch Riverpod)
-final userDisplayNameProvider =
-    FutureProvider.family<String, String>((ref, uid) {
-  return ref.watch(organizationServiceProvider).getUserDisplayName(uid);
+/// Anzeigename eines Org-Mitglieds aus dessen Member-Doc (gecacht pro
+/// Org+UID). Fremde users-Docs sind für Clients nicht lesbar.
+final memberDisplayNameProvider =
+    FutureProvider.family<String, ({String orgId, String uid})>((ref, key) {
+  return ref
+      .watch(organizationServiceProvider)
+      .getMemberDisplayName(key.orgId, key.uid);
 });

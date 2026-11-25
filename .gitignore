@@ -55,6 +55,7 @@ guardian_app/android/key.properties
 
 # Appwrite
 appwrite/node_modules/
+appwrite/backups/
 appwrite/functions/**/node_modules/
 appwrite/functions/**/.appwrite/
 # Firebase Admin SDK Service-Account-Keys (privater RSA-Schlüssel, niemals committen!)

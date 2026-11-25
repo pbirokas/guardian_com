@@ -71,7 +71,7 @@ Appwrite kennt keine Feld-Rechte: wer `update` auf ein Dokument hat, darf **jede
 
 | Collection | Collection-Rechte | Doc-ACL | geschrieben von |
 |---|---|---|---|
-| users | `read("users")` (Phase 3 entzieht read) | `read user(uid)` | `self-service`, `on-claim-confirmed`, `revoke-connection`, `admin-member-action`, … |
+| users | `read("users")` (Phase 3 entzieht read, siehe collection-acl-hardening.md §8) | `read user(uid)` | `self-service`, `on-claim-confirmed`, `revoke-connection`, `admin-member-action`, … |
 | members | `read("users")` (Phase 2 engt read ein) | `read("users")` | `self-service`, `admin-member-action`, `process-my-invitations`, `on-parent-consent`, `on-new-message` (Alert-Zeitstempel) |
 | conversations | – | `read team(convId)` | `conversation-action`, `admin-member-action`, `sync-*`, `on-member-guardians-changed`, `on-new-message` |
 | claim_requests | `create("users")` | `read/delete user(from)`, `read/update user(to)` | Client (create), `self-service/respondClaim` |
@@ -92,7 +92,7 @@ Reihenfolge so gewählt, dass die kritischen Lücken (A1, D, E) **vor** dem App-
 | 1 | `cd appwrite && node lock-own-docs.js` (Dry-Run, **Audit-Liste prüfen**) → `node lock-own-docs.js --only=members,claims --confirm=<projectId>` | verliert: Benachrichtigungs-Intervalle je Org ändern (Fehlermeldung), Anzeigename/„E-Mail verbergen“ in Member-Docs (still), Eltern-Anfrage zurückziehen (Fehlermeldung). **Bewusst vor dem Release** — A1/E sind kritisch. |
 | 2 | App-Release N (Android **und** Windows; `feature/web-app` rebasen) | – |
 | 3 | `app_config/android`: erst `latestVersionCode=N`; nach Verfügbarkeit + Adoptionsphase `minVersionCode=N` | – |
-| 4 | **Zuerst** `CONV_LEGACY_TEAM_WRITE` von `sync-conversation-permissions` entfernen (+ Redeploy/Restart), dann `node lock-own-docs.js --only=users,conversations --confirm=<projectId>` und `node fix-permissions.js --after-app-n --only=conversations,members,users --confirm=<projectId>` | Android: gesperrt (Update-Pflicht). Windows-Alt-Clients: Profil, Push-Einstellungen, alle Chat-Aktionen außer Senden/Lesen schlagen fehl, Senden zeigt eine Fehlermeldung (Nachricht kommt trotzdem an), neue Konten/Orgs anlegen geht nicht → Windows-Nutzer vorher informieren |
+| 4 | **Zuerst** `CONV_LEGACY_TEAM_WRITE` von `sync-conversation-permissions` entfernen (+ Redeploy/Restart), dann `node lock-own-docs.js --only=users,conversations --confirm=<projectId>` und `node fix-permissions.js --after-app-n --only=conversations,members,users --confirm=<projectId>` (mit Phase 3 zusätzlich `--phase3` → users `[]` statt `[R]`, plus `harden-users.js`; siehe collection-acl-hardening.md §8) | Android: gesperrt (Update-Pflicht). Windows-Alt-Clients: Profil, Push-Einstellungen, alle Chat-Aktionen außer Senden/Lesen schlagen fehl, Senden zeigt eine Fehlermeldung (Nachricht kommt trotzdem an), neue Konten/Orgs anlegen geht nicht → Windows-Nutzer vorher informieren |
 
 **Rollback:** Functions per Appwrite-Console auf die vorige Deployment aktivieren. Collection-Rechte: `node fix-permissions.js --after-app-n --only=<col> --rollback --confirm=<projectId>`. Doc-ACLs haben kein automatisches Rollback (bewusst — sie wieder zu öffnen hieße, die Lücke zu öffnen); einzelne Docs notfalls per Console.
 

@@ -113,9 +113,11 @@ async function idx(col, key, type, attributes, orders = []) {
 // ─── Schema-Definitionen ──────────────────────────────────────────────────────
 
 async function setupUsers() {
-  // Collection-Level read für alle eingeloggten Nutzer (nötig für Display-Name-Lookup,
-  // Org-Mitgliederlisten etc.). Schreiben nur per Document-Permission (auth_service.dart).
-  await createCollection(COL.USERS, 'Users', [Permission.read(Role.users())]);
+  // Keine Collection-Rechte (Phase 3 der Collection-Härtung): Doc-ACL nur
+  // read user(uid); fremde Profile liefern Functions (self-service/listRelatives,
+  // admin-member-action/inviteByEmail), Anzeigenamen kommen aus Member-Docs.
+  // Rechte bestehender Collections pflegt fix-permissions.js.
+  await createCollection(COL.USERS, 'Users', []);
   // Felder
   await str(COL.USERS,  'email',              255, true);
   await str(COL.USERS,  'displayName',        100, true);

@@ -206,6 +206,12 @@ Server-Functions lesen users-Docs weiter mit API-Key (unberührt). Kein `dart:io
 | P3-2 | Nach `minVersionCode=N` (Selbst-Eskalation Stufe 3), **zusammen mit** Selbst-Eskalation Stufe 4: `node harden-users.js` (Dry-Run, Audit prüfen) → `--confirm=<projectId>` (sichert die alten ACLs nach `appwrite/backups/`; deckungsgleich mit `lock-own-docs.js --only=users` — eins von beiden genügt) | ja (N) |
 | P3-3 | `node fix-permissions.js --after-app-n --phase3 --only=users` (Dry-Run: `[R, C]` → `[]`) → `--confirm=<projectId>` → Tests U1–U8, U1–U3 mit Wegwerf-Konto | ja (N) |
 
+**Live-Stand**
+
+| Datum | Stufe | Was |
+|---|---|---|
+| 2026-11-25 | P3-0 | Deployed (Branch `security/users-acl-phase3`): `self-service` → `6b071619ac8c01c76e6b` (vorher `6af965dee9c083b96c69`), `admin-member-action` → `6b07161a3ff9005c30a0` (vorher `6af965aab7fe9d504de1`). `activate` beim Upload griff nicht (Builds `ready`, alte Version blieb aktiv) → per `PATCH /functions/{id}/deployment` aktiviert; `deploy-functions.js` aktiviert seitdem selbst nach dem Build. U0 ✓ (beide 401 ohne User, auf den neuen Deployments). Kontrolle: alle übrigen Functions laufen auf ihrem neuesten `ready`-Deployment. |
+
 **Windows-Alt-Clients nach P3-3** (keine Update-Pflicht): Einladen eines **registrierten** Kontos legt stattdessen eine Einladung an (übernimmt `process-my-invitations` beim nächsten Login des Eingeladenen); Eltern-Anfrage meldet „nicht gefunden“; Familienbaum leer bzw. Mit-Eltern als UID. Kein Datenverlust.
 
 **Rollback:** Collection `node fix-permissions.js --phase3 --only=users --rollback --confirm=<projectId>` (→ `[R, C]`, Stand 2026-11-14). Doc-ACLs `node harden-users.js --rollback=backups/users-acl-<ts>.json --confirm=<projectId>` (öffnet `update/delete` wieder — nur im Notfall). Functions: vorige Deployments in der Console aktivieren (die neue App braucht die neuen Aktionen — deshalb erst nach erfolgreichem P3-0-Smoke-Test releasen).

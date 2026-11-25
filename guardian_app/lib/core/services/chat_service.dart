@@ -326,7 +326,76 @@ class ChatService {
     ctrl = StreamController(onCancel: dispose);
     realtimeSub = _broadcaster
         .stream('databases.$_dbId.collections.$_colReceipts.documents')
-        .listen((_) => reload(), onDone: dispose, onError: (_) {});
+        .listen((msg) {
+      // Seit die Receipts im Chat-Team lesbar sind, kommen hier auch die
+      // Lese-Events der anderen Teilnehmer an — nur eigene (oder das leere
+      // Resync-Event nach reconnect()) betreffen die Ungelesen-Badges.
+      if (msg.events.isNotEmpty && msg.payload['uid'] != _uid) return;
+      reload();
+    }, onDone: dispose, onError: (_) {});
+    reload();
+    return ctrl.stream;
+  }
+
+  /// Lesezeitpunkte der **anderen Teilnehmer** eines Chats: Map<uid, readAt>.
+  ///
+  /// Lesbar sind nur Receipts mit `read team(convId)` — die setzt `mark-as-read`
+  /// ausschließlich für Teilnehmer. Lesezeiten von Guardians und Aufsicht bleiben
+  /// privat und tauchen hier nie auf. Realtime-Events werden direkt aus dem
+  /// Payload übernommen; das leere Resync-Event lädt neu.
+  Stream<Map<String, DateTime>> watchConversationReadReceipts(String convId) {
+    late StreamController<Map<String, DateTime>> ctrl;
+    StreamSubscription? realtimeSub;
+    final map = <String, DateTime>{};
+
+    DateTime? parse(Object? raw) =>
+        raw is String ? DateTime.tryParse(raw)?.toLocal() : null;
+
+    Future<void> reload() async {
+      if (ctrl.isClosed) return;
+      try {
+        final result = await _db.listDocuments(
+          databaseId: _dbId,
+          collectionId: _colReceipts,
+          queries: [Query.equal('convId', convId), Query.limit(500)],
+        );
+        map.clear();
+        for (final doc in result.documents) {
+          final uid = doc.data['uid'] as String?;
+          final readAt = parse(doc.data['readAt']);
+          if (uid != null && uid != _uid && readAt != null) map[uid] = readAt;
+        }
+        if (!ctrl.isClosed) ctrl.add(Map.unmodifiable(map));
+      } catch (e) {
+        if (!ctrl.isClosed) ctrl.addError(e);
+      }
+    }
+
+    void dispose() {
+      realtimeSub?.cancel();
+      ctrl.close();
+    }
+
+    ctrl = StreamController(onCancel: dispose);
+    realtimeSub = _broadcaster
+        .stream('databases.$_dbId.collections.$_colReceipts.documents')
+        .listen((msg) {
+      if (msg.events.isEmpty) {
+        reload();
+        return;
+      }
+      if (msg.payload['convId'] != convId) return;
+      final uid = msg.payload['uid'] as String?;
+      if (uid == null || uid == _uid) return;
+      if (msg.events.any((e) => e.endsWith('.delete'))) {
+        map.remove(uid);
+      } else {
+        final readAt = parse(msg.payload['readAt']);
+        if (readAt == null) return;
+        map[uid] = readAt;
+      }
+      if (!ctrl.isClosed) ctrl.add(Map.unmodifiable(map));
+    }, onDone: dispose, onError: (_) {});
     reload();
     return ctrl.stream;
   }

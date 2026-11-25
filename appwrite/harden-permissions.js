@@ -9,7 +9,9 @@
  *   - Message-ACL:      read = [team(convId), team(sup_orgId), user(sender)]
  *                       update/delete = [user(sender), team(sup_orgId)]
  *   - Scheduled:        read/update/delete = user(sender)  (privater Entwurf)
- *   - Read-Receipts:    read/update/delete = user(uid)     (wie mark-as-read)
+ *   - Read-Receipts:    read/update/delete = user(uid)     (Altstand; seit den
+ *                       Lesestatus-Häkchen setzt share-read-receipts.js
+ *                       read user(uid) + read team(convId) — wird hier akzeptiert)
  *   - Claim-Requests:   read/delete = user(from), read/update = user(to)
  *                       (wie on-claim-request)
  *
@@ -383,6 +385,12 @@ async function main() {
       return;
     }
     if (samePerms(rr.$permissions, desired)) return;
+    // Neues Modell (share-read-receipts.js / mark-as-read) nicht zurückdrehen:
+    // nur read user(uid) [+ read team(convId)] ist ebenfalls korrekt.
+    const shared = [Permission.read(Role.user(rr.uid))];
+    if (samePerms(rr.$permissions, shared)) return;
+    shared.push(Permission.read(Role.team(rr.convId)));
+    if (samePerms(rr.$permissions, shared)) return;
     rrUpdated++;
     if (!DRY) {
       try {

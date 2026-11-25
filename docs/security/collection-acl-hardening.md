@@ -56,6 +56,7 @@ Legende: ✅ durch Doc-ACL abgedeckt · 🔧 auf diesem Branch geschlossen · �
 | | `watchReports`, `markReportReviewed` | Admin/Mod | ✅ `read/update user(Aufsicht)` |
 | | Zähler `organizations.pendingReportsCount` dekrementieren | Admin/Mod | 🔧 schrieb Org-Doc direkt → `on-new-report` zählt bei create **und** update serverseitig neu (Recount, idempotent) |
 | read_receipts | `watchMyReadReceipts`, Desktop-Badge | Eigentümer | ✅ `read user(uid)`; schreiben nur `mark-as-read` |
+| | `watchConversationReadReceipts` (Lesestatus-Häkchen, 2026-11-25) | andere Teilnehmer | 🔧 `read team(convId)` — nur auf Receipts von **Teilnehmern** (§7) |
 | claim_requests | anlegen / ausgehende / eingehende / bestätigen / ablehnen / abbrechen | Eltern bzw. Kind | ✅ Collection `create`; `on-claim-request` setzt from/to-Rechte |
 
 ### Phase 2 – Org-Daten (⏳ geplant, Client-Teile schon auf diesem Branch)
@@ -138,3 +139,40 @@ Negativ-Test per API (für jede umgestellte Collection): mit Session von X `GET 
 | T11 | 4 | Guardian lehnt Kind-Einladung ab; Reaktion/RSVP auf Ankündigung | funktioniert (Phase-2-Collections sind noch offen, Pfade laufen aber schon über Functions) |
 
 Wenn T1/T2 fehlschlagen (kein Live-Update, erst nach Neuladen): sofort Rollback der beiden Collections und prüfen, ob Realtime die Team-Mitgliedschaft erst nach Reconnect kennt (dann `broadcaster.reconnect()` nach Chat-Erstellung).
+
+## 7. Lesestatus-Häkchen: Receipts im Chat-Team lesbar (2026-11-25, Server live)
+
+**Problem:** `_readStatus` (Chat-Screen) las `conv.lastReadAt`, das seit dem Entfernen von `lastReadAtJson` immer leer war → immer „gesendet“. Die echten Lesezeiten liegen in `read_receipts`, die seit Stufe 1 nur der Eigentümer lesen darf.
+
+**Entscheidung (Owner, 2026-11-25):**
+- Als „Leser“ zählen nur **Teilnehmer** (`participantUids`). Receipts von Guardians und Aufsicht (im Conv-Team, aber keine Teilnehmer) bleiben `read user(uid)` — ein Kind sieht nicht, wann Eltern/Admins mitlesen; sie zählen auch nicht für die Häkchen.
+- **Kinder wie alle anderen:** Ein Kind sieht die Häkchen der anderen Teilnehmer, und die anderen sehen die Lesezeit des Kindes.
+
+**Umsetzung:**
+- `mark-as-read` setzt bei **jedem** Upsert die ACL `read user(uid)` + (nur Teilnehmer) `read team(convId)`. Kein `update`/`delete` mehr für den Client: sobald Receipts team-lesbar sind, könnte ein Teilnehmer sonst über das `uid`-Feld seines eigenen Receipts einen fremden Lesezeitpunkt vortäuschen. Die App schreibt Receipts nie direkt.
+- Gewählt statt einer Callable-Function, weil Appwrite-Realtime das Event dann von selbst an alle mit Doc-read zustellt (gleicher Weg wie Nachrichten) — kein Polling. Konten außerhalb des Chats sind nicht im Conv-Team → kein Zugriff.
+- Client: `ChatService.watchConversationReadReceipts(convId)` (List `convId`, Index `convId_uid_idx`; Realtime-Payload direkt übernommen, leeres Resync-Event lädt neu) → `conversationReadReceiptsProvider`. `watchMyReadReceipts` und der Desktop-Badge ignorieren jetzt fremde Receipt-Events.
+- Wechsel der Teilnehmer: die ACL heilt sich beim nächsten Gelesen-Markieren des Betroffenen; wer den Chat verlässt, verliert mit dem Conv-Team auch den Lesezugriff.
+- `harden-permissions.js` Phase 7 akzeptiert das neue Modell und dreht es nicht zurück.
+
+**Rollout:**
+
+| Schritt | Aktion | App nötig? |
+|---|---|---|
+| 1 | `node deploy-functions.js --only=mark-as-read` (Dry-Run) → mit Bestätigung | nein |
+| 2 | `node share-read-receipts.js` (Dry-Run, zählt Teilnehmer/privat/verwaist) → `--confirm=<projectId>` | nein |
+| 3 | App-Release mit `watchConversationReadReceipts` (Android, Windows, Web) | ja |
+
+**Live-Stand:** 2026-11-25 Schritt 1 (`mark-as-read` deployt, Owner) und Schritt 2 erledigt: 126 Receipts, 94 Teilnehmer → team-lesbar, 26 Guardian/Aufsicht → privat, 6 ohne Conversation ignoriert; 120 ACLs geändert, Kontroll-Dry-Run 0 Abweichungen. Schritt 3 (App-Release) und Tests T11–T15 offen.
+
+Alte Apps sind unbetroffen (sie lesen nur eigene Receipts). Rollback: `mark-as-read` auf den Vorstand deployen, dann `node share-read-receipts.js --rollback --confirm=<projectId>`.
+
+**Tests:**
+
+| # | Test | Erwartung |
+|---|---|---|
+| T11 | A schreibt B im Direktchat; B öffnet den Chat (Gerät 2) | bei A springt das Häkchen **live** von „gesendet“ auf „alle haben gelesen“ |
+| T12 | Gruppenchat A, B, C: A schreibt, nur B liest, dann C | A sieht „einer hat gelesen“, danach „alle“ |
+| T13 | M (Aufsicht, kein Teilnehmer) bzw. Guardian öffnet den Chat | Häkchen bei A ändern sich **nicht**; M sieht in List `read_receipts` (`convId`) die Teilnehmer-Receipts, A/B sehen das Receipt von M nicht |
+| T14 | X (andere Org): List `read_receipts` mit `convId`, Get per bekannter Receipt-ID | leer bzw. 404 |
+| T15 | B: `PATCH` auf eigenes Receipt (`uid` ändern) | 401 (kein `update` mehr) |

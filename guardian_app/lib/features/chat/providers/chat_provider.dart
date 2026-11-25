@@ -92,6 +92,13 @@ final myReadReceiptsProvider = StreamProvider<Map<String, DateTime>>((ref) {
   return ref.watch(chatServiceProvider).watchMyReadReceipts();
 });
 
+/// `Map<uid, readAt>` der anderen Teilnehmer eines Chats (Lesestatus-Häkchen).
+/// Guardians und Aufsicht sind bewusst nicht enthalten (Receipt bleibt privat).
+final conversationReadReceiptsProvider =
+    StreamProvider.family<Map<String, DateTime>, String>((ref, convId) {
+  return ref.watch(chatServiceProvider).watchConversationReadReceipts(convId);
+});
+
 final conversationProvider =
     StreamProvider.family<Conversation?, String>((ref, convId) {
   return ref.watch(chatServiceProvider).watchConversation(convId);

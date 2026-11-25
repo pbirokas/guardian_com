@@ -20,7 +20,6 @@ class Conversation {
   final String? requestorGuardianUid;
   final List<String> canApproveUids;
   final List<String> guardianUids;
-  final Map<String, DateTime> lastReadAt;
   final Map<String, DateTime> typingUsers;
   final String? pinnedMessageId;
   final String? pinnedMessageText;
@@ -45,21 +44,13 @@ class Conversation {
     this.requestorGuardianUid,
     this.canApproveUids = const [],
     this.guardianUids = const [],
-    this.lastReadAt = const {},
     this.typingUsers = const {},
     this.pinnedMessageId,
     this.pinnedMessageText,
     this.personalNames = const {},
   });
 
-  bool hasUnread(String uid) {
-    if (lastMessageAt == null) return false;
-    final lastRead = lastReadAt[uid];
-    if (lastRead == null) return true;
-    return lastMessageAt!.isAfter(lastRead);
-  }
-
-  /// Wie [hasUnread], aber nutzt die separate read_receipts-Collection statt lastReadAt.
+  /// Ungelesen-Status aus der read_receipts-Collection.
   /// [allReceipts] ist eine Map<convId, readAt> des angemeldeten Nutzers.
   bool hasUnreadWith(String uid, Map<String, DateTime> allReceipts) {
     if (lastMessageAt == null) return false;
@@ -101,7 +92,6 @@ class Conversation {
       requestorGuardianUid: data['requestorGuardianUid'] as String?,
       canApproveUids: List<String>.from(data['canApproveUids'] as List? ?? []),
       guardianUids: List<String>.from(data['guardianUids'] as List? ?? []),
-      lastReadAt: const {},
       typingUsers: const {},
       pinnedMessageId: data['pinnedMessageId'] as String?,
       pinnedMessageText: data['pinnedMessageText'] as String?,

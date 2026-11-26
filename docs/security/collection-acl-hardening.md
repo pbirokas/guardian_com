@@ -73,7 +73,7 @@ Legende: ✅ durch Doc-ACL abgedeckt · 🔧 auf diesem Branch geschlossen · �
 
 Voraussetzung Phase 2: `sup_<orgId>` wird **ACL-Team** (heute nur Cache). Es ist bereits für alle 11 Orgs vorhanden und synchron (Dry-Run Phase 1: 0 fehlend); CLAUDE.md muss dann angepasst werden.
 
-### Phase 3 – users (🔧 vorbereitet für App N, siehe §8)
+### Phase 3 – users (✅ live seit 2026-11-26, siehe §8)
 
 Fremde users-Docs las der Client für: E-Mail-Lookup in `inviteMember` und `sendClaimRequest`; `getUserDisplayName` (Direktchat-Titel im Share-Picker, Mit-Eltern im Familienbaum); `_watchRelatives` (verifizierte Eltern/Kinder); `updateMemberRole` (isChild-Check — schon serverseitig in `admin-member-action/updateRole`). Alle Pfade laufen jetzt über Functions bzw. Member-Docs; danach users-Collection **ohne** Rechte, Doc-ACL nur `read user(self)`.
 
@@ -176,7 +176,7 @@ Alte Apps sind unbetroffen (sie lesen nur eigene Receipts). Rollback: `mark-as-r
 | T14 | X (andere Org): List `read_receipts` mit `convId`, Get per bekannter Receipt-ID | leer bzw. 404 |
 | T15 | B: `PATCH` auf eigenes Receipt (`uid` ändern) | 401 (kein `update` mehr) |
 
-## 8. Phase 3 – users: nur noch das eigene Profil lesbar (vorbereitet 2026-11-25, Branch `security/users-acl-phase3`)
+## 8. Phase 3 – users: nur noch das eigene Profil lesbar (live seit 2026-11-26)
 
 **Problem:** Collection `users` hat live `read("users")` (+ `create("users")`). Jedes Konto — Selbstregistrierung per E-Mail-OTP ist offen — liest damit die users-Docs **aller** Nutzer: E-Mail (auch bei `hideEmail`), `isChild`, `verifiedParentUids`/`verifiedChildUids`, `membershipsJson` (welche Orgs, welche Rolle), `notificationSettingsJson`, `fcmToken`. Die Doc-ACL ist schon eng (Dry-Run 2026-11-25: 27 Docs, **0** mit fremdem read; alle 27 tragen noch `update/delete user(self)` → Selbst-Eskalations-Stufe 4).
 
@@ -211,6 +211,13 @@ Server-Functions lesen users-Docs weiter mit API-Key (unberührt). Kein `dart:io
 | Datum | Stufe | Was |
 |---|---|---|
 | 2026-11-25 | P3-0 | Deployed (Branch `security/users-acl-phase3`): `self-service` → `6b071619ac8c01c76e6b` (vorher `6af965dee9c083b96c69`), `admin-member-action` → `6b07161a3ff9005c30a0` (vorher `6af965aab7fe9d504de1`). `activate` beim Upload griff nicht (Builds `ready`, alte Version blieb aktiv) → per `PATCH /functions/{id}/deployment` aktiviert; `deploy-functions.js` aktiviert seitdem selbst nach dem Build. U0 ✓ (beide 401 ohne User, auf den neuen Deployments). Kontrolle: alle übrigen Functions laufen auf ihrem neuesten `ready`-Deployment. |
+| 2026-11-26 | P3-1 | App 2.0.0 Build 167 (aus `main` 30e5a94) im Play Store, Web-App und Windows aktualisiert (Owner); `app_config/android`: `latestVersionCode=167`, `minVersionCode=167`. |
+| 2026-11-26 | P3-2 | `harden-users.js --confirm`: 27/27 users-Docs → nur `read user(uid)` (vorher alle mit `update/delete user(self)`, keins mit fremdem read). Backup `appwrite/backups/users-acl-2026-11-26T07-44-49-017Z.json` (gitignored, Haupt-Checkout). Kontroll-Dry-Run: 0 Abweichungen. |
+| 2026-11-26 | P3-3 | Zusammen mit Selbst-Eskalation Stufe 4: `fix-permissions.js --after-app-n --phase3 --only=conversations,members,users --confirm` → conversations `[]`, members `[read]`, users `[]`. Gesamt-Dry-Run aller Collections: 0 Abweichungen. Negativtest mit Wegwerf-Konto ohne Org (danach gelöscht): users list → 0, fremdes users-Doc → 404, E-Mail-Query → 0, users create → 401; conversations list → 0, get → 404, update/create → 401; Member-Doc als Admin einer fremden Org anlegen → 401. Gegenprobe eigenes users-Doc: list → 1, get ✓, update mit echter Änderung (`isChild`, `displayName`, `verifiedChildUids`) und delete → 401. Kontrolle: members weiter für jedes Konto lesbar (33, Phase 2 offen). U3 (Realtime) nicht separat getestet; U4–U8 auf Geräten: Owner. |
+| 2026-11-26 | Fix | U4 (Owner): Einladung einer unregistrierten Adresse → `document_invalid_structure: Unknown attribute "invitedByUid"`. Attribut fehlte in `invitations` seit jeher (auch die alte App schickte es → solche Einladungen schlugen schon vorher fehl; `process-my-invitations` braucht es für die Rollenprüfung). `invitations.invitedByUid` (string 36, optional) live angelegt + in `setup.js`; Schema-Abgleich aller von `inviteByEmail`/`sendClaim`/`addMemberCore` geschriebenen Felder: vollständig. |
+| 2026-11-26 | Web | Befund: Browser lief trotz Build 167 noch mit altem `main.dart.js` (keine `admin-member-action`-Aufrufe, Einladungen vom Alt-Client-Pfad), weil die Site kein `Cache-Control` sendet → Anleitung `docs/ops/web-cache-headers.md` (Traefik, Owner). Web-App Build 171 (Branch `docs/stage4-phase3-live`, inkl. Fix „Einladung zurückziehen“) deployed, Deployment `6b07e929cc5a1ec22970`. |
+| 2026-11-26 | Tests | Owner: alle Geräte-Tests auf Build 167 bestanden. Befunde: (1) Kind-Konto sah „Organisation erstellen“ — `isChild` wurde während der Sitzung true (Claim bestätigt), App kannte nur den Login-Snapshot → jetzt `ownUserDocProvider` (Realtime auf eigenes users-Doc) in `currentAppUserProvider`; Server lehnte korrekt ab (403). (2) 08:32: 9× `self-service` „Execution timed out“ (4–5 parallele synchrone Executions, API-Worker-Blockade wie mark-as-read 2026-11-13); vermutlich `listRelatives` doppelt (Kinder+Eltern) → ein gemeinsamer In-flight-Aufruf. `on-new-invitation` → `6b07f06944a18d1a620a` (Mail, wenn kein users-Doc; vorher `6af862b55f651470ac56`). |
+| 2026-11-26 | Mail | Mail-Test (Owner, 3 neue Adressen): Einladungen korrekt angelegt, aber `on-new-invitation` lief jedes Mal in den 30-s-Timeout ohne Log — der jetzt tatsächlich erreichte SMTP-Versand hing (Verdacht: Hetzner sperrt ausgehend 25/465, `service: 'gmail'` = 465). Umgestellt auf `smtp.gmail.com:587` STARTTLS + kurze Timeouts → `6b07f90139a6c79df2c0`. |
 
 **Windows-Alt-Clients nach P3-3** (keine Update-Pflicht): Einladen eines **registrierten** Kontos legt stattdessen eine Einladung an (übernimmt `process-my-invitations` beim nächsten Login des Eingeladenen); Eltern-Anfrage meldet „nicht gefunden“; Familienbaum leer bzw. Mit-Eltern als UID. Kein Datenverlust.
 
@@ -221,6 +228,8 @@ Server-Functions lesen users-Docs weiter mit API-Key (unberührt). Kein `dart:io
 - `harden-users.js`: 27 users-Docs, 27 abweichend — **alle nur** wegen `update/delete user(self)`; 0 mit fremdem read; 0 ohne eigenes read. Audit: 0 Auffälligkeiten (keine doppelten/fehlenden/nicht normalisierten E-Mails, keine einseitigen Eltern-Kind-Links).
 - `fix-permissions.js --after-app-n --phase3 --only=users`: ist `[read("users"), create("users")]` → soll `[]`.
 - Mock-Test `node test-functions-mock.cjs`: `inviteByEmail` (nur Admin/Mod, Moderator darf keinen Moderator einladen, Einladung/Consent/Direkt, Duplikate, Kind-Sperre) und `sendClaim`/`listRelatives` (kein `fcmToken`/`membershipsJson` im Ergebnis, einseitige Links unsichtbar, Claim-ACL ohne `update` für den Anfragenden) ✓.
+
+Hinweis Negativtest: Ein `update` **ohne echte Änderung** (gleiche Werte) beantwortet Appwrite mit 200, ohne Rechte zu prüfen — Rechteprüfung nur mit tatsächlich geänderten Werten testen.
 
 ### Testanleitung
 

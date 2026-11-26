@@ -3900,10 +3900,20 @@ class _PendingInviteTile extends StatelessWidget {
               );
             },
           );
-          if (confirmed == true) {
+          if (confirmed != true) return;
+          // Die Liste liefert die Doc-ID unter `$id` (nicht `id`) — vorher
+          // brach das Zurücknehmen still mit einem null-Cast ab.
+          final inviteId = invite[r'$id'] as String?;
+          try {
+            if (inviteId == null) throw Exception('Einladungs-ID fehlt');
             await ref
                 .read(organizationServiceProvider)
-                .cancelInvitation(invite['id'] as String);
+                .cancelInvitation(inviteId);
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(l.errorMessage(e.toString()))));
+            }
           }
         },
       ),

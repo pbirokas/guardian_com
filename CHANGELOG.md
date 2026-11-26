@@ -4,9 +4,20 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 ---
 
+## 2026-11-26
+
+- **Sicherheits-Härtung abgeschlossen (live mit App-Build 167).** Die am 15.11. vorbereiteten Schutzmaßnahmen gegen selbst verschaffte Rechte sind jetzt vollständig aktiv: Chats, Mitgliedschaften und Profile kann die App nur noch über den Server ändern, der jede Aktion prüft. Ältere App-Versionen müssen aktualisiert werden.
+- **Fix: Einladen per E-Mail an noch nicht registrierte Adressen funktioniert wieder.** Die Einladung scheiterte mit „Unknown attribute invitedByUid“, weil der Datenbank ein Feld fehlte; das betraf auch ältere App-Versionen.
+- **Fix: Ausstehende Einladungen lassen sich wieder zurücknehmen.** Der Knopf „Einladung zurückziehen“ tat bisher nichts (die App las die Einladungs-ID unter einem falschen Namen); Fehler werden jetzt angezeigt.
+- **Einladungs-Mails auch an Adressen, deren Anmeldung nie abgeschlossen wurde.** Wer früher nur einen Login-Code angefordert hatte, bekam keine Einladungs-Mail.
+- **Kind-Konten sehen „Organisation erstellen“ nicht mehr, sobald sie Kind werden.** Bestätigte ein Kind eine Eltern-Anfrage, zeigte die App bis zum nächsten Neustart noch den Knopf (das Erstellen selbst lehnte der Server ab). Die App beobachtet ihr eigenes Profil jetzt live.
+- **Weniger Server-Hänger auf der Verknüpfungs-Seite.** Eltern- und Kinderliste laden ihre Daten jetzt mit einem gemeinsamen Aufruf statt zwei gleichzeitigen; parallele Aufrufe konnten den Server bis zum Timeout blockieren.
+
+---
+
 ## 2026-11-25
 
-- **Sicherheit (vorbereitet, geht mit dem nächsten App-Update live): Profile anderer Nutzer nicht mehr abrufbar.** Bisher konnte jedes angemeldete Konto über die Programmierschnittstelle die Profildaten aller Nutzer abrufen – E-Mail-Adresse (auch bei „E-Mail verbergen“), ob es ein Kind-Konto ist, verknüpfte Eltern/Kinder, Organisations-Mitgliedschaften. Künftig sieht jedes Konto nur sein eigenes Profil. Einladen per E-Mail und Verknüpfungsanfragen an Kinder sucht jetzt der Server; verknüpfte Eltern, Kinder und Mit-Eltern liefert der Server nur mit Name, E-Mail und Foto; Namen in der Teilen-Auswahl kommen aus der Mitgliederliste. Für Nutzer ändert sich nichts.
+- **Sicherheit (seit 2026-11-26 live, ab App-Build 167): Profile anderer Nutzer nicht mehr abrufbar.** Bisher konnte jedes angemeldete Konto über die Programmierschnittstelle die Profildaten aller Nutzer abrufen – E-Mail-Adresse (auch bei „E-Mail verbergen“), ob es ein Kind-Konto ist, verknüpfte Eltern/Kinder, Organisations-Mitgliedschaften. Künftig sieht jedes Konto nur sein eigenes Profil. Einladen per E-Mail und Verknüpfungsanfragen an Kinder sucht jetzt der Server; verknüpfte Eltern, Kinder und Mit-Eltern liefert der Server nur mit Name, E-Mail und Foto; Namen in der Teilen-Auswahl kommen aus der Mitgliederliste. Für Nutzer ändert sich nichts.
 - **Fix: Chats werden beim Öffnen wieder als gelesen markiert.** Seit App 2.0.0 blieb der Ungelesen-Zähler stehen, weil die App einen aus der Übersicht geöffneten Chat nicht als oberste Seite erkannte und deshalb nie „gelesen“ meldete.
 - **Lesestatus-Häkchen funktionieren wieder (Server-Teil live, App-Update folgt).** An eigenen Nachrichten stand seit längerem immer nur „gesendet“, auch wenn der andere längst gelesen hatte: Die App las die Lesezeitpunkte noch aus einem Feld, das es nicht mehr gibt, und seit der Rechte-Härtung durfte ohnehin jeder nur seinen eigenen Lesezeitpunkt sehen. Jetzt sehen die Teilnehmer eines Chats gegenseitig, bis wann sie gelesen haben, und die Häkchen springen live um („einer hat gelesen“ / „alle haben gelesen“). Wann Eltern (Guardians) oder Admins/Moderatoren einen Chat mitlesen, bleibt privat und zählt nicht als „gelesen“; für Kinder gilt dasselbe wie für alle anderen Teilnehmer. Konten außerhalb des Chats sehen weiterhin nichts.
 

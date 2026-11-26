@@ -40,7 +40,25 @@ final orgMembersProvider =
 
 /// Aktueller eingeloggter AppUser — abgeleitet aus dem Appwrite Auth-State
 final currentAppUserProvider = Provider<AsyncValue<AppUser?>>((ref) {
-  return ref.watch(authStateProvider);
+  final auth = ref.watch(authStateProvider);
+  // Live-Stand des eigenen users-Docs bevorzugen (z. B. `isChild` wird
+  // während der Sitzung true, wenn das Kind eine Eltern-Anfrage bestätigt);
+  // sonst der Snapshot vom Login.
+  final live = ref.watch(ownUserDocProvider);
+  final liveUser = live.value;
+  if (auth.hasValue && liveUser != null && liveUser.uid == auth.value?.uid) {
+    return AsyncData(liveUser);
+  }
+  return auth;
+});
+
+/// Eigenes users-Doc live per Realtime (nur das eigene ist lesbar).
+final ownUserDocProvider = StreamProvider<AppUser?>((ref) {
+  final uid = ref.watch(authStateProvider.select((s) => s.value?.uid));
+  if (uid == null) return Stream.value(null);
+  return ref
+      .watch(authServiceProvider)
+      .watchOwnUser(uid, ref.watch(appwriteRealtimeBroadcasterProvider));
 });
 
 /// Ausstehende Kind-Einladungen für den aktuellen Guardian in einer Org

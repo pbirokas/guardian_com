@@ -63,7 +63,7 @@ Aus `appwrite/`:
 | 2026-11-26 | 3 Collections | `invitations` → `[]`, `org_invite_consents` → `[]`, `organizations` → `[read, update]`; `fix-permissions.js` Dry-Run danach: 0 Abweichungen |
 | 2026-11-26 | Nachfix | Kind-Einladung (R2) wurde verworfen: Guardian-Leserechte galten als fremder Ersteller. `process-my-invitations` → `6b08240018842ca6aae8` (Ersteller = einziger Nutzer mit update/delete). Betroffene Einladung `6b082319001aed5ba1c6` wieder auf pending gesetzt; sonst keine betroffen. |
 | 2026-11-26 | Tests R1–R6 | ✓ vom Owner bestätigt (Web-App/Geräte) |
-| – | Tests R7–R8 | offen (Wegwerf-Konto, per API) |
+| 2026-11-26 | Tests R7–R8 | ✓ 8/8 mit Wegwerf-Konto (per Server-API angelegt, JWT, danach gelöscht): list invitations/consents → 0; create invitation/consent/organization und delete organization → 401; `adminUid` auf sich setzen geht noch (Rest-Lücke bis Phase 2), `deleteOrg` danach → 403, Org unverändert; `adminUid` zurückgesetzt. Vor dem Fix hätte der `adminUid`-Fallback das Löschen erlaubt. |
 
 ## Tests nach dem Rollout (Gerät / Wegwerf-Konto)
 

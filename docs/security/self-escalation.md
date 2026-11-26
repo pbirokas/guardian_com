@@ -144,6 +144,8 @@ Ziel: A1 (Rolle selbst setzen), D (fremdes Member-Doc) und E (Eltern-Selbstbest�
 
 Windows-Alt-Clients verhalten sich genauso; die Web-App kann nach Stufe 2 sofort neu ausgerollt werden (kein Store).
 
+**Live-Stand Stufe 2–4 (2026-11-26):** App 2.0.0 Build 167 im Play Store, Web + Windows aktualisiert, `minVersionCode=167` (Stufe 2+3, Owner). Stufe 4: `CONV_LEGACY_TEAM_WRITE` entfernt, `sync-conversation-permissions` neu deployed und aktiv (`6b07e339454d40591d2f`, vorher `6af965d61b061a98464d`); `lock-own-docs.js --only=conversations --confirm` → 31/31 Chats nur `read team(convId)`; users-Docs über `harden-users.js` (Phase 3, deckungsgleich mit `--only=users`); `fix-permissions.js --after-app-n --phase3 --only=conversations,members,users --confirm`. Negativtest siehe collection-acl-hardening.md §8 (Live-Stand P3-3). **Selbst-Eskalation damit komplett geschlossen.**
+
 **Rollback Stufe 0:** in der Console je Function das Deployment aus der Tabelle oben aktivieren; `self-service`/`conversation-action` deaktivieren (werden von der alten App nicht genutzt). `CONV_LEGACY_TEAM_WRITE` kann bleiben.
 **Rollback Stufe 1 (öffnet die Lücke wieder!):** `node lock-own-docs.js --only=members,claims --rollback --confirm=<projectId>`.
 

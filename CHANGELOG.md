@@ -7,6 +7,7 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 ## 2026-11-26
 
 - **Sicherheits-Härtung abgeschlossen (live mit App-Build 167).** Die am 15.11. vorbereiteten Schutzmaßnahmen gegen selbst verschaffte Rechte sind jetzt vollständig aktiv: Chats, Mitgliedschaften und Profile kann die App nur noch über den Server ändern, der jede Aktion prüft. Ältere App-Versionen müssen aktualisiert werden.
+- **Fix: Einladen per E-Mail an noch nicht registrierte Adressen funktioniert wieder.** Die Einladung scheiterte mit „Unknown attribute invitedByUid“, weil der Datenbank ein Feld fehlte; das betraf auch ältere App-Versionen.
 
 ---
 

@@ -365,6 +365,8 @@ async function setupInvitations() {
   await str('invitations', 'role',         20,  false, 'member');
   await str('invitations', 'guardianUids', 36,  false, null, true);
   await str('invitations', 'inviterName',  100);
+  // Einladende(r) — process-my-invitations prüft daran die Rolle (fehlte bis 2026-11-26)
+  await str('invitations', 'invitedByUid', 36);
   await str('invitations', 'status',       20,  false, 'pending');
   await dt('invitations',  'createdAt',    true);
   await idx('invitations', 'email_status_idx', 'key', ['email', 'status']);

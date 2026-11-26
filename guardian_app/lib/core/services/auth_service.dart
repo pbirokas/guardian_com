@@ -104,6 +104,35 @@ class AuthService {
     await _resetSession();
   }
 
+  static const _deleteAccountId = 'delete-account';
+
+  /// Serverseitige Sperr-Prüfung der Kontolöschung (Kind mit Eltern, Eltern
+  /// mit Kindern, Admin einer Org mit weiteren Mitgliedern). Leer = frei.
+  Future<List<AccountDeletionBlocker>> checkAccountDeletion() async {
+    final r = await _functions.callJson(_deleteAccountId, {'action': 'check'});
+    return [
+      for (final b in (r['blockers'] as List? ?? const []))
+        AccountDeletionBlocker.fromMap(Map<String, dynamic>.from(b as Map)),
+    ];
+  }
+
+  /// Startet die Löschung. Die Function prüft die Sperren erneut und löscht
+  /// dann asynchron weiter (kann Minuten dauern) — Fortschritt über
+  /// [isAccountGone] bzw. `deletionStatus` im eigenen users-Doc.
+  /// Wirft [FunctionCallException] (`blocked`), wenn inzwischen gesperrt.
+  Future<void> startAccountDeletion() =>
+      _functions.callJson(_deleteAccountId, {'action': 'start'});
+
+  /// true, sobald das Auth-Konto gelöscht ist (Session ungültig → 401).
+  Future<bool> isAccountGone() async {
+    try {
+      await _account.get();
+      return false;
+    } on AppwriteException catch (e) {
+      return e.code == 401 || e.code == 404;
+    }
+  }
+
   /// Löscht alle Sessions server-seitig und leert den lokalen CookieJar.
   Future<void> _resetSession() async {
     try { await _account.deleteSessions(); } catch (_) {}
@@ -248,4 +277,22 @@ class AuthService {
       );
     } catch (_) {}
   }
+}
+
+/// Grund, warum ein Konto (noch) nicht gelöscht werden kann
+/// (`delete-account/check`).
+class AccountDeletionBlocker {
+  const AccountDeletionBlocker({required this.code, this.orgId, this.orgName});
+
+  /// `childHasParents` | `parentHasChildren` | `orgAdmin`
+  final String code;
+  final String? orgId;
+  final String? orgName;
+
+  factory AccountDeletionBlocker.fromMap(Map<String, dynamic> m) =>
+      AccountDeletionBlocker(
+        code: m['code'] as String? ?? '',
+        orgId: m['orgId'] as String?,
+        orgName: m['orgName'] as String?,
+      );
 }

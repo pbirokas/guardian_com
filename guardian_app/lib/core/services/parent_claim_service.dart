@@ -221,6 +221,17 @@ class ParentClaimService {
     }
   }
 
+  /// Startet die Löschung des Kontos eines verifizierten Kindes
+  /// (`delete-account/startForChild`). Die Function prüft die gegenseitige
+  /// Verknüpfung, benachrichtigt weitere Eltern und löscht asynchron weiter —
+  /// fertig, sobald das Kind aus `listRelatives` verschwindet (Realtime auf
+  /// das eigene users-Doc: `verifiedChildUids` ändert sich am Ende des Laufs).
+  /// Wirft [FunctionCallException] (`not_parent` | `blocked` | …).
+  Future<void> deleteChildAccount(String childUid) => _functions.callJson(
+        'delete-account',
+        {'action': 'startForChild', 'childUid': childUid},
+      );
+
   // ──────────────────────────────────────────────────────────────────────────
   // Org-invite consent (parent perspective)
   // ──────────────────────────────────────────────────────────────────────────

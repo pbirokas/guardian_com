@@ -295,6 +295,8 @@ Die Schritt-für-Schritt-Tour auf der Organisations-Übersicht hebt die wichtigs
 - Nach dem Senden wird direkt in den Ziel-Chat navigiert
 
 ### Sonstiges
+- **Konto löschen** (Profil → Datenschutz): Der Server prüft die Sperren (Kind mit verknüpften Eltern, Eltern mit verknüpften Kindern, Admin einer Org mit weiteren Mitgliedern) und löscht dann im Hintergrund: Profil, Mitgliedschaften, Lesestatus, geplante Nachrichten, Verknüpfungsanfragen, eigene Umfragen/Stimmen/Reaktionen, Profilbild und das Anmeldekonto. 1:1-Chats werden komplett gelöscht; in Gruppen bleiben eigene Nachrichten als leerer Platzhalter von „Gelöschter Nutzer“. Orgs, in denen man allein ist, werden gelöscht. Änderungsprotokoll, Meldungen, Einladungen und Pinnwand zeigen „Gelöschter Nutzer“. Kinder, deren einziger Guardian sein Konto löscht, werden im Mitglieder-Tab als „Kein Guardian – Aktion erforderlich“ markiert.
+- **Kinderkonto löschen** (Meine Verknüpfungen → ⋮ beim Kind): Ein verifizierter Elternteil (gegenseitige Verknüpfung) löscht das Konto seines Kindes mit derselben Löschung wie oben; die Sperre „Kind mit verknüpften Eltern“ entfällt dabei. Ein Elternteil reicht, weitere verknüpfte Eltern bekommen einen Push. Am Ende verschwindet das Kind aus `verifiedChildUids` aller Eltern.
 - **E-Mail-Datenschutz:** Schalter „E-Mail-Adresse verbergen" in den Datenschutz-Einstellungen (Profil → Datenschutz) — ersetzt die Adresse in der Mitgliederliste durch ein Datenschutz-Icon
 - **Automatische Datenaktualisierung:** Alle Chats und Organisationen werden nach einer Netzwerkunterbrechung oder Rückkehr aus dem Hintergrund automatisch neu geladen
 - Dark / Light Mode
@@ -432,6 +434,8 @@ users/{$id}                     ← nur für den Eigentümer lesbar; fremde Prof
   verifiedParentUids[]          ← Verifizierte Eltern (konto-übergreifend)
   verifiedChildUids[]           ← Verifizierte Kinder (konto-übergreifend)
   membershipsJson               ← JSON: Org-Mitgliedschaften (gecacht)
+  deletionStatus, deletionRequestedAt, deletionRunAt ← Kontolöschung (delete-account)
+  deletionRequestedBy           ← Elternteil, der das Kinderkonto löschen lässt (startForChild)
 
 organizations/{$id}
   name, tag, adminUid
@@ -556,6 +560,7 @@ Alle Functions laufen in Appwrite (Node.js 16). Event-getriggerte Functions reag
 | `set-reaction` | Callable | Eigene Reaktion auf Nachricht/Ankündigung bzw. Termin-Zusage setzen (keine Feld-Rechte in Appwrite) |
 | `moderate-message` | Callable | Admin/Mod archiviert oder löscht eine fremde Nachricht |
 | `admin-member-action` | Callable | Privilegierte Mitglieds-/Org-Aktionen inkl. Einladen per E-Mail (`inviteByEmail`, Lookup serverseitig), Chat löschen und Kind-Einladung ablehnen |
+| `delete-account` | Callable + Cron `*/15 * * * *` | Konto löschen: `check` (Sperren), `start` (stößt den Lauf asynchron an), `startForChild` (verifizierter Elternteil löscht das Kinderkonto, Push an Co-Eltern); löscht bzw. anonymisiert alle Daten des Kontos und zuletzt das Auth-Konto, setzt hängengebliebene Läufe per Schedule fort |
 | `process-my-invitations` | Callable | Verarbeitet ausstehende Einladungen beim Login |
 | `get-child-summary` | Callable | Gibt Aktivitätszusammenfassung eines Kindes zurück (24 h / 7 Tage) |
 | `revoke-connection` | Callable | Trennt eine verifizierte Eltern-Kind-Verbindung |

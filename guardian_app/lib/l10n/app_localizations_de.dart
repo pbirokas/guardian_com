@@ -316,18 +316,102 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get deleteAccountConfirmContent =>
-      'Möchtest du dein Konto wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.';
+      'Möchtest du dein Konto wirklich löschen? Das kann nicht rückgängig gemacht werden.\n\n• Profil, Mitgliedschaften und Einstellungen werden gelöscht.\n• Deine 1:1-Chats werden komplett gelöscht – auch für dein Gegenüber.\n• In Gruppen bleiben deine Nachrichten als „Nachricht gelöscht“ von „Gelöschter Nutzer“ stehen, ohne Text, Bilder oder Dateien.\n• Organisationen, in denen du allein bist, werden gelöscht.';
 
   @override
   String get deleteAccountBlockedTitle => 'Konto löschen nicht möglich';
 
   @override
   String get deleteAccountBlockedChild =>
-      'Dein Konto ist mit einem Elternteil verknüpft. Die Verbindung muss zuerst durch dein Elternteil aufgehoben werden, bevor du dein Konto löschen kannst.';
+      'Dein Konto ist mit einem Elternteil verknüpft. Dein Elternteil kann dein Konto unter „Meine Verknüpfungen“ löschen.';
 
   @override
   String get deleteAccountBlockedParent =>
       'Du hast noch aktive Verknüpfungen mit Kindern. Bitte hebe zuerst alle Verbindungen unter \"Meine Verknüpfungen\" auf.';
+
+  @override
+  String get deleteAccountBlockedOrgAdmin =>
+      'Du bist Admin von Organisationen mit weiteren Mitgliedern. Übertrage dort zuerst die Admin-Rolle an ein anderes Mitglied oder lösche die Organisation.';
+
+  @override
+  String get deleteAccountBlockedRetry =>
+      'Dein Konto kann gerade nicht gelöscht werden – inzwischen gibt es eine Sperre (z. B. ein neues Mitglied in deiner Organisation). Bitte versuche es erneut.';
+
+  @override
+  String get deleteAccountChecking => 'Prüfe…';
+
+  @override
+  String get deleteAccountInProgressTitle => 'Konto wird gelöscht…';
+
+  @override
+  String get deleteAccountInProgress =>
+      'Deine Daten werden gelöscht. Das kann einige Minuten dauern.';
+
+  @override
+  String get deleteAccountDoneTitle => 'Konto gelöscht';
+
+  @override
+  String get deleteAccountDone => 'Dein Konto und deine Daten wurden gelöscht.';
+
+  @override
+  String get deleteAccountBackground =>
+      'Die Löschung läuft auf dem Server weiter und wird automatisch abgeschlossen. Du wirst jetzt abgemeldet.';
+
+  @override
+  String deleteAccountFailed(String message) {
+    return 'Konto konnte nicht gelöscht werden: $message';
+  }
+
+  @override
+  String get childDeleteAccount => 'Konto des Kindes löschen';
+
+  @override
+  String childDeleteAccountTitle(String name) {
+    return 'Konto von $name löschen?';
+  }
+
+  @override
+  String childDeleteAccountConfirmContent(String name) {
+    return 'Das Konto von $name wird unwiderruflich gelöscht. $name wird auf allen Geräten abgemeldet.\n\n• Profil, Mitgliedschaften und Einstellungen werden gelöscht.\n• Die 1:1-Chats von $name werden komplett gelöscht – auch für das Gegenüber (auch dein Chat mit $name).\n• In Gruppen bleiben die Nachrichten als „Nachricht gelöscht“ von „Gelöschter Nutzer“ stehen, ohne Text, Bilder oder Dateien.\n• Weitere verknüpfte Elternteile werden benachrichtigt.';
+  }
+
+  @override
+  String get childDeleteAccountInProgressTitle => 'Konto wird gelöscht…';
+
+  @override
+  String childDeleteAccountInProgress(String name) {
+    return 'Die Daten von $name werden gelöscht. Das kann einige Minuten dauern.';
+  }
+
+  @override
+  String get childDeleteAccountDoneTitle => 'Konto gelöscht';
+
+  @override
+  String childDeleteAccountDone(String name) {
+    return 'Das Konto von $name und die zugehörigen Daten wurden gelöscht.';
+  }
+
+  @override
+  String get childDeleteAccountBackground =>
+      'Die Löschung läuft auf dem Server weiter und wird automatisch abgeschlossen.';
+
+  @override
+  String childDeleteAccountBlocked(String name) {
+    return 'Das Konto von $name kann gerade nicht gelöscht werden (z. B. weil die Verknüpfung inzwischen aufgehoben wurde). Bitte versuche es erneut.';
+  }
+
+  @override
+  String get childDeleteAccountNotParent =>
+      'Nur ein verknüpfter Elternteil kann dieses Konto löschen.';
+
+  @override
+  String get childAccountDeleting => 'Konto wird gelöscht…';
+
+  @override
+  String get deletedUser => 'Gelöschter Nutzer';
+
+  @override
+  String get childWithoutGuardian => 'Kein Guardian – Aktion erforderlich';
 
   @override
   String get notificationsTitle => 'Benachrichtigungen';
@@ -1554,7 +1638,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get helpRelRevokeBody =>
-      'Tippe auf den Namen einer verknüpften Person und wähle \'Verbindung trennen\'. Kinder können die Verbindung nicht selbst auflösen – das kann nur das Elternteil tun.';
+      'Tippe auf den Namen einer verknüpften Person und wähle \'Verbindung trennen\'. Kinder können die Verbindung nicht selbst auflösen – das kann nur das Elternteil tun. Über das Menü (⋮) am Kind kannst du auch das Konto deines Kindes löschen.';
 
   @override
   String get myRelationships => 'Meine Verknüpfungen';

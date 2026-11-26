@@ -139,6 +139,9 @@ async function setupUsers() {
   await str(COL.USERS,  'deletionStatus',           20);
   await dt(COL.USERS,   'deletionRequestedAt');
   await dt(COL.USERS,   'deletionRunAt');
+  // UID des Elternteils, der die Löschung des Kindkontos beantragt hat
+  // (delete-account/startForChild); null bei Selbstlöschung.
+  await str(COL.USERS,  'deletionRequestedBy',      36);
   // Indexes
   await idx(COL.USERS, 'email_idx',      'key',      ['email']);
   await idx(COL.USERS, 'isChild_idx',    'key',      ['isChild']);

@@ -41,10 +41,11 @@ const ID = { unique: () => `id${++idc}` };
 const files = {}; // fileId -> { $permissions }
 class Storage { async getFile(_b, id) { if (!files[id]) { const e = new Error('nf'); e.code = 404; throw e; } return { $id: id, ...files[id] }; } async deleteFile(_b, id) { delete files[id]; } }
 const executions = [];
+const pushes = [];
 class Functions { async createExecution(id, body, async) { executions.push({ id, body: JSON.parse(body), async }); return {}; } }
 const fake = { Functions, Storage, Client, Databases, Teams, Users, Query, Role, Permission, ID };
 const origLoad = Module._load;
-Module._load = function (req, ...rest) { if (req === 'node-appwrite') return fake; if (req === './fcm') return { sendToUsers: async () => {} }; return origLoad.call(this, req, ...rest); };
+Module._load = function (req, ...rest) { if (req === 'node-appwrite') return fake; if (req === './fcm') return { sendToUsers: async (_db, uids, title, body, data) => { pushes.push({ uids, title, body, data }); } }; return origLoad.call(this, req, ...rest); };
 
 const load = (n) => require(path.join(FN, n, 'src', 'main.js'));
 const call = async (fn, caller, body, event) => {
@@ -184,6 +185,7 @@ const call = async (fn, caller, body, event) => {
   assert.equal(r.s, 200); assert.deepEqual(r.b.children.map((c) => c.uid), ['C']);
   assert.equal(r.b.children[0].fcmToken, undefined); assert.equal(r.b.children[0].membershipsJson, undefined);
   assert.deepEqual(r.b.children[0].coParents, [{ uid: 'P2', displayName: 'Pit' }]);
+  assert.equal(r.b.children[0].deletionStatus, null);
   r = await call(ss, 'C', { action: 'listRelatives' }); assert.deepEqual(r.b.parents.map((p) => p.uid).sort(), ['P', 'P2']);
   store.claim_requests = {};
   assert.equal((await call(ss, 'P', { action: 'sendClaim', email: 'nobody@x.de' })).b.error, 'user_not_found');
@@ -344,4 +346,54 @@ const call = async (fn, caller, body, event) => {
   assert.equal((await sched()).s, 200);
   assert.ok(store.users.H); assert.equal(store.users.I, undefined);
   console.log('delete-account OK');
+
+  // ── delete-account/startForChild: Elternteil löscht Kindkonto ─────────────
+  process.env.FCM_SERVICE_ACCOUNT_B64 = 'x'; process.env.FCM_PROJECT_ID = 'p';
+  Object.assign(store.users, {
+    K: { $id: 'K', isChild: true, displayName: 'Kai', email: 'k@x.de', verifiedParentUids: ['P1', 'P2', 'P3'] },
+    P1: { $id: 'P1', displayName: 'Pia', verifiedChildUids: ['K'] },
+    P2: { $id: 'P2', displayName: 'Paul', verifiedChildUids: ['K', 'K9'] },
+    P3: { $id: 'P3', displayName: 'Peer', verifiedChildUids: [] },      // einseitig (Kind listet ihn)
+    X: { $id: 'X', displayName: 'Xaver', verifiedChildUids: ['K'] },    // einseitig (Kind listet ihn nicht)
+  });
+  store.members.o1_K = m2('o1', 'K', 'child', { guardianUids: ['P1'] });
+  store.conversations.dmK = { $id: 'dmK', orgId: 'o1', isGroup: false, participantUids: ['K', 'P1'] };
+  store.chat_messages.mK = { $id: 'mK', convId: 'dmK', senderUid: 'K', text: 'hi', sentAt: '2026-11-20T00:00:00Z', $permissions: own('K') };
+  // Nur gegenseitig verifizierte Eltern; Kind selbst bleibt gesperrt
+  assert.equal((await call(da, 'X', { action: 'startForChild', childUid: 'K' })).s, 403);
+  assert.equal((await call(da, 'P3', { action: 'startForChild', childUid: 'K' })).s, 403);
+  assert.equal((await call(da, 'P1', { action: 'startForChild', childUid: 'nobody' })).s, 403);
+  assert.equal((await call(da, 'P1', { action: 'startForChild' })).s, 400);
+  assert.equal((await call(da, 'P1', { action: 'startForChild', childUid: 'P1' })).s, 400);
+  assert.equal(store.users.K.deletionStatus, undefined);
+  assert.deepEqual((await call(da, 'K', { action: 'check' })).b.blockers, [{ code: 'childHasParents' }]);
+  assert.equal((await call(da, 'K', { action: 'start' })).s, 409);
+  // Ein Elternteil reicht; nur gegenseitig verknüpfte Co-Eltern bekommen Push
+  const execBefore = executions.length;
+  r = await call(da, 'P1', { action: 'startForChild', childUid: 'K' }); assert.equal(r.s, 200, JSON.stringify(r));
+  assert.equal(store.users.K.deletionStatus, 'deleting'); assert.equal(store.users.K.deletionRequestedBy, 'P1');
+  assert.deepEqual(executions.slice(execBefore), [{ id: 'delete-account', body: { action: 'run', uid: 'K' }, async: true }]);
+  assert.equal(pushes.length, 1); assert.deepEqual(pushes[0].uids, ['P2']);
+  assert.equal(pushes[0].data.childUid, 'K'); assert.ok(pushes[0].body.includes('Pia') && pushes[0].body.includes('Kai'));
+  // Erneuter Aufruf während der Löschung: kein zweiter Push
+  assert.equal((await call(da, 'P1', { action: 'startForChild', childUid: 'K' })).s, 200); assert.equal(pushes.length, 1);
+  await call(da, undefined, { action: 'run', uid: 'K' });
+  assert.ok(deletedAuth.includes('K')); assert.equal(store.users.K, undefined);
+  assert.deepEqual(store.users.P1.verifiedChildUids, []); assert.deepEqual(store.users.P2.verifiedChildUids, ['K9']);
+  assert.deepEqual(store.users.X.verifiedChildUids, ['K'], 'einseitige Liste fremder Konten bleibt unberührt');
+  assert.equal(store.members.o1_K, undefined); assert.equal(store.conversations.dmK, undefined); assert.equal(store.chat_messages.mK, undefined);
+  // Verknüpfung zwischen Start und Lauf aufgehoben → Sperre greift wieder
+  Object.assign(store.users, {
+    K2: { $id: 'K2', isChild: true, displayName: 'K2', verifiedParentUids: ['P4', 'P5'] },
+    P4: { $id: 'P4', displayName: 'P4', verifiedChildUids: ['K2'] },
+    P5: { $id: 'P5', displayName: 'P5', verifiedChildUids: ['K2'] },
+  });
+  assert.equal((await call(da, 'P4', { action: 'startForChild', childUid: 'K2' })).s, 200);
+  store.users.K2.verifiedParentUids = ['P5']; store.users.P4.verifiedChildUids = [];
+  await call(da, undefined, { action: 'run', uid: 'K2' });
+  assert.equal(store.users.K2.deletionStatus, 'blocked'); assert.ok(!deletedAuth.includes('K2'));
+  // Selbst-'start' setzt deletionRequestedBy zurück (kein geerbter Eltern-Bypass)
+  store.users.K2 = { $id: 'K2', isChild: true, displayName: 'K2', verifiedParentUids: [], deletionRequestedBy: 'P5' };
+  assert.equal((await call(da, 'K2', { action: 'start' })).s, 200); assert.equal(store.users.K2.deletionRequestedBy, null);
+  console.log('delete-account startForChild OK');
 })().catch((e) => { console.error('FAIL', e); process.exit(1); });

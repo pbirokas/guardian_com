@@ -306,6 +306,8 @@ const ACTIONS = {
     return {
       children: children.map((c) => ({
         ...publicProfile(c),
+        // 'deleting' während ein Elternteil das Konto löscht (delete-account/startForChild).
+        deletionStatus: c.deletionStatus ?? null,
         coParents: (c.verifiedParentUids ?? [])
           .filter((u) => u !== callerId && (coParents.get(u)?.verifiedChildUids ?? []).includes(c.$id))
           .map((u) => ({ uid: u, displayName: coParents.get(u).displayName ?? '' })),

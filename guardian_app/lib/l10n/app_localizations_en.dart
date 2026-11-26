@@ -320,7 +320,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get deleteAccountBlockedChild =>
-      'Your account is linked to a parent. The connection must first be removed by your parent before you can delete your account.';
+      'Your account is linked to a parent. Your parent can delete your account under \"My Connections\".';
 
   @override
   String get deleteAccountBlockedParent =>
@@ -359,6 +359,51 @@ class AppLocalizationsEn extends AppLocalizations {
   String deleteAccountFailed(String message) {
     return 'Could not delete account: $message';
   }
+
+  @override
+  String get childDeleteAccount => 'Delete child\'s account';
+
+  @override
+  String childDeleteAccountTitle(String name) {
+    return 'Delete $name\'s account?';
+  }
+
+  @override
+  String childDeleteAccountConfirmContent(String name) {
+    return '$name\'s account will be permanently deleted. $name will be signed out on all devices.\n\n• Profile, memberships and settings are deleted.\n• $name\'s 1:1 chats are deleted completely – for the other person too (including your chat with $name).\n• In groups the messages remain as “Message deleted” from “Deleted user”, without text, images or files.\n• Other linked parents are notified.';
+  }
+
+  @override
+  String get childDeleteAccountInProgressTitle => 'Deleting account…';
+
+  @override
+  String childDeleteAccountInProgress(String name) {
+    return '$name\'s data is being deleted. This can take a few minutes.';
+  }
+
+  @override
+  String get childDeleteAccountDoneTitle => 'Account deleted';
+
+  @override
+  String childDeleteAccountDone(String name) {
+    return '$name\'s account and data have been deleted.';
+  }
+
+  @override
+  String get childDeleteAccountBackground =>
+      'Deletion continues on the server and will finish automatically.';
+
+  @override
+  String childDeleteAccountBlocked(String name) {
+    return '$name\'s account can\'t be deleted right now (e.g. because the connection was removed in the meantime). Please try again.';
+  }
+
+  @override
+  String get childDeleteAccountNotParent =>
+      'Only a linked parent can delete this account.';
+
+  @override
+  String get childAccountDeleting => 'Account is being deleted…';
 
   @override
   String get deletedUser => 'Deleted user';
@@ -1586,7 +1631,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get helpRelRevokeBody =>
-      'Tap the name of a connected person and choose \'Remove connection\'. Children cannot remove the connection themselves – only the parent can do this.';
+      'Tap the name of a connected person and choose \'Remove connection\'. Children cannot remove the connection themselves – only the parent can do this. Via the menu (⋮) on a child you can also delete your child\'s account.';
 
   @override
   String get myRelationships => 'My connections';

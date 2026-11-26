@@ -14,9 +14,18 @@
  *      ASYNCHRON an (eine synchrone Execution, die die API zurückruft, kann
  *      einen API-Worker blockieren — siehe CLAUDE.md). → { ok, started }
  *      Gesperrt: 409 { error: 'blocked', blockers }.
+ *  - { action: 'startForChild', childUid } (synchron, App) → ein verifizierter
+ *      Elternteil löscht das Konto seines Kindes. Nur bei gegenseitiger
+ *      Verknüpfung (child.verifiedParentUids ∋ Aufrufer UND
+ *      caller.verifiedChildUids ∋ Kind), sonst 403 'not_parent'. Ein Elternteil
+ *      reicht (abgestimmt 2026-11-26); die übrigen verifizierten Eltern
+ *      bekommen einen Push. Die Sperre childHasParents entfällt, alle anderen
+ *      gelten weiter. Merkt sich den Antragsteller in users.deletionRequestedBy.
+ *      → { ok, started } | 409 { error: 'blocked', blockers }
  *  - { action: 'run', uid } (nur intern: ohne Nutzer-Header, per API-Key von
  *      'start' bzw. einem vorigen Lauf angestoßen) → arbeitet nur, wenn
- *      users/{uid}.deletionStatus === 'deleting' (das setzt allein 'start').
+ *      users/{uid}.deletionStatus === 'deleting' (das setzen allein 'start'
+ *      und 'startForChild').
  *  - Schedule (alle 15 min): setzt hängengebliebene Löschungen fort.
  *
  * Jeder Schritt ist idempotent (sucht per uid/senderUid, 404 = erledigt);
@@ -38,9 +47,12 @@
  *    gemeldeter Nachrichtentext geleert.
  *  - read_receipts, scheduled_messages, claim_requests, offene Einladungen an
  *    die eigene E-Mail, Eltern-Zustimmungen: gelöscht bzw. UID entfernt.
+ *  - Eltern-Kind-Verknüpfungen: UID aus verifiedChildUids der Eltern bzw.
+ *    verifiedParentUids der Kinder entfernt (relevant beim Löschen durch Eltern).
  */
 
 const { Client, Databases, Users, Storage, Functions, Query } = require('node-appwrite');
+const { sendToUsers } = require('./fcm');
 
 const FUNCTION_ID = 'delete-account';
 const DB_ID = 'guardian';
@@ -127,10 +139,41 @@ module.exports = async ({ req, res, log, error }) => {
         await ctx.db.updateDocument(DB_ID, COL.users, callerId, {
           deletionStatus: 'deleting',
           deletionRequestedAt: new Date().toISOString(),
+          deletionRequestedBy: null,
         });
         log(`start: deletion of ${callerId} requested`);
       }
       await enqueueRun(ctx, callerId);
+      return res.json({ ok: true, started: true });
+    }
+
+    if (body.action === 'startForChild') {
+      const childUid = typeof body.childUid === 'string' ? body.childUid : '';
+      if (!childUid || childUid === callerId) return res.json({ error: 'invalid_child' }, 400);
+      const [parent, child] = await Promise.all([
+        getOrNull(ctx.db, COL.users, callerId),
+        getOrNull(ctx.db, COL.users, childUid),
+      ]);
+      // Gegenseitig verifiziert — eine einseitige Liste (z. B. eigene
+      // verifiedChildUids) reicht nicht. Gleiche Antwort für „gibt es nicht“
+      // und „nicht dein Kind“ (kein UID-Orakel).
+      if (!parent || !child ||
+          !(child.verifiedParentUids ?? []).includes(callerId) ||
+          !(parent.verifiedChildUids ?? []).includes(childUid)) {
+        return res.json({ error: 'not_parent' }, 403);
+      }
+      if (child.deletionStatus !== 'deleting') {
+        const blockers = await findBlockers(ctx, childUid, child, { parentUid: callerId });
+        if (blockers.length > 0) return res.json({ error: 'blocked', blockers }, 409);
+        await ctx.db.updateDocument(DB_ID, COL.users, childUid, {
+          deletionStatus: 'deleting',
+          deletionRequestedAt: new Date().toISOString(),
+          deletionRequestedBy: callerId,
+        });
+        log(`startForChild: deletion of ${childUid} requested by parent ${callerId}`);
+        await notifyCoParents(ctx, child, parent);
+      }
+      await enqueueRun(ctx, childUid);
       return res.json({ ok: true, started: true });
     }
 
@@ -143,9 +186,19 @@ module.exports = async ({ req, res, log, error }) => {
 
 // ── Sperren ─────────────────────────────────────────────────────────────────
 
-async function findBlockers(ctx, uid, user) {
+/**
+ * `parentUid`: die Löschung kommt von diesem Elternteil (startForChild bzw.
+ * users.deletionRequestedBy im Lauf). Ist er (noch) als Elternteil am Kind
+ * eingetragen, entfällt childHasParents. Die Gegenseite (verifiedChildUids
+ * des Elternteils) prüft nur startForChild — im Lauf entfernt deleteEverything
+ * sie, bevor das users-Doc des Kindes weg ist; ein Folgelauf muss trotzdem
+ * weiterlaufen dürfen.
+ */
+async function findBlockers(ctx, uid, user, { parentUid = null } = {}) {
   const blockers = [];
-  if (user?.isChild && (user.verifiedParentUids ?? []).length > 0) {
+  const parents = user?.verifiedParentUids ?? [];
+  const byParent = !!parentUid && parents.includes(parentUid);
+  if (user?.isChild && parents.length > 0 && !byParent) {
     blockers.push({ code: 'childHasParents' });
   }
   if ((user?.verifiedChildUids ?? []).length > 0) {
@@ -222,7 +275,7 @@ async function runDeletion(ctx, uid, { force = false } = {}) {
 
   // Sperren erneut prüfen: zwischen 'start' und Lauf kann jemand einer Org
   // beigetreten sein. Dann nichts weiter löschen und den Status zurücksetzen.
-  const blockers = await findBlockers(ctx, uid, user);
+  const blockers = await findBlockers(ctx, uid, user, { parentUid: user?.deletionRequestedBy });
   if (blockers.length > 0) {
     if (user) await db.updateDocument(DB_ID, COL.users, uid, { deletionStatus: 'blocked' });
     log(`run: ${uid} blocked (${blockers.map((b) => b.code).join(',')})`);
@@ -307,13 +360,72 @@ async function deleteEverything(ctx, uid, user) {
     }
   }
 
-  // 7. Auth-Konto (Sessions + Team-Mitgliedschaften), dann users-Doc.
+  // 7. Eltern-Kind-Verknüpfungen auf der Gegenseite lösen (das eigene Doc
+  //    verschwindet ohnehin). Erst hier, kurz vor dem Konto: bis dahin zeigt
+  //    die App der Eltern das Kind noch (als „wird gelöscht“).
+  await unlinkRelatives(ctx, uid, user);
+
+  // 8. Auth-Konto (Sessions + Team-Mitgliedschaften), dann users-Doc.
   try {
     await users.delete(uid);
   } catch (e) {
     if (e?.code !== 404) throw e;
   }
   await del(db, COL.users, uid);
+}
+
+/** uid aus verifiedChildUids der Eltern und verifiedParentUids der Kinder entfernen. */
+async function unlinkRelatives(ctx, uid, user) {
+  const { db } = ctx;
+  const sides = [
+    [user?.verifiedParentUids ?? [], 'verifiedChildUids'],
+    [user?.verifiedChildUids ?? [], 'verifiedParentUids'],
+  ];
+  for (const [ids, field] of sides) {
+    for (const other of ids) {
+      if (other === uid) continue;
+      const doc = await getOrNull(db, COL.users, other);
+      if (!doc || !(doc[field] ?? []).includes(uid)) continue;
+      await db.updateDocument(DB_ID, COL.users, other, {
+        [field]: doc[field].filter((u) => u !== uid),
+      });
+    }
+  }
+}
+
+/**
+ * Übrige verifizierte Eltern (gegenseitig verknüpft) per Push informieren,
+ * dass `parent` das Konto des Kindes löscht. Best effort: ohne FCM-Variablen
+ * an der Function nur ein Log-Eintrag, Fehler brechen die Löschung nicht ab.
+ */
+async function notifyCoParents(ctx, child, parent) {
+  const { db, log, error } = ctx;
+  try {
+    const others = (child.verifiedParentUids ?? []).filter((u) => u !== parent.$id);
+    const coParents = [];
+    for (const u of others) {
+      const p = await getOrNull(db, COL.users, u);
+      if (p && (p.verifiedChildUids ?? []).includes(child.$id)) coParents.push(u);
+    }
+    if (coParents.length === 0) return;
+    if (!process.env.FCM_SERVICE_ACCOUNT_B64 || !process.env.FCM_PROJECT_ID) {
+      log(`notifyCoParents: FCM not configured — ${coParents.length} co-parent(s) not notified`);
+      return;
+    }
+    const childName = child.displayName || 'Dein Kind';
+    const parentName = parent.displayName || 'Ein Elternteil';
+    await sendToUsers(
+      db,
+      coParents,
+      'Kinderkonto wird gelöscht',
+      `${parentName} hat das Konto von ${childName} gelöscht.`,
+      { type: 'child_account_deleted', childUid: child.$id },
+      log,
+      error,
+    );
+  } catch (e) {
+    error(`notifyCoParents(${child.$id}) failed: ${e?.message}`);
+  }
 }
 
 /** Audit-Log, Meldungen, Einladungen, Zustimmungen, Pinnwand, Guardian-Rollen. */

@@ -89,7 +89,7 @@ Node.js Functions, deployed with the Appwrite CLI (`appwrite push function --fun
 - `sync-conversation-permissions` / `sync-supervisor-team` — conversation team membership (see conventions)
 - `on-new-invitation` (event: invitations.create) — invitation e-mail via Gmail SMTP (`GMAIL_APP_PASSWORD`) + FCM
 - `mark-as-read`, `moderate-message`, `admin-member-action`, `get-child-summary`, `revoke-connection` — callables (from the app only via `executeRaw`)
-- `delete-account` — account deletion: `check` (blocks) and `start` (sync, re-checks, then enqueues an **async** `run` of itself); idempotent, 10-min budget per run, re-enqueues itself, schedule `*/15` resumes stale runs (`users.deletionStatus='deleting'`)
+- `delete-account` — account deletion: `check` (blocks) and `start` (sync, re-checks, then enqueues an **async** `run` of itself); idempotent, 10-min budget per run, re-enqueues itself, schedule `*/15` resumes stale runs (`users.deletionStatus='deleting'`). `startForChild { childUid }`: a mutually verified parent deletes the child's account (one parent suffices, co-parents get an FCM push; `users.deletionRequestedBy` lifts the `childHasParents` block for the run). Needs `FCM_SERVICE_ACCOUNT_B64`/`FCM_PROJECT_ID` on the Function for that push (without them it only logs)
 - `cleanup-expired-polls` / `cleanup-expired-announcements` / `cleanup-old-messages` (schedules), `daily-error-report` (07:00 e-mail of failed executions)
 
 FCM is called via the HTTP v1 API with a service account (`FCM_SERVICE_ACCOUNT_B64`, `FCM_PROJECT_ID`). FCM messages always set `android.priority: 'high'` at the message level to bypass Doze mode.

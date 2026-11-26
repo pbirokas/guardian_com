@@ -8,6 +8,8 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 
 - **Sicherheits-Härtung abgeschlossen (live mit App-Build 167).** Die am 15.11. vorbereiteten Schutzmaßnahmen gegen selbst verschaffte Rechte sind jetzt vollständig aktiv: Chats, Mitgliedschaften und Profile kann die App nur noch über den Server ändern, der jede Aktion prüft. Ältere App-Versionen müssen aktualisiert werden.
 - **Fix: Einladen per E-Mail an noch nicht registrierte Adressen funktioniert wieder.** Die Einladung scheiterte mit „Unknown attribute invitedByUid“, weil der Datenbank ein Feld fehlte; das betraf auch ältere App-Versionen.
+- **Fix: Ausstehende Einladungen lassen sich wieder zurücknehmen.** Der Knopf „Einladung zurückziehen“ tat bisher nichts (die App las die Einladungs-ID unter einem falschen Namen); Fehler werden jetzt angezeigt.
+- **Einladungs-Mails auch an Adressen, deren Anmeldung nie abgeschlossen wurde.** Wer früher nur einen Login-Code angefordert hatte, bekam keine Einladungs-Mail.
 
 ---
 

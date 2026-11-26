@@ -152,6 +152,17 @@ class ParentClaimService {
   Stream<List<Map<String, dynamic>>> watchMyParents() =>
       _watchRelatives('parents', 'verifiedParentUids');
 
+  Future<Map<String, dynamic>>? _relativesInFlight;
+
+  /// Ein gemeinsamer `listRelatives`-Aufruf für Kinder- UND Eltern-Liste.
+  /// Gleichzeitige synchrone Executions blockieren serverseitig API-Worker
+  /// (siehe CLAUDE.md, 2026-11-26: Timeouts bei parallelen Aufrufen) — daher
+  /// nie zwei parallel, auch wenn beide Streams gleichzeitig neu laden.
+  Future<Map<String, dynamic>> _fetchRelatives() =>
+      _relativesInFlight ??= _functions
+          .callJson('self-service', {'action': 'listRelatives'})
+          .whenComplete(() => _relativesInFlight = null);
+
   /// Verifizierte Verwandte über `self-service/listRelatives` (Profil-Auszug
   /// uid/displayName/email/photoUrl, bei Kindern zusätzlich `coParents`) —
   /// fremde users-Docs sind nicht lesbar. Neu geladen wird, wenn sich
@@ -164,8 +175,7 @@ class ParentClaimService {
     Future<void> reload() async {
       if (ctrl.isClosed) return;
       try {
-        final result =
-            await _functions.callJson('self-service', {'action': 'listRelatives'});
+        final result = await _fetchRelatives();
         final list = (result[key] as List? ?? [])
             .map((e) => Map<String, dynamic>.from(e as Map))
             .toList();

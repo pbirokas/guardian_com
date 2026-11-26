@@ -10,6 +10,8 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 - **Fix: Einladen per E-Mail an noch nicht registrierte Adressen funktioniert wieder.** Die Einladung scheiterte mit „Unknown attribute invitedByUid“, weil der Datenbank ein Feld fehlte; das betraf auch ältere App-Versionen.
 - **Fix: Ausstehende Einladungen lassen sich wieder zurücknehmen.** Der Knopf „Einladung zurückziehen“ tat bisher nichts (die App las die Einladungs-ID unter einem falschen Namen); Fehler werden jetzt angezeigt.
 - **Einladungs-Mails auch an Adressen, deren Anmeldung nie abgeschlossen wurde.** Wer früher nur einen Login-Code angefordert hatte, bekam keine Einladungs-Mail.
+- **Kind-Konten sehen „Organisation erstellen“ nicht mehr, sobald sie Kind werden.** Bestätigte ein Kind eine Eltern-Anfrage, zeigte die App bis zum nächsten Neustart noch den Knopf (das Erstellen selbst lehnte der Server ab). Die App beobachtet ihr eigenes Profil jetzt live.
+- **Weniger Server-Hänger auf der Verknüpfungs-Seite.** Eltern- und Kinderliste laden ihre Daten jetzt mit einem gemeinsamen Aufruf statt zwei gleichzeitigen; parallele Aufrufe konnten den Server bis zum Timeout blockieren.
 
 ---
 

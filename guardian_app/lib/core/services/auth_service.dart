@@ -158,6 +158,46 @@ class AuthService {
     }
   }
 
+  /// Eigenes users-Doc live (Realtime-Payload direkt übernommen; leeres
+  /// Resync-Event lädt neu). Damit sieht die App serverseitige Änderungen
+  /// wie `isChild` nach einer bestätigten Eltern-Anfrage sofort — ohne
+  /// `authStateProvider` neu aufzubauen (würde den Router zurücksetzen).
+  Stream<AppUser?> watchOwnUser(String uid, RealtimeBroadcaster broadcaster) {
+    late StreamController<AppUser?> ctrl;
+    StreamSubscription? realtimeSub;
+
+    Future<void> reload() async {
+      if (ctrl.isClosed) return;
+      try {
+        final doc = await _db.getDocument(
+            databaseId: _dbId, collectionId: _colUsers, documentId: uid);
+        if (!ctrl.isClosed) {
+          ctrl.add(AppUser.fromAppwrite({r'$id': doc.$id, ...doc.data}));
+        }
+      } catch (e) {
+        if (!ctrl.isClosed) ctrl.addError(e);
+      }
+    }
+
+    void dispose() {
+      realtimeSub?.cancel();
+      ctrl.close();
+    }
+
+    ctrl = StreamController(onCancel: dispose);
+    realtimeSub = broadcaster
+        .stream('databases.$_dbId.collections.$_colUsers.documents.$uid')
+        .listen((msg) {
+      if (msg.events.isEmpty || msg.payload[r'$id'] != uid) {
+        reload();
+      } else if (!ctrl.isClosed) {
+        ctrl.add(AppUser.fromAppwrite(Map<String, dynamic>.from(msg.payload)));
+      }
+    }, onDone: dispose, onError: (_) {});
+    reload();
+    return ctrl.stream;
+  }
+
   Stream<NotificationSettings> watchNotificationSettings(
       String uid, RealtimeBroadcaster broadcaster) {
     late StreamController<NotificationSettings> ctrl;

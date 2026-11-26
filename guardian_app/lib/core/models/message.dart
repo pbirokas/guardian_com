@@ -1,5 +1,10 @@
 import 'dart:convert';
 
+/// Absendername, den `delete-account` in Nachrichten gelöschter Konten
+/// schreibt (muss zu DELETED_NAME in appwrite/functions/delete-account passen).
+/// Die App zeigt stattdessen den lokalisierten Text `deletedUser`.
+const kDeletedUserName = 'Gelöschter Nutzer';
+
 class Message {
   final String id;
   final String senderUid;

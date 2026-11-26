@@ -1951,6 +1951,23 @@
             "vars": {}
         },
         {
+            "$id": "delete-account",
+            "name": "delete-account",
+            "runtime": "node-16.0",
+            "execute": [
+                "users"
+            ],
+            "events": [],
+            "schedule": "*/15 * * * *",
+            "timeout": 900,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/delete-account",
+            "vars": {}
+        },
+        {
             "$id": "conversation-action",
             "name": "conversation-action",
             "runtime": "node-16.0",

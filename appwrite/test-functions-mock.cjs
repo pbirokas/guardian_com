@@ -31,14 +31,18 @@ class Teams {
   async createMembership(id, _r, _e, uid) { teamsStore[id].add(uid); }
   async deleteMembership(id, mid) { teamsStore[id].delete(mid.split(':')[1]); }
 }
-class Users { async get(id) { return { email: `${id}@X.de`, name: `Name ${id}` }; } }
+const deletedAuth = [];
+class Users { async get(id) { return { email: `${id}@X.de`, name: `Name ${id}` }; } async delete(id) { deletedAuth.push(id); } }
 class Client { setEndpoint() { return this; } setProject() { return this; } setKey() { return this; } }
 const Query = { equal: (a, v) => ({ t: 'equal', a, v: [].concat(v) }), contains: (a, v) => ({ t: 'contains', a, v: [].concat(v) }), notEqual: (a, v) => ({ t: 'notEqual', a, v: [].concat(v) }), limit: () => ({ t: 'limit' }), cursorAfter: () => ({ t: 'c' }) };
 const Role = { user: (u) => `user:${u}`, team: (t) => `team:${t}`, users: () => 'users' };
 const Permission = { read: (r) => `read("${r}")`, update: (r) => `update("${r}")`, delete: (r) => `delete("${r}")` };
 const ID = { unique: () => `id${++idc}` };
-class Storage {}
-const fake = { Storage, Client, Databases, Teams, Users, Query, Role, Permission, ID };
+const files = {}; // fileId -> { $permissions }
+class Storage { async getFile(_b, id) { if (!files[id]) { const e = new Error('nf'); e.code = 404; throw e; } return { $id: id, ...files[id] }; } async deleteFile(_b, id) { delete files[id]; } }
+const executions = [];
+class Functions { async createExecution(id, body, async) { executions.push({ id, body: JSON.parse(body), async }); return {}; } }
+const fake = { Functions, Storage, Client, Databases, Teams, Users, Query, Role, Permission, ID };
 const origLoad = Module._load;
 Module._load = function (req, ...rest) { if (req === 'node-appwrite') return fake; if (req === './fcm') return { sendToUsers: async () => {} }; return origLoad.call(this, req, ...rest); };
 
@@ -191,4 +195,153 @@ const call = async (fn, caller, body, event) => {
   assert.equal(Object.keys(r.b).includes('toUid'), false);
   assert.equal((await call(ss, 'P', { action: 'sendClaim', email: 'r@x.de' })).b.error, 'already_exists');
   console.log('self-service Phase 3 OK');
+
+  // ── delete-account ──────────────────────────────────────────────────────
+  for (const k of Object.keys(store)) delete store[k];
+  for (const k of Object.keys(teamsStore)) delete teamsStore[k];
+  const da = load('delete-account');
+  const DEL = 'Gelöschter Nutzer';
+  const own = (u) => ['read("team:x")', `read("user:${u}")`, `update("user:${u}")`, `delete("user:${u}")`];
+  const fileUrl = (id) => `https://h/v1/storage/buckets/b/files/${id}/view?project=p`;
+  const m2 = (org, uid, role, extra = {}) => ({ $id: `${org}_${uid}`, orgId: org, uid, role, status: 'active', guardianUids: [], ...extra });
+  store.users = {
+    D: { $id: 'D', displayName: 'Dora', email: 'd@x.de', photoUrl: fileUrl('av1'), verifiedChildUids: [], verifiedParentUids: [] },
+    C2: { $id: 'C2', isChild: true, verifiedParentUids: ['P'] },
+    P: { $id: 'P', verifiedChildUids: ['C2'] },
+    F: { $id: 'F', displayName: 'F' },
+  };
+  store.organizations = {
+    o1: { $id: 'o1', name: 'Verein', adminUid: 'A', memberUids: ['A', 'B', 'D'] },
+    o2: { $id: 'o2', name: 'Zwei', adminUid: 'D', memberUids: ['D', 'B'] },
+    s1: { $id: 's1', name: 'Solo', adminUid: 'D', memberUids: ['D'] },
+  };
+  store.members = {
+    o1_A: m2('o1', 'A', 'admin'), o1_B: m2('o1', 'B', 'member'), o1_D: m2('o1', 'D', 'member'),
+    o1_K2: m2('o1', 'K2', 'child', { guardianUids: ['D'] }),
+    o2_D: m2('o2', 'D', 'admin'), o2_B: m2('o2', 'B', 'member'),
+    s1_D: m2('s1', 'D', 'admin'), s1_Z: m2('s1', 'Z', 'child', { status: 'pending' }),
+  };
+
+  // Sperren
+  assert.deepEqual((await call(da, 'C2', { action: 'check' })).b.blockers, [{ code: 'childHasParents' }]);
+  assert.deepEqual((await call(da, 'P', { action: 'check' })).b.blockers, [{ code: 'parentHasChildren' }]);
+  r = await call(da, 'D', { action: 'check' });
+  assert.deepEqual(r.b.blockers, [{ code: 'orgAdmin', orgId: 'o2', orgName: 'Zwei' }]); // s1: nur ausstehendes Kind
+  r = await call(da, 'D', { action: 'start' }); assert.equal(r.s, 409); assert.equal(r.b.error, 'blocked');
+  assert.equal(store.users.D.deletionStatus, undefined); assert.equal(executions.length, 0);
+  // Interner Lauf ohne beantragte Löschung tut nichts; mit Nutzer-Header gibt es 'run' nicht
+  await call(da, undefined, { action: 'run', uid: 'F' }); assert.ok(store.users.F);
+  assert.equal((await call(da, 'F', { action: 'run', uid: 'D' })).s, 400);
+  assert.equal((await call(da, undefined, { action: 'check' })).s, 401);
+  // Admin übertragen → frei
+  Object.assign(store.organizations.o2, { adminUid: 'B' }); store.members.o2_D.role = 'member'; store.members.o2_B.role = 'admin';
+  assert.deepEqual((await call(da, 'D', { action: 'check' })).b.blockers, []);
+
+  // Daten
+  files.av1 = { $permissions: ['read("any")', 'delete("user:D")'] };
+  files.f1 = { $permissions: ['read("any")', 'delete("user:D")'] };
+  files.f2 = { $permissions: ['read("any")', 'delete("user:B")'] };
+  files.g1img = { $permissions: ['read("any")', 'delete("user:D")'] };
+  files.foreign = { $permissions: ['read("any")', 'delete("user:A")'] };
+  store.conversations = {
+    dm1: { $id: 'dm1', orgId: 'o1', isGroup: false, participantUids: ['D', 'B'] },
+    g1: { $id: 'g1', orgId: 'o1', isGroup: true, participantUids: ['A', 'B', 'D', 'K2'], guardianUids: ['D'], pinnedMessageId: 'gD1', pinnedMessageText: 'hallo', lastMessage: 'tschüss' },
+    sc1: { $id: 'sc1', orgId: 's1', isGroup: false, participantUids: ['D'] },
+  };
+  store.chat_messages = {
+    mD1: { $id: 'mD1', convId: 'dm1', senderUid: 'D', text: 'geheim', imageUrl: fileUrl('f1'), sentAt: '2026-11-01T10:00:00Z', $permissions: own('D') },
+    mB1: { $id: 'mB1', convId: 'dm1', senderUid: 'B', text: 'antwort', fileUrl: fileUrl('f2'), sentAt: '2026-11-01T10:01:00Z', $permissions: own('B') },
+    gD1: { $id: 'gD1', convId: 'g1', senderUid: 'D', senderName: 'Dora', text: 'hallo', imageUrl: fileUrl('g1img'), imageUrls: [fileUrl('g1img'), fileUrl('foreign')], reactionsJson: '{"B":"👍"}', sentAt: '2026-11-02T10:00:00Z', $permissions: own('D') },
+    gB1: { $id: 'gB1', convId: 'g1', senderUid: 'B', senderName: 'B', text: 'ok', replyToId: 'gD1', replyToText: 'hallo', replyToSenderName: 'Dora', reactionsJson: '{"D":"❤️","A":"👍"}', sentAt: '2026-11-02T10:01:00Z', $permissions: own('B') },
+    gD2: { $id: 'gD2', convId: 'g1', senderUid: 'D', senderName: 'Dora', text: 'tschüss', sentAt: '2026-11-02T10:02:00Z', $permissions: own('D') },
+    sys: { $id: 'sys', convId: 'g1', senderUid: 'D', senderName: 'Dora', type: 'system', systemActorName: 'Dora', systemTargetName: 'B', sentAt: '2026-11-02T09:00:00Z' },
+    old: { $id: 'old', convId: 'gOld', senderUid: 'D', senderName: 'Dora', text: 'früher', sentAt: '2026-01-01T00:00:00Z', $permissions: own('D') },
+    sm: { $id: 'sm', convId: 'sc1', senderUid: 'D', text: 'solo', sentAt: '2026-11-03T00:00:00Z' },
+  };
+  store.polls = {
+    pD: { $id: 'pD', convId: 'g1', createdBy: 'D', votesJson: '{}' },
+    pB: { $id: 'pB', convId: 'g1', createdBy: 'B', votesJson: '{"x":["D","A"],"y":["B"]}' },
+  };
+  store.read_receipts = { rr: { $id: 'rr', convId: 'g1', uid: 'D' }, rrB: { $id: 'rrB', convId: 'g1', uid: 'B' } };
+  store.scheduled_messages = { s1m: { $id: 's1m', convId: 'g1', senderUid: 'D' }, sB: { $id: 'sB', convId: 'g1', senderUid: 'B' } };
+  store.claim_requests = { cl1: { $id: 'cl1', fromUid: 'D', toUid: 'Y' }, cl2: { $id: 'cl2', fromUid: 'Y', toUid: 'D' } };
+  store.invitations = {
+    inv1: { $id: 'inv1', email: 'd@x.de', orgId: 'o1' },
+    inv2: { $id: 'inv2', email: 'n@x.de', orgId: 'o1', invitedByUid: 'D', inviterName: 'Dora' },
+  };
+  store.org_invite_consents = {
+    cs1: { $id: 'cs1', orgId: 'o9', childUid: 'X', parentUids: ['D'], status: 'pending' },
+    cs2: { $id: 'cs2', orgId: 'o9', childUid: 'X2', parentUids: ['D', 'Q'], status: 'pending' },
+    cs3: { $id: 'cs3', orgId: 'o1', childUid: 'X3', parentUids: ['Q'], invitedByUid: 'D', invitedByName: 'Dora' },
+  };
+  store.audit_log = { a1: { $id: 'a1', orgId: 'o1', actorUid: 'D', actorName: 'Dora' }, a2: { $id: 'a2', orgId: 'o1', actorUid: 'A', actorName: 'Anna' } };
+  store.reports = {
+    rp1: { $id: 'rp1', orgId: 'o1', msgId: 'gD1', messageSenderName: 'Dora', messageText: 'hallo' },
+    rp2: { $id: 'rp2', orgId: 'o1', msgId: 'mD1', messageSenderName: 'Dora', messageText: 'geheim' },
+    rp3: { $id: 'rp3', orgId: 'o1', msgId: 'gB1', messageSenderName: 'B', messageText: 'ok', reportedByUid: 'D' },
+    rp4: { $id: 'rp4', orgId: 'o1', msgId: 'expired', messageSenderName: 'Dora', messageText: 'alt' },
+    rp5: { $id: 'rp5', orgId: 'o1', msgId: 'expired2', messageSenderName: 'Bert', messageText: 'alt' },
+  };
+  store.announcements = { an1: { $id: 'an1', orgId: 'o1', authorUid: 'D', authorName: 'Dora', reactionsJson: '{"D":"🎉"}', rsvpJson: '{"D":"yes","A":"no"}' } };
+
+  r = await call(da, 'D', { action: 'start' }); assert.equal(r.s, 200, JSON.stringify(r));
+  assert.equal(store.users.D.deletionStatus, 'deleting');
+  assert.deepEqual(executions.pop(), { id: 'delete-account', body: { action: 'run', uid: 'D' }, async: true });
+  await call(da, undefined, { action: 'run', uid: 'D' });
+
+  assert.deepEqual(deletedAuth, ['D']);
+  assert.equal(store.users.D, undefined);
+  assert.equal(store.members.o1_D, undefined); assert.equal(store.members.o2_D, undefined);
+  assert.deepEqual(store.organizations.o1.memberUids, ['A', 'B']); assert.deepEqual(store.organizations.o2.memberUids, ['B']);
+  assert.equal(store.organizations.s1, undefined); assert.equal(store.members.s1_Z, undefined);
+  assert.equal(store.conversations.sc1, undefined); assert.equal(store.chat_messages.sm, undefined);
+  assert.deepEqual(store.members.o1_K2.guardianUids, []);
+  // 1:1-Chat komplett weg, inkl. Medien beider Seiten
+  assert.equal(store.conversations.dm1, undefined); assert.equal(store.chat_messages.mD1, undefined); assert.equal(store.chat_messages.mB1, undefined);
+  assert.equal(files.f1, undefined); assert.equal(files.f2, undefined);
+  // Gruppe: Platzhalter, Zitate/Reaktionen/Stimmen/Pin/Vorschau bereinigt, ausgetreten
+  const G = store.conversations.g1;
+  assert.deepEqual(G.participantUids, ['A', 'B', 'K2']); assert.deepEqual(G.guardianUids, []);
+  assert.equal(G.pinnedMessageId, null); assert.equal(G.lastMessage, '');
+  const gD1 = store.chat_messages.gD1;
+  assert.equal(gD1.text, ''); assert.equal(gD1.senderName, DEL); assert.equal(gD1.imageUrl, null); assert.deepEqual(gD1.imageUrls, []);
+  assert.ok(gD1.deletedAt); assert.equal(gD1.reactionsJson, '{}');
+  assert.equal(files.g1img, undefined); assert.ok(files.foreign, 'fremde Datei bleibt');
+  assert.equal(store.chat_messages.gB1.replyToText, ''); assert.equal(store.chat_messages.gB1.replyToSenderName, DEL);
+  assert.equal(store.chat_messages.gB1.reactionsJson, '{"A":"👍"}'); assert.equal(store.chat_messages.gB1.text, 'ok');
+  assert.equal(store.chat_messages.sys.systemActorName, DEL); assert.equal(store.chat_messages.sys.systemTargetName, 'B');
+  assert.equal(store.chat_messages.old.text, ''); assert.equal(store.chat_messages.old.senderName, DEL);
+  assert.equal(store.polls.pD, undefined); assert.equal(store.polls.pB.votesJson, '{"x":["A"],"y":["B"]}');
+  // Rest
+  assert.deepEqual(Object.keys(store.read_receipts), ['rrB']); assert.deepEqual(Object.keys(store.scheduled_messages), ['sB']);
+  assert.deepEqual(Object.keys(store.claim_requests), []);
+  assert.equal(store.invitations.inv1, undefined); assert.equal(store.invitations.inv2.inviterName, DEL);
+  assert.equal(store.org_invite_consents.cs1, undefined); assert.deepEqual(store.org_invite_consents.cs2.parentUids, ['Q']);
+  assert.equal(store.org_invite_consents.cs3.invitedByName, DEL);
+  assert.equal(store.audit_log.a1.actorName, DEL); assert.equal(store.audit_log.a2.actorName, 'Anna');
+  assert.deepEqual([store.reports.rp1.messageSenderName, store.reports.rp1.messageText], [DEL, '']);
+  assert.deepEqual([store.reports.rp2.messageSenderName, store.reports.rp2.messageText], [DEL, '']);
+  assert.equal(store.reports.rp3.messageText, 'ok');
+  assert.equal(store.reports.rp4.messageText, ''); assert.equal(store.reports.rp5.messageText, 'alt');
+  assert.equal(store.announcements.an1.authorName, DEL); assert.equal(store.announcements.an1.reactionsJson, '{}');
+  assert.equal(store.announcements.an1.rsvpJson, '{"A":"no"}');
+  assert.equal(files.av1, undefined);
+  // Wiederholter Lauf (z. B. Schedule) ist harmlos
+  await call(da, undefined, { action: 'run', uid: 'D' }); assert.deepEqual(deletedAuth, ['D']);
+
+  // Sperre greift zwischen start und Lauf → nichts gelöscht, Status 'blocked'
+  store.users.E = { $id: 'E', displayName: 'E', email: 'e@x.de' };
+  store.organizations.e1 = { $id: 'e1', name: 'E-Org', adminUid: 'E', memberUids: ['E'] };
+  store.members.e1_E = m2('e1', 'E', 'admin');
+  assert.equal((await call(da, 'E', { action: 'start' })).s, 200);
+  store.members.e1_W = m2('e1', 'W', 'member');
+  await call(da, undefined, { action: 'run', uid: 'E' });
+  assert.equal(store.users.E.deletionStatus, 'blocked'); assert.ok(store.organizations.e1); assert.ok(store.members.e1_E);
+  // Schedule setzt nur hängengebliebene Läufe fort
+  store.users.H = { $id: 'H', displayName: 'H', deletionStatus: 'deleting', deletionRunAt: new Date().toISOString() };
+  store.users.I = { $id: 'I', displayName: 'I', deletionStatus: 'deleting', deletionRunAt: '2026-01-01T00:00:00Z' };
+  const sched = async () => { let o; await da({ req: { headers: { 'x-appwrite-trigger': 'schedule' }, body: '' }, res: { json: (b, s = 200) => (o = { s, b }) }, log: () => {}, error: () => {} }); return o; };
+  assert.equal((await sched()).s, 200);
+  assert.ok(store.users.H); assert.equal(store.users.I, undefined);
+  console.log('delete-account OK');
 })().catch((e) => { console.error('FAIL', e); process.exit(1); });

@@ -62,6 +62,7 @@ const FUNCTION_IDS = [
   'revoke-connection',
   'mark-as-read',
   'admin-member-action',
+  'delete-account',
 ];
 
 const VARS_TO_SET = [

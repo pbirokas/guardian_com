@@ -2115,7 +2115,7 @@ class _MessageBubble extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 2),
                 child: Text(
-                  message.senderName,
+                  _localizedSenderName(message.senderName, l),
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
@@ -2127,7 +2127,7 @@ class _MessageBubble extends ConsumerWidget {
               ),
             if (message.replyToId != null)
               _ReplyQuote(
-                senderName: message.replyToSenderName ?? '',
+                senderName: _localizedSenderName(message.replyToSenderName ?? '', l),
                 text: message.replyToText ?? '',
                 isMe: isMe,
               ),
@@ -3728,3 +3728,8 @@ class _DeletedLabel extends StatelessWidget {
     );
   }
 }
+
+/// Konten, die `delete-account` gelöscht hat, stehen als [kDeletedUserName]
+/// in den Nachrichten — in der App-Sprache anzeigen.
+String _localizedSenderName(String name, AppLocalizations l) =>
+    name == kDeletedUserName ? l.deletedUser : name;

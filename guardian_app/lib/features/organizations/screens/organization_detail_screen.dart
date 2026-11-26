@@ -232,7 +232,10 @@ class _OrganizationDetailScreenState
                         title: l.tourOrgMembersTitle,
                         description: l.tourOrgMembersDesc,
                         child: Tab(
-                          icon: const Icon(Icons.people_outline),
+                          icon: _MembersTabIcon(
+                            orgId: orgId,
+                            isAdminOrMod: isAdmin || isModerator,
+                          ),
                           text: l.tabMembers,
                         ),
                       ),
@@ -1371,6 +1374,34 @@ class _ChatTabLabel extends ConsumerWidget {
                 color: Colors.white,
                 fontWeight: FontWeight.bold)),
       ),
+    );
+  }
+}
+
+/// Kind ohne (noch vorhandenen) Guardian — z. B. nachdem der einzige
+/// Guardian sein Konto gelöscht hat. Admins/Mods müssen einen neuen zuweisen.
+bool _childNeedsGuardian(OrgMember m, List<OrgMember> all) =>
+    m.role == OrgRole.child &&
+    !m.guardianUids.any((g) => all.any((o) => o.uid == g));
+
+/// Mitglieder-Tab-Icon mit rotem Zähler „Aktion erforderlich“ (Admin/Mod):
+/// Kinder ohne Guardian.
+class _MembersTabIcon extends ConsumerWidget {
+  final String orgId;
+  final bool isAdminOrMod;
+
+  const _MembersTabIcon({required this.orgId, required this.isAdminOrMod});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final members = isAdminOrMod
+        ? ref.watch(orgMembersProvider(orgId)).value ?? const <OrgMember>[]
+        : const <OrgMember>[];
+    final count = members.where((m) => _childNeedsGuardian(m, members)).length;
+    return Badge(
+      isLabelVisible: count > 0,
+      label: Text('$count'),
+      child: const Icon(Icons.people_outline),
     );
   }
 }
@@ -3344,8 +3375,12 @@ class _MemberTile extends StatelessWidget {
     final guardians = member.role == OrgRole.child
         ? allMembers.where((m) => member.guardianUids.contains(m.uid)).toList()
         : <OrgMember>[];
+    final needsGuardian = _childNeedsGuardian(member, allMembers);
+    final canAssignGuardian = isAdmin ||
+        allMembers.where((m) => m.uid == currentUid).firstOrNull?.role ==
+            OrgRole.moderator;
     return ListTile(
-      isThreeLine: guardians.isNotEmpty,
+      isThreeLine: guardians.isNotEmpty || needsGuardian,
       leading: UserAvatar(
         photoUrl: member.photoUrl,
         fallbackText: initialsFor(member.displayName),
@@ -3373,6 +3408,24 @@ class _MemberTile extends StatelessWidget {
                   child: Text(
                     guardians.map((g) => g.displayName).join(', '),
                     style: TextStyle(fontSize: 11, color: Colors.amber[800]),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          if (needsGuardian)
+            Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded,
+                    size: 12, color: Colors.red),
+                const SizedBox(width: 3),
+                Expanded(
+                  child: Text(
+                    l.childWithoutGuardian,
+                    style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -3424,7 +3477,10 @@ class _MemberTile extends StatelessWidget {
             ),
         ],
       ),
-      onTap: null,
+      // Kind ohne Guardian: Tippen öffnet direkt die Guardian-Auswahl.
+      onTap: needsGuardian && canAssignGuardian
+          ? () => _showGuardiansDialog(context)
+          : null,
     );
   }
 

@@ -133,9 +133,17 @@ async function setupUsers() {
   await str(COL.USERS,  'membershipsJson',         65535);
   await str(COL.USERS,  'notificationSettingsJson', 1024);
   await str(COL.USERS,  'fcmToken',                 512);
+  // Kontolöschung (Function delete-account): 'deleting' während des Laufs,
+  // 'blocked' wenn eine Sperre nachträglich griff. deletionRunAt = Start des
+  // letzten Laufs (Schedule setzt erst nach 15 min ohne Lauf fort).
+  await str(COL.USERS,  'deletionStatus',           20);
+  await dt(COL.USERS,   'deletionRequestedAt');
+  await dt(COL.USERS,   'deletionRunAt');
   // Indexes
   await idx(COL.USERS, 'email_idx',      'key',      ['email']);
   await idx(COL.USERS, 'isChild_idx',    'key',      ['isChild']);
+  // Nötig für delete-account (Schedule): listDocuments(deletionStatus = 'deleting')
+  await idx(COL.USERS, 'deletionStatus_idx', 'key',  ['deletionStatus']);
 }
 
 async function setupOrganizations() {
@@ -293,6 +301,8 @@ async function setupPolls() {
   await idx(COL.POLLS, 'expiresAt_idx', 'key', ['expiresAt']);
   // Nötig für cleanup-old-messages: listDocuments(orgId, createdAt < cutoff)
   await idx(COL.POLLS, 'orgId_createdAt_idx', 'key', ['orgId', 'createdAt'], ['ASC', 'ASC']);
+  // Nötig für delete-account: eigene Umfragen per createdBy finden
+  await idx(COL.POLLS, 'createdBy_idx', 'key', ['createdBy']);
 }
 
 async function setupClaimRequests() {

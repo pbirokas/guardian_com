@@ -671,7 +671,7 @@ abstract class AppLocalizations {
   /// No description provided for @deleteAccountConfirmContent.
   ///
   /// In de, this message translates to:
-  /// **'Möchtest du dein Konto wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.'**
+  /// **'Möchtest du dein Konto wirklich löschen? Das kann nicht rückgängig gemacht werden.\n\n• Profil, Mitgliedschaften und Einstellungen werden gelöscht.\n• Deine 1:1-Chats werden komplett gelöscht – auch für dein Gegenüber.\n• In Gruppen bleiben deine Nachrichten als „Nachricht gelöscht“ von „Gelöschter Nutzer“ stehen, ohne Text, Bilder oder Dateien.\n• Organisationen, in denen du allein bist, werden gelöscht.'**
   String get deleteAccountConfirmContent;
 
   /// No description provided for @deleteAccountBlockedTitle.
@@ -691,6 +691,72 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Du hast noch aktive Verknüpfungen mit Kindern. Bitte hebe zuerst alle Verbindungen unter \"Meine Verknüpfungen\" auf.'**
   String get deleteAccountBlockedParent;
+
+  /// No description provided for @deleteAccountBlockedOrgAdmin.
+  ///
+  /// In de, this message translates to:
+  /// **'Du bist Admin von Organisationen mit weiteren Mitgliedern. Übertrage dort zuerst die Admin-Rolle an ein anderes Mitglied oder lösche die Organisation.'**
+  String get deleteAccountBlockedOrgAdmin;
+
+  /// No description provided for @deleteAccountBlockedRetry.
+  ///
+  /// In de, this message translates to:
+  /// **'Dein Konto kann gerade nicht gelöscht werden – inzwischen gibt es eine Sperre (z. B. ein neues Mitglied in deiner Organisation). Bitte versuche es erneut.'**
+  String get deleteAccountBlockedRetry;
+
+  /// No description provided for @deleteAccountChecking.
+  ///
+  /// In de, this message translates to:
+  /// **'Prüfe…'**
+  String get deleteAccountChecking;
+
+  /// No description provided for @deleteAccountInProgressTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Konto wird gelöscht…'**
+  String get deleteAccountInProgressTitle;
+
+  /// No description provided for @deleteAccountInProgress.
+  ///
+  /// In de, this message translates to:
+  /// **'Deine Daten werden gelöscht. Das kann einige Minuten dauern.'**
+  String get deleteAccountInProgress;
+
+  /// No description provided for @deleteAccountDoneTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Konto gelöscht'**
+  String get deleteAccountDoneTitle;
+
+  /// No description provided for @deleteAccountDone.
+  ///
+  /// In de, this message translates to:
+  /// **'Dein Konto und deine Daten wurden gelöscht.'**
+  String get deleteAccountDone;
+
+  /// No description provided for @deleteAccountBackground.
+  ///
+  /// In de, this message translates to:
+  /// **'Die Löschung läuft auf dem Server weiter und wird automatisch abgeschlossen. Du wirst jetzt abgemeldet.'**
+  String get deleteAccountBackground;
+
+  /// No description provided for @deleteAccountFailed.
+  ///
+  /// In de, this message translates to:
+  /// **'Konto konnte nicht gelöscht werden: {message}'**
+  String deleteAccountFailed(String message);
+
+  /// No description provided for @deletedUser.
+  ///
+  /// In de, this message translates to:
+  /// **'Gelöschter Nutzer'**
+  String get deletedUser;
+
+  /// No description provided for @childWithoutGuardian.
+  ///
+  /// In de, this message translates to:
+  /// **'Kein Guardian – Aktion erforderlich'**
+  String get childWithoutGuardian;
 
   /// No description provided for @notificationsTitle.
   ///

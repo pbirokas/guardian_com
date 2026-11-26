@@ -316,7 +316,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get deleteAccountConfirmContent =>
-      'Möchtest du dein Konto wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.';
+      'Möchtest du dein Konto wirklich löschen? Das kann nicht rückgängig gemacht werden.\n\n• Profil, Mitgliedschaften und Einstellungen werden gelöscht.\n• Deine 1:1-Chats werden komplett gelöscht – auch für dein Gegenüber.\n• In Gruppen bleiben deine Nachrichten als „Nachricht gelöscht“ von „Gelöschter Nutzer“ stehen, ohne Text, Bilder oder Dateien.\n• Organisationen, in denen du allein bist, werden gelöscht.';
 
   @override
   String get deleteAccountBlockedTitle => 'Konto löschen nicht möglich';
@@ -328,6 +328,45 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get deleteAccountBlockedParent =>
       'Du hast noch aktive Verknüpfungen mit Kindern. Bitte hebe zuerst alle Verbindungen unter \"Meine Verknüpfungen\" auf.';
+
+  @override
+  String get deleteAccountBlockedOrgAdmin =>
+      'Du bist Admin von Organisationen mit weiteren Mitgliedern. Übertrage dort zuerst die Admin-Rolle an ein anderes Mitglied oder lösche die Organisation.';
+
+  @override
+  String get deleteAccountBlockedRetry =>
+      'Dein Konto kann gerade nicht gelöscht werden – inzwischen gibt es eine Sperre (z. B. ein neues Mitglied in deiner Organisation). Bitte versuche es erneut.';
+
+  @override
+  String get deleteAccountChecking => 'Prüfe…';
+
+  @override
+  String get deleteAccountInProgressTitle => 'Konto wird gelöscht…';
+
+  @override
+  String get deleteAccountInProgress =>
+      'Deine Daten werden gelöscht. Das kann einige Minuten dauern.';
+
+  @override
+  String get deleteAccountDoneTitle => 'Konto gelöscht';
+
+  @override
+  String get deleteAccountDone => 'Dein Konto und deine Daten wurden gelöscht.';
+
+  @override
+  String get deleteAccountBackground =>
+      'Die Löschung läuft auf dem Server weiter und wird automatisch abgeschlossen. Du wirst jetzt abgemeldet.';
+
+  @override
+  String deleteAccountFailed(String message) {
+    return 'Konto konnte nicht gelöscht werden: $message';
+  }
+
+  @override
+  String get deletedUser => 'Gelöschter Nutzer';
+
+  @override
+  String get childWithoutGuardian => 'Kein Guardian – Aktion erforderlich';
 
   @override
   String get notificationsTitle => 'Benachrichtigungen';

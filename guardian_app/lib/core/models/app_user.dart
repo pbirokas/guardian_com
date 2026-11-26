@@ -47,6 +47,10 @@ class AppUser {
   /// E-Mail vor anderen Mitgliedern verstecken (nur UI-Ebene).
   final bool hideEmail;
 
+  /// Kontolöschung (Function `delete-account`): 'deleting' während des
+  /// serverseitigen Laufs, 'blocked' wenn eine Sperre nachträglich griff.
+  final String? deletionStatus;
+
   const AppUser({
     required this.uid,
     required this.email,
@@ -58,6 +62,7 @@ class AppUser {
     this.verifiedParentUids = const [],
     this.verifiedChildUids = const [],
     this.hideEmail = false,
+    this.deletionStatus,
   });
 
   bool get hasVerifiedParents => verifiedParentUids.isNotEmpty;
@@ -80,6 +85,7 @@ class AppUser {
       verifiedChildUids:
           List<String>.from(data['verifiedChildUids'] as List? ?? []),
       hideEmail: data['hideEmail'] as bool? ?? false,
+      deletionStatus: data['deletionStatus'] as String?,
     );
   }
 

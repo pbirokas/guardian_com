@@ -85,9 +85,19 @@ module.exports = async ({ req, res, log, error }) => {
 </html>`;
 
       try {
+        // Port 587 (STARTTLS) statt `service: 'gmail'` (= 465): Hetzner sperrt
+        // ausgehend 25/465 für Cloud-Server → die Verbindung hing bis zum
+        // Function-Timeout, ohne Log (2026-11-26). Kurze Timeouts, damit ein
+        // Fehler im Log landet statt eines stummen Timeouts.
         const transporter = nodemailer.createTransport({
-          service: 'gmail',
+          host: 'smtp.gmail.com',
+          port: 587,
+          secure: false,
+          requireTLS: true,
           auth: { user: 'savespacedev@gmail.com', pass: gmailPassword },
+          connectionTimeout: 8000,
+          greetingTimeout: 8000,
+          socketTimeout: 12000,
         });
         await transporter.sendMail({
           from: '"Guardian Com" <savespacedev@gmail.com>',

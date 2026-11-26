@@ -54,6 +54,15 @@ Aus `appwrite/`:
    node fix-permissions.js --only=invitations,org_invite_consents,organizations --confirm=<projectId>
    ```
 
+## Live-Stand
+
+| Datum | Schritt | Ergebnis |
+|---|---|---|
+| 2026-11-26 | 1 Functions | alle 7 aktiv: process-my-invitations `6b0821a53e03516e400a`, on-parent-consent `6b0821b052e7000bf67a`, admin-member-action `6b0821bb59685d942e95`, on-new-message `6b0821c132dd3ec23281`, conversation-action `6b0821cc37bb7b73ce4b`, sync-conversation-permissions `6b0821d20de84c38100d`, sync-supervisor-team `6b0821d7d7410a52c739`. Vorher (Rollback): `6af965ab49658035b9e8`, `6a61cdb01bbb4871ce6a`, `6b07161a3ff9005c30a0`, `6af965c00bff26505a80`, `6af965df83aa5cba8565`, `6b07e339454d40591d2f`, `6af965c0ab645cd52e93` |
+| 2026-11-26 | 2 harden-invites | 0 Docs betroffen (Backup `backups/invites-acl-2026-11-26T12-11-17-717Z.json`) |
+| 2026-11-26 | 3 Collections | `invitations` → `[]`, `org_invite_consents` → `[]`, `organizations` → `[read, update]`; `fix-permissions.js` Dry-Run danach: 0 Abweichungen |
+| – | Tests R1–R8 | offen (Gerät / Wegwerf-Konto) |
+
 ## Tests nach dem Rollout (Gerät / Wegwerf-Konto)
 
 | # | Test | erwartet |

@@ -62,7 +62,8 @@ Aus `appwrite/`:
 | 2026-11-26 | 2 harden-invites | 0 Docs betroffen (Backup `backups/invites-acl-2026-11-26T12-11-17-717Z.json`) |
 | 2026-11-26 | 3 Collections | `invitations` → `[]`, `org_invite_consents` → `[]`, `organizations` → `[read, update]`; `fix-permissions.js` Dry-Run danach: 0 Abweichungen |
 | 2026-11-26 | Nachfix | Kind-Einladung (R2) wurde verworfen: Guardian-Leserechte galten als fremder Ersteller. `process-my-invitations` → `6b08240018842ca6aae8` (Ersteller = einziger Nutzer mit update/delete). Betroffene Einladung `6b082319001aed5ba1c6` wieder auf pending gesetzt; sonst keine betroffen. |
-| – | Tests R1–R8 | offen (Gerät / Wegwerf-Konto) |
+| 2026-11-26 | Tests R1–R6 | ✓ vom Owner bestätigt (Web-App/Geräte) |
+| – | Tests R7–R8 | offen (Wegwerf-Konto, per API) |
 
 ## Tests nach dem Rollout (Gerät / Wegwerf-Konto)
 

@@ -55,7 +55,7 @@ module.exports = async ({ req, res, log, error }) => {
     return res.empty();
   }
 
-  const { convId, orgId, senderUid } = message;
+  const { convId, senderUid } = message;
 
   // Conversation laden
   let conv;
@@ -65,6 +65,10 @@ module.exports = async ({ req, res, log, error }) => {
     error(`Conversation ${convId} error: code=${e.code} msg=${e.message}`);
     return res.empty();
   }
+  // orgId immer aus der Conversation, nie aus der (client-geschriebenen)
+  // Nachricht — sonst umgeht eine falsche orgId Guardian-Alarm und
+  // Keyword-Prüfung (Release-Review 182).
+  const orgId = conv.orgId;
 
   // Absender verifizieren: Nachrichten-ACL muss `read team(convId)` enthalten
   // (ein Client kann nur Rollen granten, die er hat → er war im Conv-Team) und
@@ -79,9 +83,22 @@ module.exports = async ({ req, res, log, error }) => {
     return res.empty();
   }
 
+  // Nachrichten in nicht genehmigten (pending/abgelehnten/archivierten) Chats:
+  // keine Vorschau, keine Pushes — die Genehmigung durch Guardian/Aufsicht
+  // muss vor jedem Inhalt stehen (Release-Review 182, H4).
+  if (conv.status !== 'approved') {
+    log(`Message ${message.$id} in conv ${convId} with status ${conv.status} — no preview/push`);
+    return res.empty();
+  }
+
   // Chatvorschau setzen (früher Client-Update auf die Conversation; die ist
   // jetzt nur noch lesbar). Ältere Nachrichten überschreiben keine neueren.
-  const sentAt = message.sentAt ?? message.$createdAt ?? new Date().toISOString();
+  // sentAt ist ein Client-Feld → höchstens der Server-Zeitpunkt $createdAt,
+  // sonst friert ein Datum in der Zukunft die Vorschau ein.
+  const created = message.$createdAt ?? new Date().toISOString();
+  const sentAt = message.sentAt && new Date(message.sentAt) <= new Date(created)
+    ? message.sentAt
+    : created;
   if (!conv.lastMessageAt || new Date(conv.lastMessageAt) <= new Date(sentAt)) {
     try {
       await db.updateDocument(DB_ID, COL_CONVERSATIONS, convId, {
@@ -92,8 +109,6 @@ module.exports = async ({ req, res, log, error }) => {
       error(`Failed to update lastMessage of ${convId}: ${e.message}`);
     }
   }
-
-  if (conv.status !== 'approved') return res.empty();
 
   const participantUids = conv.participantUids ?? [];
   const recipientUids = participantUids.filter((uid) => uid !== senderUid);
@@ -283,13 +298,12 @@ module.exports = async ({ req, res, log, error }) => {
 
   log(`Keyword "${matchedKeyword}" found in conv ${convId}`);
 
+  // Aufsicht nur aus den Member-Docs (aktive Admins + Moderatoren) — nie aus
+  // org.adminUid, das ist bis Phase 2 client-beschreibbar.
   const alertUids = Object.entries(memberMap)
-    .filter(([uid, data]) => data.role === 'moderator' && uid !== senderUid)
+    .filter(([uid, data]) => (data.role === 'moderator' || data.role === 'admin')
+      && (data.status ?? 'active') === 'active' && uid !== senderUid)
     .map(([uid]) => uid);
-
-  if (org.adminUid && org.adminUid !== senderUid && !alertUids.includes(org.adminUid)) {
-    alertUids.push(org.adminUid);
-  }
   if (alertUids.length === 0) return res.empty();
 
   await sendToUsers(

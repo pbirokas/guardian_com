@@ -10,11 +10,13 @@ const COL_INVITATIONS = 'invitations';
 // Rechte für sich selbst vergeben (`user:<self>`); `inviteByEmail` (API-Key)
 // setzt read/update/delete für den Einladenden. Das Feld `invitedByUid` im
 // Doc ist dagegen frei wählbar und zählt allein NICHT als Nachweis.
-function aclUsers(perms) {
+// Nutzer mit Schreibrechten (update/delete) = Ersteller; reine Leserechte
+// vergibt inviteByEmail zusätzlich an die Guardians.
+function aclUsers(perms, kinds = ['update', 'delete', 'write']) {
   const uids = new Set();
   for (const p of perms ?? []) {
-    const m = /^\w+\("user:([^"/]+)"\)$/.exec(p);
-    if (m) uids.add(m[1]);
+    const m = /^(\w+)\("user:([^"/]+)"\)$/.exec(p);
+    if (m && kinds.includes(m[1])) uids.add(m[2]);
   }
   return [...uids];
 }
@@ -33,7 +35,8 @@ async function activeMember(db, orgId, uid) {
 /**
  * Prüft eine Einladung und liefert die zu vergebende Rolle + Guardians oder
  * `{ reject: <Grund> }`. Regeln (Release-Review 182, K1/H1):
- *  - Einladender = alleiniger `user:`-Eintrag der ACL und = invitedByUid,
+ *  - Einladender = einziger Nutzer mit update/delete in der ACL und =
+ *    invitedByUid (Guardians haben nur read),
  *    LIVE aktiver Admin/Moderator der Org (nie `org.adminUid`).
  *  - Rolle: member | child | moderator (moderator nur, wenn der Einladende
  *    Admin ist); `admin` wird nie über Einladungen vergeben.
@@ -51,6 +54,11 @@ async function vetInvite(db, invite, authUser, userData) {
   if (!invitedByUid || aclOwners.length !== 1 || aclOwners[0] !== invitedByUid) {
     return { reject: `acl owner ${aclOwners.join(',') || '-'} != invitedByUid ${invitedByUid || '-'}` };
   }
+  // Leserechte nur für den Einladenden und die Guardians der Einladung.
+  const guardianSet = new Set(invite.guardianUids ?? []);
+  const strayReaders = aclUsers(invite.$permissions, ['read'])
+    .filter((u) => u !== invitedByUid && !guardianSet.has(u));
+  if (strayReaders.length > 0) return { reject: `unexpected readers ${strayReaders.join(',')}` };
   const inviter = await activeMember(db, orgId, invitedByUid);
   const inviterRole = inviter?.role ?? '';
   if (inviterRole !== 'admin' && inviterRole !== 'moderator') {

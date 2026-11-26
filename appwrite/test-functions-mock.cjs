@@ -430,9 +430,15 @@ const call = async (fn, caller, body, event) => {
   // Kind-Einladung, Konto nach der Einladung angelegt → Kind (pending), Guardians geprüft
   created.X7 = '2026-07-01T00:00:00.000Z'; store.users.X7 = { $id: 'X7', displayName: 'X7' };
   invite('i7', 'M9', { email: 'x7@x.de', role: 'child', invitedByUid: 'M9', guardianUids: ['G9', 'nobody'] });
+  // ACL wie von inviteByEmail: Einladender rwd + Guardian read
+  store.invitations.i7.$permissions.push('read("user:G9")');
   await call(pmi, 'X7', {});
   assert.equal(store.members.o9_X7.role, 'child'); assert.deepEqual(store.members.o9_X7.guardianUids, ['G9']);
   assert.equal(store.users.X7.isChild, true);
+  // fremder Leser in der ACL (kein Guardian) → invalid
+  invite('i9', 'M9', { email: 'x9@x.de', role: 'member', invitedByUid: 'M9' });
+  store.invitations.i9.$permissions.push('read("user:X1")');
+  await call(pmi, 'X9', {}); assert.equal(store.invitations.i9.status, 'invalid');
   // Kind-Konto als Mitglied eingeladen → invalid
   store.users.X8 = { $id: 'X8', isChild: true };
   invite('i8', 'M9', { email: 'x8@x.de', role: 'member', invitedByUid: 'M9' });

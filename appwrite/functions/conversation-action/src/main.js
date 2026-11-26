@@ -398,8 +398,11 @@ async function createConv(db, { orgId, callerId, participantUids, status, name, 
     Query.equal('role', ['admin', 'moderator']),
     Query.limit(200),
   ]);
-  const canApproveUids = [...new Set([org.adminUid, ...mods.documents.map((d) => d.uid)])]
-    .filter(Boolean);
+  // Nur aktive Admins/Moderatoren laut Member-Docs — org.adminUid ist bis
+  // Phase 2 client-beschreibbar (Release-Review 182, K3).
+  const canApproveUids = [...new Set(mods.documents
+    .filter((d) => (d.status ?? 'active') === 'active')
+    .map((d) => d.uid))].filter(Boolean);
   const guardianUids = await computeGuardians(db, orgId, participantUids);
   const now = new Date().toISOString();
 

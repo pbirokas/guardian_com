@@ -24,10 +24,8 @@
  *   node fix-permissions.js --only=polls --confirm=<projectId>   umstellen
  *   node fix-permissions.js --only=polls --rollback --confirm=<projectId>
  *        → Notfall: alte (breite) Rechte aus LEGACY_BEFORE wiederherstellen
- *   node fix-permissions.js --after-app-n --only=conversations,members,users [--confirm=…]
- *        → Collection-`create` entziehen (erst nach App N + minVersionCode)
- *   node fix-permissions.js --phase3 --only=users [--confirm=…]
- *        → Phase 3: users ohne Collection-Rechte (nach App N, mit/nach --after-app-n)
+ *   (--after-app-n / --phase3: seit 2026-11-26 immer aktiv, Flags ohne Wirkung)
+ *   Ohne --rollback fügt das Skript nie Rechte hinzu (sonst --allow-widen).
  *   node fix-permissions.js --bootstrap --confirm=<projectId>
  *        → einmalige Alt-Schritte (Media-Bucket, pendingReportsCount-Attribut)
  *
@@ -92,6 +90,19 @@ const TARGET = {
   claim_requests: { name: 'ClaimRequests', permissions: [C] },
   // Nur mark-as-read (API-Key) schreibt; Doc-ACL read/update/delete user(uid).
   read_receipts: { name: 'ReadReceipts', permissions: [] },
+  // ── Phase 2a (Notfall, Release-Review 182) ──────────────────────────────
+  // Einladungen legt nur noch admin-member-action/inviteByEmail an (App ≥ 167
+  // = minVersionCode); lesen: Einladender + Guardians per Doc-ACL
+  // (harden-invites.js), zurückziehen: Einladender per Doc-ACL.
+  invitations: { name: 'Invitations', permissions: [] },
+  // Eltern-Zustimmungen legt nur inviteByEmail an; Eltern lesen/stimmen per
+  // Doc-ACL zu, der Einladende liest/löscht. Kein Collection-Recht.
+  org_invite_consents: { name: 'OrgInviteConsents', permissions: [] },
+  // Org gründen läuft über self-service, löschen über admin-member-action →
+  // kein create/delete. read + update bleiben bis Phase 2 (die App schreibt
+  // Einstellungen/Keywords/Archiv noch direkt; Functions werten adminUid
+  // nicht mehr als Berechtigung).
+  organizations: { name: 'Organizations', permissions: [R, U] },
 };
 
 // ── Selbst-Eskalations-Härtung: erst NACH App-Release N + minVersionCode ────
@@ -101,7 +112,10 @@ const TARGET = {
 // `members/{fremdeOrg}_{self}` mit `role: "admin"` anlegen (bis dahin fängt
 // das der Guard in sync-supervisor-team ab). `read` auf users/members bleibt
 // bis Phase 2/3 der Collection-Härtung.
-const AFTER_APP_N = args.includes('--after-app-n');
+// Seit 2026-11-26 live (minVersionCode 167) → immer Teil des Solls. Die Flags
+// werden noch akzeptiert, ändern aber nichts mehr — ein Lauf ohne Flags darf
+// den Live-Stand nie wieder lockern (Release-Review 182, H7).
+const AFTER_APP_N = true;
 if (AFTER_APP_N) {
   Object.assign(TARGET, {
     conversations: { name: 'Conversations', permissions: [] },
@@ -115,7 +129,7 @@ if (AFTER_APP_N) {
 // §8). Die App liest fremde users-Docs dann nicht mehr (Functions
 // self-service/listRelatives+sendClaim, admin-member-action/inviteByEmail,
 // Anzeigenamen aus Member-Docs). Doc-ACLs vorher mit harden-users.js prüfen.
-const PHASE3 = args.includes('--phase3');
+const PHASE3 = true; // live seit 2026-11-26, siehe AFTER_APP_N
 if (PHASE3) {
   TARGET.users = { name: 'Users', permissions: [] };
 }
@@ -172,6 +186,13 @@ async function applyCollections() {
       console.log(`= ${id}: bereits ${JSON.stringify(desired)}`);
       continue;
     }
+    // Schutz: ohne --rollback nie Rechte HINZUFÜGEN (das Soll kann veraltet
+    // sein; ein Lauf darf den Live-Stand nur verengen).
+    const widen = desired.filter((p) => !(current.$permissions ?? []).includes(p));
+    if (widen.length && !ROLLBACK && !args.includes('--allow-widen')) {
+      console.log(`! ${id}: Soll würde Rechte hinzufügen ${JSON.stringify(widen)} — übersprungen (nur mit --allow-widen)`);
+      continue;
+    }
     changes++;
     console.log(`~ ${id}`);
     console.log(`    ist:  ${JSON.stringify(current.$permissions)} documentSecurity=${current.documentSecurity}`);
@@ -188,7 +209,7 @@ async function applyCollections() {
   console.log(`\n${changes} Collection(s) ${DRY ? 'würden geändert' : 'geändert'}.`);
   if (DRY && changes) {
     const only = ONLY ? ` --only=${ONLY.join(',')}` : '';
-    console.log(`Ausführen: node fix-permissions.js${only}${AFTER_APP_N ? ' --after-app-n' : ''}${PHASE3 ? ' --phase3' : ''}${ROLLBACK ? ' --rollback' : ''} --confirm=${projectId}`);
+    console.log(`Ausführen: node fix-permissions.js${only}${ROLLBACK ? ' --rollback' : ''} --confirm=${projectId}`);
   }
 }
 

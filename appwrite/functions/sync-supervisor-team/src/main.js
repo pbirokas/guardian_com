@@ -154,9 +154,27 @@ async function orgSupervisors(db, orgId) {
   return result.documents.map((d) => d.uid).filter(Boolean);
 }
 
+// Alle Mitgliedschaften eines Teams (paginiert). Ohne Query liefert Appwrite
+// nur die erste Seite (25) — größere Chat-Teams würden sonst nie bereinigt,
+// entfernte Mitglieder behielten den Lesezugriff (Release-Review 182, H3).
+async function listAllMemberships(teams, teamId) {
+  const all = [];
+  let cursor = null;
+  for (;;) {
+    const queries = [Query.limit(100)];
+    if (cursor) queries.push(Query.cursorAfter(cursor));
+    const page = await teams.listMemberships(teamId, queries);
+    const items = page.memberships ?? [];
+    all.push(...items);
+    if (items.length < 100) break;
+    cursor = items[items.length - 1].$id;
+  }
+  return all;
+}
+
 async function membershipUids(teams, teamId) {
-  const current = await teams.listMemberships(teamId);
-  return (current.memberships ?? []).map((m) => m.userId).filter(Boolean);
+  const current = await listAllMemberships(teams, teamId);
+  return current.map((m) => m.userId).filter(Boolean);
 }
 
 function setsEqual(a, b) {
@@ -179,9 +197,9 @@ async function ensureTeam(teams, teamId, name, log) {
 }
 
 async function reconcileTeamMembers(teams, teamId, desiredUids, log, error) {
-  const current = await teams.listMemberships(teamId);
+  const current = await listAllMemberships(teams, teamId);
   const currentByUid = new Map();
-  for (const m of current.memberships ?? []) {
+  for (const m of current) {
     if (m.userId) currentByUid.set(m.userId, m.$id);
   }
   const desiredSet = new Set(desiredUids);

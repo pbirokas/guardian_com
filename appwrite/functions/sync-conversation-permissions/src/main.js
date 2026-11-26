@@ -154,7 +154,8 @@ async function validateClientCreate(db, conv, creator, members, supervisorUids, 
   let org = null;
   try { org = await db.getDocument(DB_ID, COL_ORGS, conv.orgId); } catch (_) { /* egal */ }
   if (org && conv.orgAdminUid !== org.adminUid) fix.orgAdminUid = org.adminUid;
-  const canApprove = [...new Set([org?.adminUid, ...supervisorUids])].filter(Boolean);
+  // Nur Supervisoren laut Member-Docs, nie org.adminUid (client-beschreibbar).
+  const canApprove = [...new Set(supervisorUids)].filter(Boolean);
   if (!sameSet(canApprove, conv.canApproveUids ?? [])) fix.canApproveUids = canApprove;
 
   if (conv.status === 'approved') {
@@ -243,10 +244,28 @@ async function ensureTeam(teams, teamId, name, log) {
   }
 }
 
+// Alle Mitgliedschaften eines Teams (paginiert). Ohne Query liefert Appwrite
+// nur die erste Seite (25) — größere Chat-Teams würden sonst nie bereinigt,
+// entfernte Mitglieder behielten den Lesezugriff (Release-Review 182, H3).
+async function listAllMemberships(teams, teamId) {
+  const all = [];
+  let cursor = null;
+  for (;;) {
+    const queries = [Query.limit(100)];
+    if (cursor) queries.push(Query.cursorAfter(cursor));
+    const page = await teams.listMemberships(teamId, queries);
+    const items = page.memberships ?? [];
+    all.push(...items);
+    if (items.length < 100) break;
+    cursor = items[items.length - 1].$id;
+  }
+  return all;
+}
+
 async function reconcileTeamMembers(teams, teamId, desiredUids, log, error) {
-  const current = await teams.listMemberships(teamId);
+  const current = await listAllMemberships(teams, teamId);
   const currentByUid = new Map();
-  for (const m of current.memberships ?? []) {
+  for (const m of current) {
     if (m.userId) currentByUid.set(m.userId, m.$id);
   }
   const desiredSet = new Set(desiredUids);

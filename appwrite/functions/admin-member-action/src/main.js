@@ -68,16 +68,14 @@ module.exports = async ({ req, res, log, error }) => {
       // Mitglied existiert vielleicht nicht mehr — kein Fehler
       return res.json({ ok: true, alreadyGone: true });
     }
-    if (action === 'deleteOrg') {
-      // Member-Doc des Admins könnte fehlen (Datenkonsistenz-Problem).
-      // Fallback: Org laden und adminUid direkt prüfen.
-      callerMember = null;
-    } else {
-      return res.json({ error: 'Not a member of this organization' }, 403);
-    }
+    return res.json({ error: 'Not a member of this organization' }, 403);
   }
 
-  const callerRole  = callerMember?.role ?? null;
+  // Rolle nur aus dem LIVE-Member-Doc und nur, wenn es aktiv ist. `org.adminUid`
+  // zählt nie als Nachweis — das Org-Doc ist (bis Phase 2) für alle Nutzer
+  // beschreibbar (Release-Review 182, K3).
+  const callerActive = (callerMember.status ?? 'active') === 'active' && callerMember.uid === callerId;
+  const callerRole  = callerActive ? (callerMember.role ?? null) : null;
   const isAdmin     = callerRole === 'admin';
   const isAdminOrMod = isAdmin || callerRole === 'moderator';
 
@@ -160,6 +158,14 @@ module.exports = async ({ req, res, log, error }) => {
       } catch (_) {
         return res.json({ error: 'Target member not found' }, 404);
       }
+      // Kind-Konten dürfen nie Admin werden; nur aktive Mitglieder.
+      if (newAdminDoc.role === 'child' || (newAdminDoc.status ?? 'active') !== 'active') {
+        return res.json({ error: 'child_account_role_locked' }, 400);
+      }
+      try {
+        const targetUser = await db.getDocument(DB_ID, COL_USERS, targetUid);
+        if (targetUser.isChild) return res.json({ error: 'child_account_role_locked' }, 400);
+      } catch (_) { /* kein users-Doc → kein Kind-Konto bekannt */ }
       const oldTargetRole = newAdminDoc.role;
 
       // Rollen tauschen
@@ -207,7 +213,14 @@ module.exports = async ({ req, res, log, error }) => {
       if (check.error) return res.json({ error: check.error }, 400);
       const { guardianUids } = check;
 
+      // Guardians gibt es nur für Kinder — sonst könnte ein Moderator einem
+      // Erwachsenen eine „Aufsicht“ zuordnen, die dann dessen Chats mitliest
+      // (Release-Review 182, H2).
       const memberId = `${orgId}_${targetUid}`;
+      const targetMember = await db.getDocument(DB_ID, COL_MEMBERS, memberId).catch(() => null);
+      if (!targetMember) return res.json({ error: 'Member not found' }, 404);
+      if (targetMember.role !== 'child') return res.json({ error: 'guardians_only_for_children' }, 400);
+      if (guardianUids.includes(targetUid)) return res.json({ error: 'invalid_guardians' }, 400);
       await db.updateDocument(DB_ID, COL_MEMBERS, memberId, { guardianUids });
 
       log(`updateGuardians: ${targetUid} in ${orgId} by ${callerId}`);
@@ -254,7 +267,9 @@ module.exports = async ({ req, res, log, error }) => {
 
     // ── leaveOrg ─────────────────────────────────────────────────────────────
     case 'leaveOrg': {
-      if (callerRole === 'admin') {
+      // Eigene (auch inaktive) Rolle — hier geht es nur ums Austragen.
+      const ownRole = callerMember.role ?? null;
+      if (ownRole === 'admin') {
         return res.json({
           error: 'Als Admin kannst du die Organisation nicht verlassen. '
                + 'Übertrage zuerst die Admin-Rolle an ein anderes Mitglied.',
@@ -273,26 +288,17 @@ module.exports = async ({ req, res, log, error }) => {
       }
 
       // membershipsJson aktualisieren
-      await removeMembership(db, callerId, orgId, callerRole, log);
+      await removeMembership(db, callerId, orgId, ownRole, log);
 
-      log(`leaveOrg: ${callerId} left ${orgId} (role=${callerRole})`);
+      log(`leaveOrg: ${callerId} left ${orgId} (role=${ownRole})`);
       return res.json({ ok: true });
     }
 
     // ── deleteOrg ────────────────────────────────────────────────────────────
     case 'deleteOrg': {
-      // callerMember kann null sein wenn der Admin-Member-Doc fehlt.
-      // Dann direkt gegen org.adminUid prüfen.
-      let isOrgAdmin = callerMember ? callerMember.role === 'admin' : false;
-      if (!isOrgAdmin) {
-        try {
-          const orgDoc = await db.getDocument(DB_ID, COL_ORGS, orgId);
-          isOrgAdmin = orgDoc.adminUid === callerId;
-        } catch (e) {
-          return res.json({ error: 'Organization not found' }, 404);
-        }
-      }
-      if (!isOrgAdmin) return res.json({ error: 'Only admin can delete the organization' }, 403);
+      // Nur ein aktiver Admin laut Member-Doc. Kein Fallback auf org.adminUid
+      // mehr: das Feld ist client-beschreibbar (Release-Review 182, K3).
+      if (!isAdmin) return res.json({ error: 'Only admin can delete the organization' }, 403);
 
       try {
         // Status markieren, damit das Cleanup-Script halbgelöschte Orgs
@@ -577,10 +583,14 @@ async function inviteByEmail(db, { orgId, callerId, callerMember, payload, isAdm
       status: 'pending',
       createdAt: now.toISOString(),
     }, [
-      // wie bisher beim Client-Anlegen (Default-ACL des Erstellers)
+      // Einladender: lesen, zurückziehen (status cancelled), löschen. Rolle
+      // und E-Mail prüft process-my-invitations trotzdem neu (Release-Review
+      // 182, H1). Guardians lesen die Einladung (Liste „ausstehende
+      // Kind-Einladungen“) — nicht über Collection-Rechte.
       Permission.read(Role.user(callerId)),
       Permission.update(Role.user(callerId)),
       Permission.delete(Role.user(callerId)),
+      ...guardianUids.filter((g) => g !== callerId).map((g) => Permission.read(Role.user(g))),
     ]);
     log(`inviteByEmail: invitation for org ${orgId} by ${callerId}`);
     return [{ ok: true, result: 'invited' }, 200];
@@ -629,8 +639,9 @@ async function inviteByEmail(db, { orgId, callerId, callerMember, payload, isAdm
       createdAt: now.toISOString(),
       expiresAt: new Date(now.getTime() + 7 * 24 * 3600 * 1000).toISOString(),
     }, [
+      // Einladender: lesen + zurückziehen, aber KEIN update — sonst könnte er
+      // `status: approved` selbst setzen (Release-Review 182, K2).
       Permission.read(Role.user(callerId)),
-      Permission.update(Role.user(callerId)),
       Permission.delete(Role.user(callerId)),
       // Eltern stimmen direkt am Doc zu bzw. legen ein Veto ein
       ...parentUids.flatMap((u) => [Permission.read(Role.user(u)), Permission.update(Role.user(u))]),

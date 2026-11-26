@@ -396,4 +396,90 @@ const call = async (fn, caller, body, event) => {
   store.users.K2 = { $id: 'K2', isChild: true, displayName: 'K2', verifiedParentUids: [], deletionRequestedBy: 'P5' };
   assert.equal((await call(da, 'K2', { action: 'start' })).s, 200); assert.equal(store.users.K2.deletionRequestedBy, null);
   console.log('delete-account startForChild OK');
+
+  // ── Release-Review 182: Einladungen, Eltern-Zustimmung, adminUid ─────────
+  const created = {};
+  Users.prototype.get = async (id) => ({ $id: id, email: `${id}@x.de`, $createdAt: created[id] ?? '2026-01-01T00:00:00.000Z' });
+  store.organizations.o9 = { $id: 'o9', adminUid: 'A9', memberUids: ['A9', 'M9', 'G9'] };
+  const mem9 = (uid, role, extra = {}) => ({ $id: `o9_${uid}`, orgId: 'o9', uid, role, status: 'active', guardianUids: [], ...extra });
+  Object.assign(store.members, { o9_A9: mem9('A9', 'admin'), o9_M9: mem9('M9', 'moderator'), o9_G9: mem9('G9', 'member') });
+  store.invitations = {};
+  const pmi = load('process-my-invitations');
+  const invite = (id, owner, data) => {
+    store.invitations[id] = { $id: id, orgId: 'o9', status: 'pending', $createdAt: '2026-06-01T00:00:00.000Z', guardianUids: [], ...data,
+      $permissions: [`read("user:${owner}")`, `update("user:${owner}")`, `delete("user:${owner}")`] };
+  };
+  // K1: selbst angelegte Einladung mit fremdem invitedByUid → invalid, kein Mitglied
+  invite('i1', 'X1', { email: 'x1@x.de', role: 'admin', invitedByUid: 'A9' });
+  await call(pmi, 'X1', {});
+  assert.equal(store.invitations.i1.status, 'invalid'); assert.equal(store.members.o9_X1, undefined);
+  // H1: Moderator schreibt seine Einladung auf admin/moderator um → invalid
+  invite('i2', 'M9', { email: 'x2@x.de', role: 'admin', invitedByUid: 'M9' });
+  await call(pmi, 'X2', {}); assert.equal(store.invitations.i2.status, 'invalid');
+  invite('i3', 'M9', { email: 'x3@x.de', role: 'moderator', invitedByUid: 'M9' });
+  await call(pmi, 'X3', {}); assert.equal(store.invitations.i3.status, 'invalid');
+  // legitim: Admin lädt Moderator ein, Moderator lädt Mitglied ein
+  invite('i4', 'A9', { email: 'x4@x.de', role: 'moderator', invitedByUid: 'A9' });
+  await call(pmi, 'X4', {}); assert.equal(store.members.o9_X4.role, 'moderator');
+  invite('i5', 'M9', { email: 'x5@x.de', role: 'member', invitedByUid: 'M9' });
+  await call(pmi, 'X5', {}); assert.equal(store.members.o9_X5.role, 'member');
+  // Kind-Einladung an ein schon bestehendes Erwachsenen-Konto → invalid, kein isChild
+  store.users.X6 = { $id: 'X6', displayName: 'X6' };
+  invite('i6', 'M9', { email: 'x6@x.de', role: 'child', invitedByUid: 'M9', guardianUids: ['G9'] });
+  await call(pmi, 'X6', {}); assert.equal(store.invitations.i6.status, 'invalid'); assert.notEqual(store.users.X6.isChild, true);
+  // Kind-Einladung, Konto nach der Einladung angelegt → Kind (pending), Guardians geprüft
+  created.X7 = '2026-07-01T00:00:00.000Z'; store.users.X7 = { $id: 'X7', displayName: 'X7' };
+  invite('i7', 'M9', { email: 'x7@x.de', role: 'child', invitedByUid: 'M9', guardianUids: ['G9', 'nobody'] });
+  // ACL wie von inviteByEmail: Einladender rwd + Guardian read
+  store.invitations.i7.$permissions.push('read("user:G9")');
+  await call(pmi, 'X7', {});
+  assert.equal(store.members.o9_X7.role, 'child'); assert.deepEqual(store.members.o9_X7.guardianUids, ['G9']);
+  assert.equal(store.users.X7.isChild, true);
+  // fremder Leser in der ACL (kein Guardian) → invalid
+  invite('i9', 'M9', { email: 'x9@x.de', role: 'member', invitedByUid: 'M9' });
+  store.invitations.i9.$permissions.push('read("user:X1")');
+  await call(pmi, 'X9', {}); assert.equal(store.invitations.i9.status, 'invalid');
+  // Kind-Konto als Mitglied eingeladen → invalid
+  store.users.X8 = { $id: 'X8', isChild: true };
+  invite('i8', 'M9', { email: 'x8@x.de', role: 'member', invitedByUid: 'M9' });
+  await call(pmi, 'X8', {}); assert.equal(store.invitations.i8.status, 'invalid');
+
+  // K2: Eltern-Zustimmung
+  const opc = load('on-parent-consent');
+  store.users.K9 = { $id: 'K9', isChild: true, displayName: 'K9', verifiedParentUids: ['P9'] };
+  store.org_invite_consents = {};
+  const consent = (id, perms, data) => ({ $id: id, childUid: 'K9', orgId: 'o9', invitedByUid: 'M9', proposedGuardianUids: ['G9'],
+    parentUids: ['P9'], status: 'approved', $permissions: perms, ...data });
+  // gefälscht (Client-ACL nur des Angreifers) → kein Mitglied
+  await call(opc, null, consent('c1', ['read("user:X1")', 'update("user:X1")'], { invitedByUid: 'X1', parentUids: ['X1'], approvedBy: 'X1' }));
+  assert.equal(store.members.o9_K9, undefined);
+  // Server-ACL, aber vom Einladenden selbst genehmigt (approvedBy kein Elternteil) → nichts
+  const serverAcl = ['read("user:M9")', 'delete("user:M9")', 'read("user:P9")', 'update("user:P9")'];
+  await call(opc, null, consent('c2', serverAcl, { approvedBy: 'M9' }));
+  assert.equal(store.members.o9_K9, undefined);
+  // alte ACL mit update für den Einladenden → abgelehnt
+  await call(opc, null, consent('c3', [...serverAcl, 'update("user:M9")'], { approvedBy: 'P9' }));
+  assert.equal(store.members.o9_K9, undefined);
+  // echtes Elternteil stimmt zu → Kind-Mitglied ohne E-Mail, nur lesbar
+  await call(opc, null, consent('c4', serverAcl, { approvedBy: 'P9' }));
+  assert.equal(store.members.o9_K9.role, 'child'); assert.equal(store.members.o9_K9.email, '');
+  assert.deepEqual(store.members.o9_K9.guardianUids, ['G9']); assert.deepEqual(store.members.o9_K9.$permissions, ['read("users")']);
+  // inviteByEmail vergibt dem Einladenden kein update mehr auf Zustimmungen
+  const ama9 = load('admin-member-action');
+  store.users.K10 = { $id: 'K10', displayName: 'K10', email: 'k10@x.de', isChild: true, verifiedParentUids: ['P9'] };
+  const before = new Set(Object.keys(store.org_invite_consents));
+  r = await call(ama9, 'M9', { action: 'inviteByEmail', orgId: 'o9', payload: { email: 'k10@x.de', role: 'child', guardianUids: ['G9'] } });
+  assert.equal(r.b.result, 'consentRequested');
+  const c10 = Object.values(store.org_invite_consents).find((c) => !before.has(c.$id));
+  assert.ok(!c10.$permissions.includes('update("user:M9")')); assert.ok(c10.$permissions.includes('update("user:P9")'));
+
+  // K3: adminUid zählt nicht — Mitglied mit gefälschtem adminUid darf nicht löschen
+  store.organizations.o9.adminUid = 'G9';
+  assert.equal((await call(ama9, 'G9', { action: 'deleteOrg', orgId: 'o9' })).s, 403);
+  assert.ok(store.organizations.o9);
+  // H2: Guardians nur für Kinder
+  assert.equal((await call(ama9, 'M9', { action: 'updateGuardians', orgId: 'o9', targetUid: 'X5', payload: { guardianUids: ['G9'] } })).b.error, 'guardians_only_for_children');
+  // transferAdmin nie an ein Kind
+  assert.equal((await call(ama9, 'A9', { action: 'transferAdmin', orgId: 'o9', targetUid: 'K9' })).s, 400);
+  console.log('release-review-182 fixes OK');
 })().catch((e) => { console.error('FAIL', e); process.exit(1); });
